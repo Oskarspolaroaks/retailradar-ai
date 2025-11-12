@@ -36,12 +36,14 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        toast({ title: "Success", description: "Logged in successfully!" });
-        navigate("/dashboard");
+        if (data.session) {
+          toast({ title: "Success", description: "Logged in successfully!" });
+          navigate("/dashboard");
+        }
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -50,8 +52,15 @@ const Auth = () => {
           }
         });
         if (error) throw error;
-        toast({ title: "Success", description: "Account created successfully!" });
-        navigate("/dashboard");
+        if (data.session) {
+          toast({ title: "Success", description: "Account created successfully!" });
+          navigate("/dashboard");
+        } else {
+          toast({ 
+            title: "Check your email", 
+            description: "Please check your email to confirm your account." 
+          });
+        }
       }
     } catch (error: any) {
       toast({
