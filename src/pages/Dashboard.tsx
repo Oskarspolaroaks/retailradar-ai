@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, Package, DollarSign, AlertCircle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { ABCChart } from "@/components/ABCChart";
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -141,6 +142,7 @@ const Dashboard = () => {
 
       {/* Charts */}
       <div className="grid gap-4 md:grid-cols-2">
+        <ABCChart />
         <Card>
           <CardHeader>
             <CardTitle>Revenue Trend</CardTitle>

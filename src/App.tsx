@@ -10,6 +10,7 @@ import Products from "./pages/Products";
 import Recommendations from "./pages/Recommendations";
 import Competitors from "./pages/Competitors";
 import Alerts from "./pages/Alerts";
+import PricingSimulator from "./pages/PricingSimulator";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -29,6 +30,7 @@ const App = () => (
           <Route path="/recommendations" element={<Layout><Recommendations /></Layout>} />
           <Route path="/competitors" element={<Layout><Competitors /></Layout>} />
           <Route path="/alerts" element={<Layout><Alerts /></Layout>} />
+          <Route path="/pricing-simulator" element={<Layout><PricingSimulator /></Layout>} />
           <Route path="/settings" element={<Layout><Settings /></Layout>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
