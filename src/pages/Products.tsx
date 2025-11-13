@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -25,6 +26,8 @@ interface Product {
   current_price: number;
   currency: string;
   status: string;
+  abc_category: string | null;
+  is_private_label: boolean;
 }
 
 const Products = () => {
@@ -32,6 +35,7 @@ const Products = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [abcFilter, setAbcFilter] = useState<string>("");
 
   useEffect(() => {
     fetchProducts();
@@ -61,11 +65,16 @@ const Products = () => {
     return ((currentPrice - costPrice) / currentPrice * 100).toFixed(1);
   };
 
-  const filteredProducts = products.filter((product) =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.brand?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProducts = products.filter((product) => {
+    const matchesSearch = 
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.brand?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesABC = abcFilter === "" || product.abc_category === abcFilter;
+    
+    return matchesSearch && matchesABC;
+  });
 
   return (
     <div className="space-y-6">
@@ -94,7 +103,8 @@ const Products = () => {
           <CardDescription>
             {products.length} products in your catalog
           </CardDescription>
-          <div className="relative mt-4">
+          <div className="flex gap-4 mt-4">
+            <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search products by name, SKU, or brand..."
@@ -102,6 +112,18 @@ const Products = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
             />
+            </div>
+            <Select value={abcFilter} onValueChange={setAbcFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="All ABC Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Categories</SelectItem>
+                <SelectItem value="A">Category A</SelectItem>
+                <SelectItem value="B">Category B</SelectItem>
+                <SelectItem value="C">Category C</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent>
@@ -124,6 +146,7 @@ const Products = () => {
                     <TableHead>Name</TableHead>
                     <TableHead>Brand</TableHead>
                     <TableHead>Category</TableHead>
+                    <TableHead>ABC</TableHead>
                     <TableHead className="text-right">Cost Price</TableHead>
                     <TableHead className="text-right">Current Price</TableHead>
                     <TableHead className="text-right">Margin %</TableHead>
@@ -137,6 +160,19 @@ const Products = () => {
                       <TableCell className="font-medium">{product.name}</TableCell>
                       <TableCell>{product.brand || "-"}</TableCell>
                       <TableCell>{product.category || "-"}</TableCell>
+                      <TableCell>
+                        {product.abc_category ? (
+                          <Badge variant={
+                            product.abc_category === 'A' ? 'default' : 
+                            product.abc_category === 'B' ? 'secondary' : 
+                            'outline'
+                          }>
+                            {product.abc_category}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">N/A</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         {product.currency} {Number(product.cost_price).toFixed(2)}
                       </TableCell>
