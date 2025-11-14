@@ -35,7 +35,7 @@ const Products = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [abcFilter, setAbcFilter] = useState<string>("");
+  const [abcFilter, setAbcFilter] = useState<string>("all");
 
   useEffect(() => {
     fetchProducts();
@@ -71,7 +71,7 @@ const Products = () => {
       product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.brand?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesABC = abcFilter === "" || product.abc_category === abcFilter;
+    const matchesABC = abcFilter === "all" || product.abc_category === abcFilter;
     
     return matchesSearch && matchesABC;
   });
@@ -118,7 +118,7 @@ const Products = () => {
                 <SelectValue placeholder="All ABC Categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Categories</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
                 <SelectItem value="A">Category A</SelectItem>
                 <SelectItem value="B">Category B</SelectItem>
                 <SelectItem value="C">Category C</SelectItem>
