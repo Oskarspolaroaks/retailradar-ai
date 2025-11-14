@@ -42,10 +42,10 @@ const Settings = () => {
   };
 
   const fetchABCSettings = async () => {
-    const { data, error } = await supabase
-      .from("abc_settings")
+    const { data, error } = (await supabase
+      .from("abc_settings" as any)
       .select("*")
-      .single();
+      .single()) as any;
 
     if (error) {
       toast({
@@ -61,15 +61,15 @@ const Settings = () => {
   const updateABCSettings = async () => {
     if (!abcSettings) return;
 
-    const { error } = await supabase
-      .from("abc_settings")
+    const { error } = await (supabase
+      .from("abc_settings" as any)
       .update({
         analysis_period_days: abcSettings.analysis_period_days,
         threshold_a_percent: abcSettings.threshold_a_percent,
         threshold_b_percent: abcSettings.threshold_b_percent,
         threshold_c_percent: abcSettings.threshold_c_percent,
-      })
-      .eq("id", abcSettings.id);
+      } as any)
+      .eq("id", abcSettings.id));
 
     if (error) {
       toast({

@@ -24,7 +24,7 @@ export const ABCChart = () => {
       const { data: products } = await supabase
         .from("products")
         .select("id, abc_category, current_price")
-        .eq("status", "active");
+        .eq("status", "active") as any;
 
       if (!products) return;
 

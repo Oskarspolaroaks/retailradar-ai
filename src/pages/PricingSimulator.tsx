@@ -70,7 +70,7 @@ const PricingSimulator = () => {
     const { data, error } = await supabase
       .from("products")
       .select("*")
-      .order("name");
+      .order("name") as any;
 
     if (error) {
       toast({
