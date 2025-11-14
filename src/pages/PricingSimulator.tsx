@@ -45,7 +45,7 @@ const PricingSimulator = () => {
   const [competitorPrice, setCompetitorPrice] = useState("");
 
   // Batch simulator state
-  const [batchCategory, setBatchCategory] = useState<string>("");
+  const [batchCategory, setBatchCategory] = useState<string>("all");
   const [batchPercent, setBatchPercent] = useState("");
   const [simulationResults, setSimulationResults] = useState<SimulationResult[]>([]);
 
@@ -265,7 +265,7 @@ const PricingSimulator = () => {
     }
 
     let filteredProducts = products;
-    if (batchCategory) {
+    if (batchCategory && batchCategory !== "all") {
       filteredProducts = products.filter((p) => p.abc_category === batchCategory);
     }
 
@@ -365,7 +365,7 @@ const PricingSimulator = () => {
                     <SelectValue placeholder="All products" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All products</SelectItem>
+                    <SelectItem value="all">All products</SelectItem>
                     <SelectItem value="A">Category A</SelectItem>
                     <SelectItem value="B">Category B</SelectItem>
                     <SelectItem value="C">Category C</SelectItem>
