@@ -1,1 +1,10 @@
 project_id = "kmdclnoafohauvblqsop"
+
+[functions.calculate-abc]
+verify_jwt = true
+
+[functions.analyze-promotions]
+verify_jwt = true
+
+[functions.ai-search]
+verify_jwt = true
