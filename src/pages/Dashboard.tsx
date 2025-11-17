@@ -14,7 +14,9 @@ import {
   Search,
   Sparkles,
   BarChart3,
-  Target
+  Target,
+  RefreshCw,
+  Zap
 } from "lucide-react";
 import { 
   BarChart, 
@@ -34,6 +36,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { AISearchBar } from "@/components/AISearchBar";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const Dashboard = () => {
   const { toast } = useToast();
@@ -44,6 +48,8 @@ const Dashboard = () => {
   const [privateLabelFilter, setPrivateLabelFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [categories, setCategories] = useState<string[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(false);
   
   // Data
   const [stats, setStats] = useState({
@@ -69,9 +75,73 @@ const Dashboard = () => {
   const [searching, setSearching] = useState(false);
 
   useEffect(() => {
+    checkAdminStatus();
     fetchDashboardData();
     fetchPromotions();
   }, [dateRange, abcFilter, privateLabelFilter, categoryFilter]);
+
+  const checkAdminStatus = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase.rpc('has_role', {
+        _user_id: user.id,
+        _role: 'admin'
+      });
+      setIsAdmin(data || false);
+    }
+  };
+
+  const recalculateABC = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("calculate-abc", {
+        body: { period_days: parseInt(dateRange) },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: data.message || "ABC categories recalculated",
+      });
+
+      fetchDashboardData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const seedDemoData = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("seed-data");
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Demo data seeded successfully",
+      });
+
+      setTimeout(() => {
+        recalculateABC();
+      }, 1000);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {

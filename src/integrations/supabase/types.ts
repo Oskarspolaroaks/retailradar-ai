@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      abc_settings: {
+        Row: {
+          analysis_period_days: number
+          created_at: string | null
+          id: string
+          last_calculated_at: string | null
+          threshold_a_percent: number
+          threshold_b_percent: number
+          threshold_c_percent: number
+          updated_at: string | null
+        }
+        Insert: {
+          analysis_period_days?: number
+          created_at?: string | null
+          id?: string
+          last_calculated_at?: string | null
+          threshold_a_percent?: number
+          threshold_b_percent?: number
+          threshold_c_percent?: number
+          updated_at?: string | null
+        }
+        Update: {
+          analysis_period_days?: number
+          created_at?: string | null
+          id?: string
+          last_calculated_at?: string | null
+          threshold_a_percent?: number
+          threshold_b_percent?: number
+          threshold_c_percent?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       alerts: {
         Row: {
           alert_type: string
@@ -141,6 +174,65 @@ export type Database = {
           },
         ]
       }
+      competitor_promotions: {
+        Row: {
+          competitor_id: string
+          created_at: string | null
+          description: string | null
+          discount_amount: number | null
+          discount_percent: number | null
+          end_date: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean | null
+          product_category: string | null
+          promotion_name: string
+          slogan: string | null
+          start_date: string
+          updated_at: string | null
+        }
+        Insert: {
+          competitor_id: string
+          created_at?: string | null
+          description?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
+          end_date?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          product_category?: string | null
+          promotion_name: string
+          slogan?: string | null
+          start_date: string
+          updated_at?: string | null
+        }
+        Update: {
+          competitor_id?: string
+          created_at?: string | null
+          description?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
+          end_date?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          product_category?: string | null
+          promotion_name?: string
+          slogan?: string | null
+          start_date?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_promotions_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competitors: {
         Row: {
           country: string | null
@@ -220,6 +312,7 @@ export type Database = {
       }
       products: {
         Row: {
+          abc_category: string | null
           barcode: string | null
           brand: string | null
           category: string | null
@@ -228,6 +321,7 @@ export type Database = {
           currency: string | null
           current_price: number
           id: string
+          is_private_label: boolean | null
           name: string
           sku: string
           status: string | null
@@ -236,6 +330,7 @@ export type Database = {
           vat_rate: number | null
         }
         Insert: {
+          abc_category?: string | null
           barcode?: string | null
           brand?: string | null
           category?: string | null
@@ -244,6 +339,7 @@ export type Database = {
           currency?: string | null
           current_price: number
           id?: string
+          is_private_label?: boolean | null
           name: string
           sku: string
           status?: string | null
@@ -252,6 +348,7 @@ export type Database = {
           vat_rate?: number | null
         }
         Update: {
+          abc_category?: string | null
           barcode?: string | null
           brand?: string | null
           category?: string | null
@@ -260,6 +357,7 @@ export type Database = {
           currency?: string | null
           current_price?: number
           id?: string
+          is_private_label?: boolean | null
           name?: string
           sku?: string
           status?: string | null
