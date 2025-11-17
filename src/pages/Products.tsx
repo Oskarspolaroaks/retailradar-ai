@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AddProductDialog } from "@/components/AddProductDialog";
 
 interface Product {
   id: string;
@@ -90,10 +91,7 @@ const Products = () => {
             <Upload className="h-4 w-4 mr-2" />
             Import CSV
           </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Product
-          </Button>
+          <AddProductDialog onProductAdded={fetchProducts} />
         </div>
       </div>
 
