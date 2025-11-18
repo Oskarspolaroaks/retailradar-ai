@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Calculator, TrendingUp, AlertTriangle, Lightbulb } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { z } from "zod";
 
 interface Product {
   id: string;
@@ -31,6 +32,26 @@ interface SimulationResult {
   price_change: number;
   margin_change: number;
 }
+
+// Validation schemas
+const batchSimulatorSchema = z.object({
+  percent: z.number()
+    .min(-99, "Cannot decrease by more than 99%")
+    .max(500, "Cannot increase by more than 500%")
+    .refine(val => Math.abs(val) >= 0.01, "Change must be at least 0.01%"),
+});
+
+const marginSchema = z.object({
+  margin: z.number()
+    .min(0, "Margin cannot be negative")
+    .max(100, "Margin cannot exceed 100%"),
+});
+
+const priceSchema = z.object({
+  price: z.number()
+    .positive("Price must be positive")
+    .finite("Price must be a valid number"),
+});
 
 const PricingSimulator = () => {
   const { toast } = useToast();
@@ -255,12 +276,18 @@ const PricingSimulator = () => {
 
   const simulateBatchPricing = () => {
     const percent = parseFloat(batchPercent) || 0;
-    if (percent === 0) {
-      toast({
-        title: "Invalid Input",
-        description: "Please enter a valid percentage",
-        variant: "destructive",
-      });
+    
+    // Validate input
+    try {
+      batchSimulatorSchema.parse({ percent });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Invalid Input",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+      }
       return;
     }
 
@@ -290,10 +317,27 @@ const PricingSimulator = () => {
   };
 
   const applyBatchChanges = async () => {
-    if (!isAdmin) {
+    // Verify admin role server-side before proceeding
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to apply changes",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { data: hasAdminRole, error: roleError } = await supabase.rpc('has_role', {
+      _user_id: user.id,
+      _role: 'admin'
+    });
+
+    if (roleError || !hasAdminRole) {
       toast({
         title: "Access Denied",
-        description: "Only admins can apply price changes",
+        description: "Admin privileges required to apply price changes",
         variant: "destructive",
       });
       return;

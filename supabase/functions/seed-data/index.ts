@@ -16,7 +16,42 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log('Deleting existing data...');
+    // Authentication check - require admin role
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      console.error('Auth error:', authError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify admin role
+    const { data: roles, error: roleError } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
+
+    if (roleError || !roles || roles.role !== 'admin') {
+      console.error('Role verification failed:', roleError);
+      return new Response(
+        JSON.stringify({ error: 'Admin access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`Admin user ${user.id} initiated data seeding`);
     
     // Delete existing data in reverse order of dependencies
     await supabase.from('price_recommendations').delete().neq('id', '00000000-0000-0000-0000-000000000000');
