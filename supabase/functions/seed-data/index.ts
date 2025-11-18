@@ -16,6 +16,19 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    console.log('Deleting existing data...');
+    
+    // Delete existing data in reverse order of dependencies
+    await supabase.from('price_recommendations').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('competitor_prices').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('competitor_product_mapping').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('competitor_promotions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('sales').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('products').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('competitors').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    
+    console.log('Existing data deleted. Creating new data...');
+
     // Create competitors
     const competitors = [
       { name: 'MarketLeader Inc', website_url: 'https://marketleader.com', type: 'online', country: 'US' },
@@ -23,10 +36,14 @@ serve(async (req) => {
       { name: 'PriceKing', website_url: 'https://priceking.com', type: 'online', country: 'US' },
     ];
 
-    const { data: competitorData } = await supabase
+    const { data: competitorData, error: competitorError } = await supabase
       .from('competitors')
-      .upsert(competitors, { onConflict: 'name' })
+      .insert(competitors)
       .select();
+
+    if (competitorError) {
+      console.error('Error creating competitors:', competitorError);
+    }
 
     // Create products
     const categories = ['Electronics', 'Home & Garden', 'Sports', 'Fashion'];
@@ -53,10 +70,14 @@ serve(async (req) => {
       });
     }
 
-    const { data: productData } = await supabase
+    const { data: productData, error: productError } = await supabase
       .from('products')
-      .upsert(products, { onConflict: 'sku' })
+      .insert(products)
       .select();
+
+    if (productError) {
+      console.error('Error creating products:', productError);
+    }
 
     // Create sales data for last 6 months
     const salesRecords = [];
@@ -85,7 +106,10 @@ serve(async (req) => {
       }
     }
 
-    await supabase.from('sales').upsert(salesRecords);
+    const { error: salesError } = await supabase.from('sales').insert(salesRecords);
+    if (salesError) {
+      console.error('Error creating sales:', salesError);
+    }
 
     // Create competitor prices
     const competitorPrices = [];
@@ -93,15 +117,20 @@ serve(async (req) => {
     for (const product of productData || []) {
       for (const competitor of competitorData || []) {
         // Create mapping
-        const { data: mapping } = await supabase
+        const { data: mapping, error: mappingError } = await supabase
           .from('competitor_product_mapping')
-          .upsert({
+          .insert({
             product_id: product.id,
             competitor_id: competitor.id,
             competitor_sku: `COMP-${product.sku}`,
-          }, { onConflict: 'product_id,competitor_id' })
+          })
           .select()
           .single();
+
+        if (mappingError) {
+          console.error('Error creating mapping:', mappingError);
+          continue;
+        }
 
         if (mapping) {
           // Add price history
@@ -124,7 +153,10 @@ serve(async (req) => {
       }
     }
 
-    await supabase.from('competitor_prices').upsert(competitorPrices);
+    const { error: pricesError } = await supabase.from('competitor_prices').insert(competitorPrices);
+    if (pricesError) {
+      console.error('Error creating competitor prices:', pricesError);
+    }
 
     // Create competitor promotions
     const promotions = [];
@@ -142,7 +174,10 @@ serve(async (req) => {
       });
     }
 
-    await supabase.from('competitor_promotions').upsert(promotions);
+    const { error: promotionsError } = await supabase.from('competitor_promotions').insert(promotions);
+    if (promotionsError) {
+      console.error('Error creating promotions:', promotionsError);
+    }
 
     // Create price recommendations
     const recommendations = [];
@@ -165,15 +200,21 @@ serve(async (req) => {
       }
     }
 
-    await supabase.from('price_recommendations').upsert(recommendations);
+    const { error: recommendationsError } = await supabase.from('price_recommendations').insert(recommendations);
+    if (recommendationsError) {
+      console.error('Error creating recommendations:', recommendationsError);
+    }
 
     // Initialize ABC settings if not exists
-    await supabase.from('abc_settings').upsert({
+    const { error: settingsError } = await supabase.from('abc_settings').upsert({
       threshold_a_percent: 80,
       threshold_b_percent: 15,
       threshold_c_percent: 5,
       analysis_period_days: 90,
     });
+    if (settingsError) {
+      console.error('Error creating ABC settings:', settingsError);
+    }
 
     return new Response(
       JSON.stringify({ 
