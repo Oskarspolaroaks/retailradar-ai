@@ -47,188 +47,147 @@ export type Database = {
         }
         Relationships: []
       }
-      alerts: {
+      categories: {
         Row: {
-          alert_type: string
-          created_at: string | null
+          created_at: string
           id: string
-          is_read: boolean | null
-          message: string
-          product_id: string | null
-          severity: string | null
+          name: string
+          parent_id: string | null
+          tenant_id: string
         }
         Insert: {
-          alert_type: string
-          created_at?: string | null
+          created_at?: string
           id?: string
-          is_read?: boolean | null
-          message: string
-          product_id?: string | null
-          severity?: string | null
+          name: string
+          parent_id?: string | null
+          tenant_id: string
         }
         Update: {
-          alert_type?: string
-          created_at?: string | null
+          created_at?: string
           id?: string
-          is_read?: boolean | null
-          message?: string
-          product_id?: string | null
-          severity?: string | null
+          name?: string
+          parent_id?: string | null
+          tenant_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "alerts_product_id_fkey"
-            columns: ["product_id"]
+            foreignKeyName: "categories_parent_id_fkey"
+            columns: ["parent_id"]
             isOneToOne: false
-            referencedRelation: "products"
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
       }
-      competitor_prices: {
+      competitor_price_history: {
         Row: {
-          competitor_price: number
-          created_at: string | null
-          currency: string | null
+          competitor_product_id: string
+          created_at: string
           date: string
           id: string
-          in_stock: boolean | null
-          is_on_promo: boolean | null
-          mapping_id: string
-          source: string | null
+          note: string | null
+          price: number
+          promo_flag: boolean | null
+          tenant_id: string
         }
         Insert: {
-          competitor_price: number
-          created_at?: string | null
-          currency?: string | null
+          competitor_product_id: string
+          created_at?: string
           date: string
           id?: string
-          in_stock?: boolean | null
-          is_on_promo?: boolean | null
-          mapping_id: string
-          source?: string | null
+          note?: string | null
+          price: number
+          promo_flag?: boolean | null
+          tenant_id: string
         }
         Update: {
-          competitor_price?: number
-          created_at?: string | null
-          currency?: string | null
+          competitor_product_id?: string
+          created_at?: string
           date?: string
           id?: string
-          in_stock?: boolean | null
-          is_on_promo?: boolean | null
-          mapping_id?: string
-          source?: string | null
+          note?: string | null
+          price?: number
+          promo_flag?: boolean | null
+          tenant_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "competitor_prices_mapping_id_fkey"
-            columns: ["mapping_id"]
+            foreignKeyName: "competitor_price_history_competitor_product_id_fkey"
+            columns: ["competitor_product_id"]
             isOneToOne: false
-            referencedRelation: "competitor_product_mapping"
+            referencedRelation: "competitor_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_price_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
       }
-      competitor_product_mapping: {
+      competitor_products: {
         Row: {
+          barcode: string | null
+          category_hint: string | null
           competitor_id: string
-          competitor_name_override: string | null
+          competitor_name: string
           competitor_sku: string | null
-          created_at: string | null
+          created_at: string
           id: string
-          product_id: string
-          updated_at: string | null
+          our_product_id: string | null
+          tenant_id: string
         }
         Insert: {
+          barcode?: string | null
+          category_hint?: string | null
           competitor_id: string
-          competitor_name_override?: string | null
+          competitor_name: string
           competitor_sku?: string | null
-          created_at?: string | null
+          created_at?: string
           id?: string
-          product_id: string
-          updated_at?: string | null
+          our_product_id?: string | null
+          tenant_id: string
         }
         Update: {
+          barcode?: string | null
+          category_hint?: string | null
           competitor_id?: string
-          competitor_name_override?: string | null
+          competitor_name?: string
           competitor_sku?: string | null
-          created_at?: string | null
+          created_at?: string
           id?: string
-          product_id?: string
-          updated_at?: string | null
+          our_product_id?: string | null
+          tenant_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "competitor_product_mapping_competitor_id_fkey"
+            foreignKeyName: "competitor_products_competitor_id_fkey"
             columns: ["competitor_id"]
             isOneToOne: false
             referencedRelation: "competitors"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "competitor_product_mapping_product_id_fkey"
-            columns: ["product_id"]
+            foreignKeyName: "competitor_products_our_product_id_fkey"
+            columns: ["our_product_id"]
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      competitor_promotions: {
-        Row: {
-          competitor_id: string
-          created_at: string | null
-          description: string | null
-          discount_amount: number | null
-          discount_percent: number | null
-          end_date: string | null
-          id: string
-          image_url: string | null
-          is_active: boolean | null
-          product_category: string | null
-          promotion_name: string
-          slogan: string | null
-          start_date: string
-          updated_at: string | null
-        }
-        Insert: {
-          competitor_id: string
-          created_at?: string | null
-          description?: string | null
-          discount_amount?: number | null
-          discount_percent?: number | null
-          end_date?: string | null
-          id?: string
-          image_url?: string | null
-          is_active?: boolean | null
-          product_category?: string | null
-          promotion_name: string
-          slogan?: string | null
-          start_date: string
-          updated_at?: string | null
-        }
-        Update: {
-          competitor_id?: string
-          created_at?: string | null
-          description?: string | null
-          discount_amount?: number | null
-          discount_percent?: number | null
-          end_date?: string | null
-          id?: string
-          image_url?: string | null
-          is_active?: boolean | null
-          product_category?: string | null
-          promotion_name?: string
-          slogan?: string | null
-          start_date?: string
-          updated_at?: string | null
-        }
-        Relationships: [
           {
-            foreignKeyName: "competitor_promotions_competitor_id_fkey"
-            columns: ["competitor_id"]
+            foreignKeyName: "competitor_products_tenant_id_fkey"
+            columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "competitors"
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -240,6 +199,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          tenant_id: string | null
           type: string | null
           updated_at: string | null
           website_url: string | null
@@ -250,6 +210,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          tenant_id?: string | null
           type?: string | null
           updated_at?: string | null
           website_url?: string | null
@@ -260,52 +221,478 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          tenant_id?: string | null
           type?: string | null
           updated_at?: string | null
           website_url?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "competitors_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
-      price_recommendations: {
+      import_jobs: {
         Row: {
-          created_at: string | null
-          current_price: number
-          expected_margin_percent: number | null
-          explanation: string | null
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          file_name: string | null
           id: string
-          product_id: string
-          recommendation_type: string | null
-          recommended_price: number
-          status: string | null
+          status: string
+          tenant_id: string
+          type: string
         }
         Insert: {
-          created_at?: string | null
-          current_price: number
-          expected_margin_percent?: number | null
-          explanation?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_name?: string | null
           id?: string
-          product_id: string
-          recommendation_type?: string | null
-          recommended_price: number
-          status?: string | null
+          status?: string
+          tenant_id: string
+          type: string
         }
         Update: {
-          created_at?: string | null
-          current_price?: number
-          expected_margin_percent?: number | null
-          explanation?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_name?: string | null
           id?: string
-          product_id?: string
-          recommendation_type?: string | null
-          recommended_price?: number
-          status?: string | null
+          status?: string
+          tenant_id?: string
+          type?: string
         }
         Relationships: [
           {
-            foreignKeyName: "price_recommendations_product_id_fkey"
+            foreignKeyName: "import_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      insights: {
+        Row: {
+          created_at: string
+          date_from: string | null
+          date_to: string | null
+          description: string | null
+          id: string
+          product_id: string | null
+          promotion_id: string | null
+          severity: string | null
+          store_id: string | null
+          tenant_id: string
+          title: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          description?: string | null
+          id?: string
+          product_id?: string | null
+          promotion_id?: string | null
+          severity?: string | null
+          store_id?: string | null
+          tenant_id: string
+          title: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          description?: string | null
+          id?: string
+          product_id?: string | null
+          promotion_id?: string | null
+          severity?: string | null
+          store_id?: string | null
+          tenant_id?: string
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insights_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "insights_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "insights_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "insights_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leaflet_items: {
+        Row: {
+          created_at: string
+          id: string
+          leaflet_page_id: string
+          note: string | null
+          position_on_page: number | null
+          product_id: string
+          promotion_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          leaflet_page_id: string
+          note?: string | null
+          position_on_page?: number | null
+          product_id: string
+          promotion_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          leaflet_page_id?: string
+          note?: string | null
+          position_on_page?: number | null
+          product_id?: string
+          promotion_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leaflet_items_leaflet_page_id_fkey"
+            columns: ["leaflet_page_id"]
+            isOneToOne: false
+            referencedRelation: "leaflet_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leaflet_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leaflet_items_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leaflet_pages: {
+        Row: {
+          created_at: string
+          id: string
+          leaflet_id: string
+          page_number: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          leaflet_id: string
+          page_number: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          leaflet_id?: string
+          page_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leaflet_pages_leaflet_id_fkey"
+            columns: ["leaflet_id"]
+            isOneToOne: false
+            referencedRelation: "leaflets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leaflets: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          period_end: string
+          period_start: string
+          tenant_id: string
+          total_pages: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          period_end: string
+          period_start: string
+          tenant_id: string
+          total_pages?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          period_end?: string
+          period_start?: string
+          tenant_id?: string
+          total_pages?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leaflets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_import_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          file_name: string | null
+          id: string
+          source: string
+          status: string
+          tenant_id: string
+          type: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_name?: string | null
+          id?: string
+          source: string
+          status?: string
+          tenant_id: string
+          type: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_name?: string | null
+          id?: string
+          source?: string
+          status?: string
+          tenant_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_import_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      price_history: {
+        Row: {
+          cost_price: number | null
+          created_at: string
+          id: string
+          product_id: string
+          promo_price: number | null
+          regular_price: number
+          store_id: string | null
+          tenant_id: string
+          valid_from: string
+          valid_to: string | null
+        }
+        Insert: {
+          cost_price?: number | null
+          created_at?: string
+          id?: string
+          product_id: string
+          promo_price?: number | null
+          regular_price: number
+          store_id?: string | null
+          tenant_id: string
+          valid_from: string
+          valid_to?: string | null
+        }
+        Update: {
+          cost_price?: number | null
+          created_at?: string
+          id?: string
+          product_id?: string
+          promo_price?: number | null
+          regular_price?: number
+          store_id?: string | null
+          tenant_id?: string
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_history_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_history_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pricing_recommendations: {
+        Row: {
+          abc_class: string | null
+          category_id: string | null
+          competitor_avg_price: number | null
+          created_at: string
+          current_cost_price: number | null
+          current_price: number
+          id: string
+          product_id: string
+          reasoning: string | null
+          recommended_change_percent: number
+          recommended_price: number
+          status: string | null
+          store_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          abc_class?: string | null
+          category_id?: string | null
+          competitor_avg_price?: number | null
+          created_at?: string
+          current_cost_price?: number | null
+          current_price: number
+          id?: string
+          product_id: string
+          reasoning?: string | null
+          recommended_change_percent: number
+          recommended_price: number
+          status?: string | null
+          store_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          abc_class?: string | null
+          category_id?: string | null
+          competitor_avg_price?: number | null
+          created_at?: string
+          current_cost_price?: number | null
+          current_price?: number
+          id?: string
+          product_id?: string
+          reasoning?: string | null
+          recommended_change_percent?: number
+          recommended_price?: number
+          status?: string | null
+          store_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_recommendations_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_recommendations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_recommendations_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_recommendations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_attributes: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          product_id: string
+          tenant_id: string
+          value: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          product_id: string
+          tenant_id: string
+          value?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          product_id?: string
+          tenant_id?: string
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_attributes_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_attributes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -314,8 +701,10 @@ export type Database = {
         Row: {
           abc_category: string | null
           barcode: string | null
+          base_unit: string | null
           brand: string | null
           category: string | null
+          category_id: string | null
           cost_price: number
           created_at: string | null
           currency: string | null
@@ -326,14 +715,17 @@ export type Database = {
           sku: string
           status: string | null
           subcategory: string | null
+          tenant_id: string | null
           updated_at: string | null
           vat_rate: number | null
         }
         Insert: {
           abc_category?: string | null
           barcode?: string | null
+          base_unit?: string | null
           brand?: string | null
           category?: string | null
+          category_id?: string | null
           cost_price: number
           created_at?: string | null
           currency?: string | null
@@ -344,14 +736,17 @@ export type Database = {
           sku: string
           status?: string | null
           subcategory?: string | null
+          tenant_id?: string | null
           updated_at?: string | null
           vat_rate?: number | null
         }
         Update: {
           abc_category?: string | null
           barcode?: string | null
+          base_unit?: string | null
           brand?: string | null
           category?: string | null
+          category_id?: string | null
           cost_price?: number
           created_at?: string | null
           currency?: string | null
@@ -362,10 +757,26 @@ export type Database = {
           sku?: string
           status?: string | null
           subcategory?: string | null
+          tenant_id?: string | null
           updated_at?: string | null
           vat_rate?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "products_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -394,49 +805,296 @@ export type Database = {
         }
         Relationships: []
       }
-      sales: {
+      promotion_products: {
         Row: {
-          channel: string | null
-          created_at: string | null
-          date: string
-          discounts_applied: number | null
+          created_at: string
+          discount_percent: number | null
           id: string
-          net_revenue: number
           product_id: string
-          promotion_flag: boolean | null
-          quantity_sold: number
+          promo_price: number | null
+          promotion_id: string
+          store_id: string | null
+          tenant_id: string
         }
         Insert: {
-          channel?: string | null
-          created_at?: string | null
-          date: string
-          discounts_applied?: number | null
+          created_at?: string
+          discount_percent?: number | null
           id?: string
-          net_revenue: number
           product_id: string
-          promotion_flag?: boolean | null
-          quantity_sold: number
+          promo_price?: number | null
+          promotion_id: string
+          store_id?: string | null
+          tenant_id: string
         }
         Update: {
-          channel?: string | null
-          created_at?: string | null
-          date?: string
-          discounts_applied?: number | null
+          created_at?: string
+          discount_percent?: number | null
           id?: string
-          net_revenue?: number
           product_id?: string
-          promotion_flag?: boolean | null
-          quantity_sold?: number
+          promo_price?: number | null
+          promotion_id?: string
+          store_id?: string | null
+          tenant_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "sales_product_id_fkey"
+            foreignKeyName: "promotion_products_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "promotion_products_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promotion_products_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promotion_products_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      promotions: {
+        Row: {
+          channel: string | null
+          created_at: string
+          description: string | null
+          end_date: string
+          id: string
+          mechanics: string | null
+          name: string
+          start_date: string
+          tenant_id: string
+        }
+        Insert: {
+          channel?: string | null
+          created_at?: string
+          description?: string | null
+          end_date: string
+          id?: string
+          mechanics?: string | null
+          name: string
+          start_date: string
+          tenant_id: string
+        }
+        Update: {
+          channel?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string
+          id?: string
+          mechanics?: string | null
+          name?: string
+          start_date?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promotions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_daily: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          product_id: string
+          promo_flag: boolean | null
+          promotion_id: string | null
+          regular_price: number | null
+          revenue: number
+          store_id: string
+          tenant_id: string
+          units_sold: number
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          product_id: string
+          promo_flag?: boolean | null
+          promotion_id?: string | null
+          regular_price?: number | null
+          revenue: number
+          store_id: string
+          tenant_id: string
+          units_sold: number
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          product_id?: string
+          promo_flag?: boolean | null
+          promotion_id?: string | null
+          regular_price?: number | null
+          revenue?: number
+          store_id?: string
+          tenant_id?: string
+          units_sold?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_daily_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_daily_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_daily_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_daily_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_levels: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          product_id: string
+          stock_units: number
+          store_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          product_id: string
+          stock_units: number
+          store_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          product_id?: string
+          stock_units?: number
+          store_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_levels_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_levels_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_levels_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stores: {
+        Row: {
+          city: string | null
+          code: string
+          country: string | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          name: string
+          tenant_id: string
+        }
+        Insert: {
+          city?: string | null
+          code: string
+          country?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          tenant_id: string
+        }
+        Update: {
+          city?: string | null
+          code?: string
+          country?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stores_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -459,6 +1117,38 @@ export type Database = {
         }
         Relationships: []
       }
+      user_tenants: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -469,6 +1159,11 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      has_tenant_access: { Args: { _tenant_id: string }; Returns: boolean }
+      has_tenant_role: {
+        Args: { _role: string; _tenant_id: string }
         Returns: boolean
       }
     }
