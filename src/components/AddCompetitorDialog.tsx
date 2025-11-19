@@ -8,10 +8,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { z } from "zod";
 
 interface AddCompetitorDialogProps {
   onCompetitorAdded?: () => void;
 }
+
+const competitorSchema = z.object({
+  name: z.string().min(1, "Competitor name is required").max(200, "Name must be less than 200 characters"),
+  website_url: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
+  type: z.string().max(50, "Type must be less than 50 characters").optional(),
+  country: z.string().max(100, "Country must be less than 100 characters").optional(),
+  notes: z.string().max(1000, "Notes must be less than 1000 characters").optional(),
+});
 
 export const AddCompetitorDialog = ({ onCompetitorAdded }: AddCompetitorDialogProps) => {
   const { toast } = useToast();
@@ -28,6 +37,27 @@ export const AddCompetitorDialog = ({ onCompetitorAdded }: AddCompetitorDialogPr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    // Validate form data
+    try {
+      competitorSchema.parse({
+        name: formData.name,
+        website_url: formData.website_url || undefined,
+        type: formData.type || undefined,
+        country: formData.country || undefined,
+        notes: formData.notes || undefined,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Validation Error",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+    }
 
     try {
       const { error } = await supabase.from("competitors").insert([
