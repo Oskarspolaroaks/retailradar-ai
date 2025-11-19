@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { RefreshCw, Zap } from "lucide-react";
+import { ImportDataDialog } from "@/components/ImportDataDialog";
 
 interface ABCSettings {
   id: string;
@@ -119,11 +120,14 @@ const Settings = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Settings</h1>
-        <p className="text-muted-foreground">
-          Configure your account and application preferences
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Settings</h1>
+          <p className="text-muted-foreground">
+            Configure your account and application preferences
+          </p>
+        </div>
+        <ImportDataDialog />
       </div>
 
       <Card>

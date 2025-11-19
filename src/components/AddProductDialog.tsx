@@ -8,10 +8,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { z } from "zod";
 
 interface AddProductDialogProps {
   onProductAdded?: () => void;
 }
+
+const productSchema = z.object({
+  sku: z.string().min(1, "SKU is required").max(50, "SKU must be less than 50 characters"),
+  name: z.string().min(1, "Product name is required").max(200, "Name must be less than 200 characters"),
+  brand: z.string().max(100, "Brand must be less than 100 characters").optional(),
+  category: z.string().max(100, "Category must be less than 100 characters").optional(),
+  cost_price: z.number().positive("Cost price must be positive"),
+  current_price: z.number().positive("Current price must be positive"),
+  barcode: z.string().max(50, "Barcode must be less than 50 characters").optional(),
+  vat_rate: z.number().min(0, "VAT rate cannot be negative").max(100, "VAT rate cannot exceed 100%"),
+});
 
 export const AddProductDialog = ({ onProductAdded }: AddProductDialogProps) => {
   const { toast } = useToast();
@@ -33,6 +45,30 @@ export const AddProductDialog = ({ onProductAdded }: AddProductDialogProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    // Validate form data
+    try {
+      productSchema.parse({
+        sku: formData.sku,
+        name: formData.name,
+        brand: formData.brand || undefined,
+        category: formData.category || undefined,
+        cost_price: parseFloat(formData.cost_price),
+        current_price: parseFloat(formData.current_price),
+        barcode: formData.barcode || undefined,
+        vat_rate: parseFloat(formData.vat_rate),
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Validation Error",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+    }
 
     try {
       const { error } = await supabase.from("products").insert([
