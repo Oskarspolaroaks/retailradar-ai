@@ -290,6 +290,59 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
     }
   };
 
+  const downloadTemplate = () => {
+    let headers: string[] = [];
+    let sampleData: any[][] = [];
+
+    switch (importType) {
+      case 'products':
+        headers = ['SKU', 'Name', 'Brand', 'Category', 'Subcategory', 'Cost Price', 'Current Price', 'Currency', 'Barcode', 'VAT Rate', 'Private Label'];
+        sampleData = [
+          ['PROD001', 'Wireless Mouse', 'TechBrand', 'Electronics', 'Accessories', 15.00, 29.99, 'EUR', '1234567890123', 21, 'No'],
+          ['PROD002', 'USB Cable 2m', 'TechBrand', 'Electronics', 'Cables', 2.50, 9.99, 'EUR', '1234567890124', 21, 'Yes']
+        ];
+        break;
+      case 'sales':
+        headers = ['SKU', 'Date', 'Quantity Sold', 'Net Revenue', 'Channel', 'Discounts', 'Promotion'];
+        sampleData = [
+          ['PROD001', '2024-01-15', 5, 149.95, 'online', 0, 'No'],
+          ['PROD002', '2024-01-15', 12, 119.88, 'store', 10.00, 'Yes']
+        ];
+        break;
+      case 'competitors':
+        headers = ['Name', 'Website', 'Type', 'Country', 'Notes'];
+        sampleData = [
+          ['TechStore Online', 'https://techstore.com', 'online', 'Latvia', 'Main competitor in electronics'],
+          ['Local Electronics', 'https://localelectronics.lv', 'hybrid', 'Latvia', 'Physical stores + online']
+        ];
+        break;
+      case 'competitor_prices':
+        headers = ['Competitor', 'SKU', 'Date', 'Price', 'Currency', 'Promo', 'In Stock'];
+        sampleData = [
+          ['TechStore Online', 'PROD001', '2024-01-15', 27.99, 'EUR', 'No', 'Yes'],
+          ['Local Electronics', 'PROD001', '2024-01-15', 32.99, 'EUR', 'Yes', 'Yes']
+        ];
+        break;
+    }
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    const wsData = [headers, ...sampleData];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+
+    // Generate file and download
+    const fileName = `${importType}_template.xlsx`;
+    XLSX.writeFile(wb, fileName);
+
+    toast({
+      title: "Template Downloaded",
+      description: `Sample template for ${importType} has been downloaded`,
+    });
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -325,11 +378,23 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
           <Alert>
             <FileSpreadsheet className="h-4 w-4" />
             <AlertDescription>
-              <div className="text-sm space-y-1">
-                <p className="font-semibold">Required columns:</p>
-                <p className="text-xs">{getTemplateInfo().columns}</p>
-                <p className="font-semibold mt-2">Example:</p>
-                <p className="text-xs">{getTemplateInfo().example}</p>
+              <div className="text-sm space-y-2">
+                <div>
+                  <p className="font-semibold">Required columns:</p>
+                  <p className="text-xs">{getTemplateInfo().columns}</p>
+                  <p className="font-semibold mt-2">Example:</p>
+                  <p className="text-xs">{getTemplateInfo().example}</p>
+                </div>
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  size="sm" 
+                  onClick={downloadTemplate}
+                  className="w-full"
+                >
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Download Sample Template
+                </Button>
               </div>
             </AlertDescription>
           </Alert>
