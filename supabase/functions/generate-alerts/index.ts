@@ -19,23 +19,52 @@ serve(async (req) => {
 
     console.log('Generating alerts...');
 
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const alerts = [];
     const targetMargin = 25; // Default target
 
     // Get products
     const { data: products } = await supabase
       .from('products')
-      .select('id, sku, name, cost_price, current_price, abc_category')
+      .select('id, sku, name, cost_price, current_price, abc_category, tenant_id')
       .eq('status', 'active');
 
     if (!products) {
       throw new Error('No products found');
     }
 
-    // Check for low margin alerts
+    // Get competitor price data for comparison
+    const { data: competitorPrices } = await supabase
+      .from('competitor_price_history')
+      .select(`
+        *,
+        competitor_products!inner(
+          our_product_id,
+          competitor_name,
+          competitors(name)
+        )
+      `);
+
+    // Build competitor price map by product
+    const competitorPriceMap = new Map<string, any[]>();
+    (competitorPrices || []).forEach((cp: any) => {
+      const productId = cp.competitor_products?.our_product_id;
+      if (productId) {
+        if (!competitorPriceMap.has(productId)) {
+          competitorPriceMap.set(productId, []);
+        }
+        competitorPriceMap.get(productId)!.push(cp);
+      }
+    });
+
+    // Check for low margin and competitor pricing alerts
     for (const product of products) {
       const margin = ((Number(product.current_price) - Number(product.cost_price)) / Number(product.current_price)) * 100;
       
+      // Low margin alert
       if (margin < targetMargin - 10) {
         alerts.push({
           type: 'low_margin',
@@ -43,7 +72,41 @@ serve(async (req) => {
           description: `Product ${product.sku} has only ${margin.toFixed(1)}% margin, well below the ${targetMargin}% target.`,
           severity: 'warning',
           product_id: product.id,
+          tenant_id: product.tenant_id,
         });
+      }
+
+      // Competitor pricing alerts
+      const compPrices = competitorPriceMap.get(product.id) || [];
+      if (compPrices.length > 0) {
+        const avgCompPrice = compPrices.reduce((sum, cp) => sum + Number(cp.price), 0) / compPrices.length;
+        const priceGapVsAvg = ((Number(product.current_price) - avgCompPrice) / avgCompPrice) * 100;
+
+        // Alert: We're 15%+ more expensive than competitor average
+        if (priceGapVsAvg > 15) {
+          alerts.push({
+            type: 'competitor_pricing',
+            title: `Overpriced vs Market: ${product.name}`,
+            description: `Our price (€${product.current_price}) is ${priceGapVsAvg.toFixed(0)}% above competitor average (€${avgCompPrice.toFixed(2)})`,
+            severity: 'warning',
+            product_id: product.id,
+            tenant_id: product.tenant_id,
+          });
+        }
+
+        // Alert: Competitor has promotion running
+        const competitorPromo = compPrices.find(cp => cp.promo_flag);
+        if (competitorPromo && Number(product.current_price) > Number(competitorPromo.price)) {
+          const compName = competitorPromo.competitor_products?.competitors?.name || 'Competitor';
+          alerts.push({
+            type: 'competitor_promo',
+            title: `Competitor Promotion Active: ${product.name}`,
+            description: `${compName} has promotion at €${competitorPromo.price}. Our price: €${product.current_price}`,
+            severity: 'info',
+            product_id: product.id,
+            tenant_id: product.tenant_id,
+          });
+        }
       }
     }
 
@@ -102,12 +165,14 @@ serve(async (req) => {
           const productName = compProd?.competitor_products?.competitor_name || 'product';
           const productId = compProd?.competitor_products?.our_product_id || null;
           
+          const product = products.find((p: any) => p.id === productId);
           alerts.push({
             type: 'competitor_price_drop',
             title: `Competitor Price Drop Detected`,
             description: `${competitorName} dropped price by ${priceDrop}% on ${productName}`,
             severity: 'info',
             product_id: productId,
+            tenant_id: product?.tenant_id,
           });
         }
       });
