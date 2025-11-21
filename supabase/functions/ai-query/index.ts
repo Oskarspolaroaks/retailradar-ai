@@ -61,6 +61,41 @@ serve(async (req) => {
       revenue: salesByProduct.get(p.id)?.revenue || 0,
     })) || [];
 
+    // Get competitor price data
+    const { data: competitorPrices } = await supabase
+      .from('competitor_price_history')
+      .select(`
+        *,
+        competitor_products!inner(
+          our_product_id,
+          competitor_name,
+          competitors(name)
+        )
+      `)
+      .gte('date', dateStr)
+      .order('date', { ascending: false });
+
+    // Build competitor summary by product
+    const competitorSummary = new Map<string, any>();
+    competitorPrices?.forEach((cp: any) => {
+      const prodId = cp.competitor_products?.our_product_id;
+      if (prodId && !competitorSummary.has(prodId)) {
+        const product = enrichedProducts.find(p => p.id === prodId);
+        if (product) {
+          competitorSummary.set(prodId, {
+            product_name: product.name,
+            our_price: product.current_price,
+            competitor_name: cp.competitor_products?.competitors?.name || 'Unknown',
+            competitor_price: cp.price,
+            is_promo: cp.promo_flag,
+            date: cp.date,
+          });
+        }
+      }
+    });
+
+    const competitorData = Array.from(competitorSummary.values()).slice(0, 10);
+
     // Use Lovable AI to interpret the query
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -92,6 +127,11 @@ ${enrichedProducts.sort((a, b) => b.revenue - a.revenue).slice(0, 10).map(p =>
   `- ${p.name} (${p.sku}): €${p.revenue.toFixed(2)}, ${p.units_sold} units, ${p.margin}% margin, ABC: ${p.abc_category || 'N/A'}`
 ).join('\n')}
 
+Competitor price samples:
+${competitorData.length > 0 ? competitorData.map(c => 
+  `- ${c.product_name}: Our €${c.our_price} vs ${c.competitor_name} €${c.competitor_price}${c.is_promo ? ' (PROMO)' : ''}`
+).join('\n') : 'No competitor data available'}
+
 ## Output Format
 Every answer must have three parts:
 
@@ -116,8 +156,18 @@ Example:
 - If margin BELOW TARGET with NO competitive pressure → recommend SMALL INCREASE
 - C-class low contribution + strong competition → consider DECREASE/promotion
 - A-class strong volume + good margin → avoid aggressive discounting
+- If competitor has PROMO and our price is higher → consider matching or running counter-promo
+- If competitor dropped price significantly → alert and suggest competitive response
 
-Consider: ABC class importance, target margin, desired market position.
+Consider: ABC class importance, target margin, desired market position, competitor actions.
+
+## Competitor Analysis
+When asked about competitors, you can:
+- Compare our prices vs competitor prices
+- Identify products where competitors are running promotions
+- Find products where we're significantly overpriced
+- Detect recent competitor price changes
+- Recommend competitive responses
 
 ## Tone
 Clear, confident, practical. Focus on actionable insights with specific product names and numbers.`;
