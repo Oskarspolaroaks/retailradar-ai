@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Plus, Search, Link as LinkIcon, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Play, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AddCompetitorDialog } from "@/components/AddCompetitorDialog";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CompetitorPromotionsTab } from "@/components/CompetitorPromotionsTab";
+import { CompetitorMappingTab } from "@/components/CompetitorMappingTab";
 
 interface Competitor {
   id: string;
@@ -17,15 +17,8 @@ interface Competitor {
   website_url: string | null;
   type: string | null;
   country: string | null;
-}
-
-interface MatchResult {
-  competitor_product_id: string;
-  competitor_name: string;
-  similarity_score: number;
-  match_reasons: string[];
-  latest_price: number | null;
-  auto_approve_candidate: boolean;
+  last_catalog_scrape: string | null;
+  last_promo_scrape: string | null;
 }
 
 const Competitors = () => {
@@ -33,12 +26,7 @@ const Competitors = () => {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [scraping, setScraping] = useState(false);
-  const [matching, setMatching] = useState(false);
-  const [selectedCompetitor, setSelectedCompetitor] = useState<string | null>(null);
-  const [scrapingUrl, setScrapingUrl] = useState("");
-  const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
-  const [showMatchDialog, setShowMatchDialog] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<string>("");
+  const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCompetitors();
@@ -64,11 +52,11 @@ const Competitors = () => {
     }
   };
 
-  const handleScrape = async () => {
-    if (!scrapingUrl || !selectedCompetitor) {
+  const handleQuickScrape = async (competitor: Competitor) => {
+    if (!competitor.website_url) {
       toast({
         title: "Error",
-        description: "Please enter a URL and select a competitor",
+        description: "No website URL configured for this competitor",
         variant: "destructive",
       });
       return;
@@ -77,17 +65,20 @@ const Competitors = () => {
     setScraping(true);
     try {
       const { data, error } = await supabase.functions.invoke('scrape-competitor', {
-        body: { url: scrapingUrl, competitor_id: selectedCompetitor },
+        body: { 
+          url: competitor.website_url, 
+          competitor_id: competitor.id 
+        },
       });
 
       if (error) throw error;
 
       toast({
         title: "Success",
-        description: `Scraped ${data.products?.length || 0} products from ${scrapingUrl}`,
+        description: `Scraped ${data.products?.length || 0} products from ${competitor.name}`,
       });
 
-      setScrapingUrl("");
+      fetchCompetitors();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -99,107 +90,88 @@ const Competitors = () => {
     }
   };
 
-  const handleMatch = async () => {
-    if (!selectedProduct) {
-      toast({
-        title: "Error",
-        description: "Please select a product to match",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setMatching(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('match-products', {
-        body: { 
-          product_id: selectedProduct,
-          competitor_id: selectedCompetitor 
-        },
-      });
-
-      if (error) throw error;
-
-      setMatchResults(data.matches || []);
-      setShowMatchDialog(true);
-
-      toast({
-        title: "Success",
-        description: `Found ${data.matches?.length || 0} potential matches`,
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to match products",
-        variant: "destructive",
-      });
-    } finally {
-      setMatching(false);
-    }
-  };
-
-  const handleApproveMapping = async (matchResult: MatchResult) => {
-    try {
-      const { error } = await supabase
-        .from('competitor_products')
-        .update({ 
-          our_product_id: selectedProduct,
-        })
-        .eq('id', matchResult.competitor_product_id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Product mapping approved",
-      });
-
-      setMatchResults(prev => prev.filter(m => m.competitor_product_id !== matchResult.competitor_product_id));
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Competitors</h1>
-          <p className="text-muted-foreground">
-            Track competitor products, prices and promotions
+          <h1 className="text-3xl font-bold">Competitor Intelligence</h1>
+          <p className="text-muted-foreground mt-2">
+            Track competitor products, prices, and promotional campaigns
           </p>
         </div>
         <AddCompetitorDialog onCompetitorAdded={fetchCompetitors} />
       </div>
 
-      <Tabs defaultValue="list" className="space-y-4">
+      <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="list">Competitors</TabsTrigger>
-          <TabsTrigger value="scrape">Scrape Products</TabsTrigger>
-          <TabsTrigger value="match">Match Products</TabsTrigger>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="promotions">Promotions</TabsTrigger>
+          <TabsTrigger value="mappings">Product Mappings</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="list" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Competitors
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{competitors.length}</div>
-            </CardContent>
-          </Card>
+        <TabsContent value="overview" className="space-y-4">
+          {/* Summary Cards */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Total Competitors
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{competitors.length}</div>
+              </CardContent>
+            </Card>
 
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Active Monitoring
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  {competitors.filter(c => c.website_url).length}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  with website URLs
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Last Scrape
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm">
+                  {competitors.some(c => c.last_catalog_scrape)
+                    ? "Daily at 2 AM"
+                    : "Not configured"}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Automated scheduling active
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Competitors Table */}
           <Card>
             <CardHeader>
               <CardTitle>Tracked Competitors</CardTitle>
               <CardDescription>
-                Manage your list of competitors
+                Manage your competitor list and trigger manual scrapes
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -216,6 +188,8 @@ const Competitors = () => {
                       <TableHead>Type</TableHead>
                       <TableHead>Country</TableHead>
                       <TableHead>Website</TableHead>
+                      <TableHead>Last Scrape</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -232,13 +206,48 @@ const Competitors = () => {
                               href={competitor.website_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-primary hover:underline"
+                              className="text-primary hover:underline text-sm"
                             >
                               Visit
                             </a>
                           ) : (
-                            "N/A"
+                            <span className="text-muted-foreground">N/A</span>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          {competitor.last_catalog_scrape ? (
+                            <span className="text-sm text-muted-foreground">
+                              {new Date(competitor.last_catalog_scrape).toLocaleDateString()}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Never</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleQuickScrape(competitor)}
+                              disabled={scraping || !competitor.website_url}
+                            >
+                              {scraping ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <Play className="w-4 h-4 mr-1" />
+                                  Scrape
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setSelectedCompetitorId(competitor.id)}
+                            >
+                              View Details
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -249,202 +258,38 @@ const Competitors = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="scrape" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Scrape Competitor Products</CardTitle>
-              <CardDescription>
-                Extract product and price information from competitor websites
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Select Competitor
-                  </label>
-                  <select
-                    className="w-full p-2 border rounded-md"
-                    value={selectedCompetitor || ""}
-                    onChange={(e) => setSelectedCompetitor(e.target.value)}
-                  >
-                    <option value="">-- Select Competitor --</option>
-                    {competitors.map((comp) => (
-                      <option key={comp.id} value={comp.id}>
-                        {comp.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Product Listing URL
-                  </label>
-                  <Input
-                    placeholder="https://competitor.com/products"
-                    value={scrapingUrl}
-                    onChange={(e) => setScrapingUrl(e.target.value)}
-                  />
-                </div>
-
-                <Button
-                  onClick={handleScrape}
-                  disabled={scraping || !selectedCompetitor || !scrapingUrl}
-                >
-                  {scraping ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Scraping...
-                    </>
-                  ) : (
-                    <>
-                      <LinkIcon className="mr-2 h-4 w-4" />
-                      Scrape Products
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value="promotions">
+          {selectedCompetitorId ? (
+            <CompetitorPromotionsTab competitorId={selectedCompetitorId} />
+          ) : (
+            <Card className="p-8 text-center">
+              <h3 className="font-semibold mb-2">Select a Competitor</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Choose a competitor from the Overview tab to view their promotions
+              </p>
+              <Button onClick={() => setSelectedCompetitorId(competitors[0]?.id || null)}>
+                {competitors.length > 0 ? `View ${competitors[0]?.name} Promotions` : "Add Competitor First"}
+              </Button>
+            </Card>
+          )}
         </TabsContent>
 
-        <TabsContent value="match" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>AI Product Matching</CardTitle>
-              <CardDescription>
-                Find competitor equivalents for your products
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Select Your Product
-                  </label>
-                  <Input
-                    placeholder="Enter product ID or SKU"
-                    value={selectedProduct}
-                    onChange={(e) => setSelectedProduct(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Filter by Competitor (Optional)
-                  </label>
-                  <select
-                    className="w-full p-2 border rounded-md"
-                    value={selectedCompetitor || ""}
-                    onChange={(e) => setSelectedCompetitor(e.target.value)}
-                  >
-                    <option value="">All Competitors</option>
-                    {competitors.map((comp) => (
-                      <option key={comp.id} value={comp.id}>
-                        {comp.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <Button
-                  onClick={handleMatch}
-                  disabled={matching || !selectedProduct}
-                >
-                  {matching ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Matching...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="mr-2 h-4 w-4" />
-                      Find Matches
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value="mappings">
+          {selectedCompetitorId ? (
+            <CompetitorMappingTab competitorId={selectedCompetitorId} />
+          ) : (
+            <Card className="p-8 text-center">
+              <h3 className="font-semibold mb-2">Select a Competitor</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Choose a competitor from the Overview tab to manage product mappings
+              </p>
+              <Button onClick={() => setSelectedCompetitorId(competitors[0]?.id || null)}>
+                {competitors.length > 0 ? `View ${competitors[0]?.name} Mappings` : "Add Competitor First"}
+              </Button>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
-
-      <Dialog open={showMatchDialog} onOpenChange={setShowMatchDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Product Matches</DialogTitle>
-            <DialogDescription>
-              Review and approve competitor product mappings
-            </DialogDescription>
-          </DialogHeader>
-          
-          {matchResults.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No matches found
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Competitor Product</TableHead>
-                  <TableHead>Similarity</TableHead>
-                  <TableHead>Match Reasons</TableHead>
-                  <TableHead>Latest Price</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {matchResults.map((match) => (
-                  <TableRow key={match.competitor_product_id}>
-                    <TableCell className="font-medium">
-                      {match.competitor_name}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={match.similarity_score > 0.8 ? "default" : "secondary"}
-                      >
-                        {(match.similarity_score * 100).toFixed(0)}%
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm text-muted-foreground">
-                        {match.match_reasons.join(", ")}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {match.latest_price ? `€${match.latest_price.toFixed(2)}` : "N/A"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => handleApproveMapping(match)}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setMatchResults(prev => 
-                              prev.filter(m => m.competitor_product_id !== match.competitor_product_id)
-                            );
-                          }}
-                        >
-                          <XCircle className="h-4 w-4 mr-1" />
-                          Reject
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

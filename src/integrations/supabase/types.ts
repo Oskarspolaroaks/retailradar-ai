@@ -134,6 +134,66 @@ export type Database = {
           },
         ]
       }
+      competitor_product_mapping: {
+        Row: {
+          ai_similarity_score: number | null
+          competitor_brand: string | null
+          competitor_id: string | null
+          competitor_product_name: string
+          competitor_product_sku: string | null
+          competitor_product_url: string | null
+          competitor_size: string | null
+          created_at: string
+          id: string
+          mapping_status: string
+          our_product_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          ai_similarity_score?: number | null
+          competitor_brand?: string | null
+          competitor_id?: string | null
+          competitor_product_name: string
+          competitor_product_sku?: string | null
+          competitor_product_url?: string | null
+          competitor_size?: string | null
+          created_at?: string
+          id?: string
+          mapping_status?: string
+          our_product_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ai_similarity_score?: number | null
+          competitor_brand?: string | null
+          competitor_id?: string | null
+          competitor_product_name?: string
+          competitor_product_sku?: string | null
+          competitor_product_url?: string | null
+          competitor_size?: string | null
+          created_at?: string
+          id?: string
+          mapping_status?: string
+          our_product_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_product_mapping_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_product_mapping_our_product_id_fkey"
+            columns: ["our_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competitor_products: {
         Row: {
           barcode: string | null
@@ -192,13 +252,136 @@ export type Database = {
           },
         ]
       }
+      competitor_promotion_items: {
+        Row: {
+          competitor_brand: string | null
+          competitor_product_name: string
+          competitor_product_url: string | null
+          competitor_size: string | null
+          created_at: string
+          currency: string
+          id: string
+          linked_mapping_id: string | null
+          promo_label: string | null
+          promo_price: number
+          promotion_id: string | null
+          regular_price: number | null
+          unit_price: number | null
+          updated_at: string
+        }
+        Insert: {
+          competitor_brand?: string | null
+          competitor_product_name: string
+          competitor_product_url?: string | null
+          competitor_size?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          linked_mapping_id?: string | null
+          promo_label?: string | null
+          promo_price: number
+          promotion_id?: string | null
+          regular_price?: number | null
+          unit_price?: number | null
+          updated_at?: string
+        }
+        Update: {
+          competitor_brand?: string | null
+          competitor_product_name?: string
+          competitor_product_url?: string | null
+          competitor_size?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          linked_mapping_id?: string | null
+          promo_label?: string | null
+          promo_price?: number
+          promotion_id?: string | null
+          regular_price?: number | null
+          unit_price?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_promotion_items_linked_mapping_id_fkey"
+            columns: ["linked_mapping_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_product_mapping"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_promotion_items_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_promotions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitor_promotions: {
+        Row: {
+          competitor_id: string | null
+          created_at: string
+          file_path: string | null
+          id: string
+          items_count: number | null
+          processed: boolean
+          source_type: string
+          source_url: string | null
+          title: string
+          updated_at: string
+          valid_from: string | null
+          valid_to: string | null
+        }
+        Insert: {
+          competitor_id?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          items_count?: number | null
+          processed?: boolean
+          source_type: string
+          source_url?: string | null
+          title: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Update: {
+          competitor_id?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          items_count?: number | null
+          processed?: boolean
+          source_type?: string
+          source_url?: string | null
+          title?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_promotions_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competitors: {
         Row: {
           country: string | null
           created_at: string | null
           id: string
+          last_catalog_scrape: string | null
+          last_promo_scrape: string | null
           name: string
           notes: string | null
+          scraping_enabled: boolean | null
+          scraping_url: string | null
           tenant_id: string | null
           type: string | null
           updated_at: string | null
@@ -208,8 +391,12 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           id?: string
+          last_catalog_scrape?: string | null
+          last_promo_scrape?: string | null
           name: string
           notes?: string | null
+          scraping_enabled?: boolean | null
+          scraping_url?: string | null
           tenant_id?: string | null
           type?: string | null
           updated_at?: string | null
@@ -219,8 +406,12 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           id?: string
+          last_catalog_scrape?: string | null
+          last_promo_scrape?: string | null
           name?: string
           notes?: string | null
+          scraping_enabled?: boolean | null
+          scraping_url?: string | null
           tenant_id?: string | null
           type?: string | null
           updated_at?: string | null
@@ -978,6 +1169,59 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scrape_jobs: {
+        Row: {
+          attempts: number
+          competitor_id: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          job_type: string
+          last_error: string | null
+          matched_products_count: number | null
+          payload: Json
+          scraped_products_count: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          competitor_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          job_type: string
+          last_error?: string | null
+          matched_products_count?: number | null
+          payload?: Json
+          scraped_products_count?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          competitor_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          job_type?: string
+          last_error?: string | null
+          matched_products_count?: number | null
+          payload?: Json
+          scraped_products_count?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scrape_jobs_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
             referencedColumns: ["id"]
           },
         ]
