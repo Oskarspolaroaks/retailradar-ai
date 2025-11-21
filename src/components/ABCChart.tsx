@@ -30,14 +30,14 @@ export const ABCChart = () => {
 
       // Fetch sales data to calculate revenue per category
       const { data: sales } = await supabase
-        .from("sales")
-        .select("product_id, net_revenue");
+        .from("sales_daily")
+        .select("product_id, revenue");
 
       // Create a map of product revenue
       const revenueMap = new Map<string, number>();
       sales?.forEach((sale) => {
         const current = revenueMap.get(sale.product_id) || 0;
-        revenueMap.set(sale.product_id, current + Number(sale.net_revenue));
+        revenueMap.set(sale.product_id, current + Number(sale.revenue));
       });
 
       // Aggregate by ABC category
