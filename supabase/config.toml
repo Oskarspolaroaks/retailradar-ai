@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.match-products]
 verify_jwt = false
+
+[functions.scheduled-scrape]
+verify_jwt = false
