@@ -181,9 +181,9 @@ const Dashboard = () => {
       const { data: salesData } = await supabase
         .from("sales_daily")
         .select("*")
-        .gte("date", dateStr);
+        .gte("date", dateStr) as any;
 
-      const totalRevenue = salesData?.reduce((sum, sale) => sum + Number(sale.revenue), 0) || 0;
+      const totalRevenue = salesData?.reduce((sum: number, sale: any) => sum + Number(sale.revenue), 0) || 0;
 
       // Calculate margins
       const avgMargin = products?.length
@@ -207,9 +207,9 @@ const Dashboard = () => {
             .from("sales_daily")
             .select("revenue")
             .in("product_id", catProducts)
-            .gte("date", dateStr);
+            .gte("date", dateStr) as any;
           
-          const revenue = catSales?.reduce((sum, s) => sum + Number(s.revenue), 0) || 0;
+          const revenue = catSales?.reduce((sum: number, s: any) => sum + Number(s.revenue), 0) || 0;
           return revenue;
         })
       );
@@ -222,7 +222,7 @@ const Dashboard = () => {
 
       // Revenue trend by month
       const monthlyRevenue = new Map<string, number>();
-      salesData?.forEach(sale => {
+      salesData?.forEach((sale: any) => {
         const month = sale.date.substring(0, 7);
         monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + Number(sale.revenue));
       });
