@@ -124,7 +124,7 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
       })
       .filter(Boolean);
 
-    const { error } = await supabase.from('sales_daily').insert(sales);
+    const { error } = await supabase.from('sales_daily').insert(sales as any);
     if (error) throw error;
     return sales.length;
   };
@@ -196,13 +196,13 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
     const mappingsToInsert = Array.from(uniqueMappings.values());
     const { data: insertedMappings } = await supabase
       .from('competitor_products')
-      .upsert(mappingsToInsert, { onConflict: 'competitor_id,our_product_id' })
-      .select('id, competitor_id, our_product_id');
+      .upsert(mappingsToInsert as any, { onConflict: 'competitor_id,our_product_id' })
+      .select('id, competitor_id, our_product_id') as any;
 
     // Now get all mappings and insert prices
     const { data: allMappings } = await supabase
       .from('competitor_products')
-      .select('id, competitor_id, our_product_id');
+      .select('id, competitor_id, our_product_id') as any;
 
     const priceRecords = prices.map((price: any) => {
       const mapping = allMappings?.find(
@@ -219,7 +219,7 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
       };
     }).filter(p => p.competitor_product_id);
 
-    const { error } = await supabase.from('competitor_price_history').insert(priceRecords);
+    const { error } = await supabase.from('competitor_price_history').insert(priceRecords as any);
     if (error) throw error;
     return priceRecords.length;
   };
