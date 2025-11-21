@@ -13,9 +13,10 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Upload } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddProductDialog } from "@/components/AddProductDialog";
+import { ImportDataDialog } from "@/components/ImportDataDialog";
 
 interface Product {
   id: string;
@@ -87,10 +88,7 @@ const Products = () => {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" />
-            Import CSV
-          </Button>
+          <ImportDataDialog onImportComplete={fetchProducts} />
           <AddProductDialog onProductAdded={fetchProducts} />
         </div>
       </div>
