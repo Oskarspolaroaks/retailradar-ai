@@ -29,3 +29,9 @@ verify_jwt = false
 
 [functions.scheduled-scrape]
 verify_jwt = false
+
+[functions.parse-promotion]
+verify_jwt = false
+
+[functions.match-products-batch]
+verify_jwt = false

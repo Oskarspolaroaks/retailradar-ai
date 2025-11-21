@@ -3,23 +3,32 @@
  * Matches our products with competitor products using multiple similarity metrics
  */
 
-interface ProductToMatch {
+export interface OurProduct {
+  id: string;
   name: string;
   brand?: string;
   category?: string;
+  subcategory?: string;
   size?: string;
   volume?: string;
   weight?: string;
+  sku: string;
+  barcode?: string;
+  base_unit?: string;
 }
 
-interface CompetitorProduct {
+export interface CompetitorProduct {
+  id?: string;
   name: string;
   brand?: string;
-  price: number;
+  price?: number;
   promo_price?: number;
   size?: string;
   url?: string;
   in_stock?: boolean;
+  sku?: string;
+  category?: string;
+  barcode?: string;
 }
 
 interface MatchResult {
@@ -27,6 +36,9 @@ interface MatchResult {
   similarity_score: number;
   match_reasons: string[];
 }
+
+// Keep legacy type for backward compatibility
+type ProductToMatch = OurProduct;
 
 /**
  * Calculate Levenshtein distance between two strings
