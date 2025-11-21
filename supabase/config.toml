@@ -1,1 +1,22 @@
 project_id = "kmdclnoafohauvblqsop"
+
+[functions.seed-data]
+verify_jwt = false
+
+[functions.calculate-abc]
+verify_jwt = false
+
+[functions.ai-search]
+verify_jwt = false
+
+[functions.analyze-promotions]
+verify_jwt = false
+
+[functions.generate-recommendations]
+verify_jwt = false
+
+[functions.ai-query]
+verify_jwt = false
+
+[functions.generate-alerts]
+verify_jwt = false

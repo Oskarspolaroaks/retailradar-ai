@@ -312,8 +312,9 @@ const Dashboard = () => {
     if (!aiQuery.trim()) return;
 
     setSearching(true);
+    setAiAnswer(""); // Clear previous answer
     try {
-      const { data, error } = await supabase.functions.invoke('ai-search', {
+      const { data, error } = await supabase.functions.invoke('ai-query', {
         body: { query: aiQuery }
       });
 
@@ -322,9 +323,17 @@ const Dashboard = () => {
       setAiAnswer(data.answer);
     } catch (error: any) {
       console.error("Error with AI search:", error);
+      let errorMessage = error.message || "Failed to process query";
+      
+      if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+        errorMessage = "AI rate limit exceeded. Please try again in a moment.";
+      } else if (error.message?.includes('402') || error.message?.includes('credits')) {
+        errorMessage = "AI credits depleted. Please add funds to continue.";
+      }
+      
       toast({
         title: "Search failed",
-        description: error.message || "Failed to process query",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
