@@ -179,11 +179,11 @@ const Dashboard = () => {
 
       // Fetch sales data
       const { data: salesData } = await supabase
-        .from("sales")
+        .from("sales_daily")
         .select("*")
         .gte("date", dateStr);
 
-      const totalRevenue = salesData?.reduce((sum, sale) => sum + Number(sale.net_revenue), 0) || 0;
+      const totalRevenue = salesData?.reduce((sum, sale) => sum + Number(sale.revenue), 0) || 0;
 
       // Calculate margins
       const avgMargin = products?.length
@@ -204,12 +204,12 @@ const Dashboard = () => {
         ['A', 'B', 'C'].map(async (cat) => {
           const catProducts = products?.filter(p => p.abc_category === cat).map(p => p.id) || [];
           const { data: catSales } = await supabase
-            .from("sales")
-            .select("net_revenue")
+            .from("sales_daily")
+            .select("revenue")
             .in("product_id", catProducts)
             .gte("date", dateStr);
           
-          const revenue = catSales?.reduce((sum, s) => sum + Number(s.net_revenue), 0) || 0;
+          const revenue = catSales?.reduce((sum, s) => sum + Number(s.revenue), 0) || 0;
           return revenue;
         })
       );
@@ -224,7 +224,7 @@ const Dashboard = () => {
       const monthlyRevenue = new Map<string, number>();
       salesData?.forEach(sale => {
         const month = sale.date.substring(0, 7);
-        monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + Number(sale.net_revenue));
+        monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + Number(sale.revenue));
       });
 
       const sortedMonths = Array.from(monthlyRevenue.entries())
@@ -266,17 +266,8 @@ const Dashboard = () => {
 
   const fetchPromotions = async () => {
     try {
-      const { data } = await supabase
-        .from("competitor_promotions")
-        .select(`
-          *,
-          competitors:competitor_id (name, type)
-        `)
-        .eq("is_active", true)
-        .order("start_date", { ascending: false })
-        .limit(10);
-
-      setPromotions(data || []);
+      // Promotions feature temporarily disabled during schema migration
+      setPromotions([]);
     } catch (error) {
       console.error("Error fetching promotions:", error);
     }

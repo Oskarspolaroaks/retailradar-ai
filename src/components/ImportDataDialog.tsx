@@ -88,7 +88,10 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
   };
 
   const importSales = async (data: any[]) => {
-    // First, get all products to map SKUs to IDs
+    // TODO: Get actual tenant_id and store_id from auth context
+    const tempTenantId = '00000000-0000-0000-0000-000000000000';
+    const tempStoreId = '00000000-0000-0000-0000-000000000000';
+    
     const { data: products, error: productsError } = await supabase
       .from('products')
       .select('id, sku');
@@ -108,18 +111,20 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
         }
 
         return {
+          tenant_id: tempTenantId,
+          store_id: tempStoreId,
           product_id: productId,
           date: row.Date || row.date || new Date().toISOString().split('T')[0],
-          quantity_sold: parseInt(row['Quantity Sold'] || row.quantity_sold || row.Quantity || 0),
-          net_revenue: parseFloat(row['Net Revenue'] || row.net_revenue || row.Revenue || 0),
-          channel: row.Channel || row.channel || 'store',
-          discounts_applied: parseFloat(row.Discounts || row.discounts_applied || 0),
-          promotion_flag: row['Promotion'] === 'Yes' || row.promotion_flag === true || false
+          units_sold: parseInt(row['Quantity Sold'] || row.quantity_sold || row.Quantity || 0),
+          revenue: parseFloat(row['Net Revenue'] || row.net_revenue || row.Revenue || 0),
+          regular_price: parseFloat(row['Regular Price'] || row.regular_price || 0),
+          promo_flag: row['Promotion'] === 'Yes' || row.promotion_flag === true || false,
+          promotion_id: null
         };
       })
       .filter(Boolean);
 
-    const { error } = await supabase.from('sales').insert(sales);
+    const { error } = await supabase.from('sales_daily').insert(sales);
     if (error) throw error;
     return sales.length;
   };
@@ -139,7 +144,9 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
   };
 
   const importCompetitorPrices = async (data: any[]) => {
-    // Get competitors and products
+    // TODO: Get actual tenant_id from auth context
+    const tempTenantId = '00000000-0000-0000-0000-000000000000';
+    
     const { data: competitors } = await supabase.from('competitors').select('id, name');
     const { data: products } = await supabase.from('products').select('id, sku');
 
@@ -159,57 +166,60 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
           return null;
         }
 
-        // Find or create mapping
         return {
           competitorId,
           productId,
+          competitorSku: row['Competitor SKU'] || row.competitor_sku || null,
+          competitorName: row['Competitor Product Name'] || row.competitor_name || 'Unknown',
           competitorPrice: parseFloat(row.Price || row.price || 0),
           date: row.Date || row.date || new Date().toISOString().split('T')[0],
-          currency: row.Currency || row.currency || 'EUR',
-          isOnPromo: row['Promo'] === 'Yes' || row.is_on_promo === true || false,
-          inStock: row['In Stock'] !== 'No' && row.in_stock !== false
+          isOnPromo: row['Promo'] === 'Yes' || row.is_on_promo === true || false
         };
       })
       .filter(Boolean);
 
-    // First, create mappings if they don't exist
-    for (const price of prices) {
-      const { data: existingMapping } = await supabase
-        .from('competitor_product_mapping')
-        .select('id')
-        .eq('competitor_id', price.competitorId)
-        .eq('product_id', price.productId)
-        .single();
-
-      if (!existingMapping) {
-        await supabase.from('competitor_product_mapping').insert({
-          competitor_id: price.competitorId,
-          product_id: price.productId
+    // First, ensure competitor_products exist
+    const uniqueMappings = new Map();
+    prices.forEach(p => {
+      const key = `${p.competitorId}-${p.productId}`;
+      if (!uniqueMappings.has(key)) {
+        uniqueMappings.set(key, {
+          tenant_id: tempTenantId,
+          competitor_id: p.competitorId,
+          our_product_id: p.productId,
+          competitor_sku: p.competitorSku,
+          competitor_name: p.competitorName
         });
       }
-    }
+    });
 
-    // Now get mappings and insert prices
-    const { data: mappings } = await supabase
-      .from('competitor_product_mapping')
-      .select('id, competitor_id, product_id');
+    const mappingsToInsert = Array.from(uniqueMappings.values());
+    const { data: insertedMappings } = await supabase
+      .from('competitor_products')
+      .upsert(mappingsToInsert, { onConflict: 'competitor_id,our_product_id' })
+      .select('id, competitor_id, our_product_id');
+
+    // Now get all mappings and insert prices
+    const { data: allMappings } = await supabase
+      .from('competitor_products')
+      .select('id, competitor_id, our_product_id');
 
     const priceRecords = prices.map((price: any) => {
-      const mapping = mappings?.find(
-        m => m.competitor_id === price.competitorId && m.product_id === price.productId
+      const mapping = allMappings?.find(
+        m => m.competitor_id === price.competitorId && m.our_product_id === price.productId
       );
 
       return {
-        mapping_id: mapping?.id,
-        competitor_price: price.competitorPrice,
+        tenant_id: tempTenantId,
+        competitor_product_id: mapping?.id,
         date: price.date,
-        currency: price.currency,
-        is_on_promo: price.isOnPromo,
-        in_stock: price.inStock
+        price: price.competitorPrice,
+        promo_flag: price.isOnPromo,
+        note: null
       };
-    }).filter(p => p.mapping_id);
+    }).filter(p => p.competitor_product_id);
 
-    const { error } = await supabase.from('competitor_prices').insert(priceRecords);
+    const { error } = await supabase.from('competitor_price_history').insert(priceRecords);
     if (error) throw error;
     return priceRecords.length;
   };

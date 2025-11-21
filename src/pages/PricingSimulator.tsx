@@ -123,14 +123,14 @@ const PricingSimulator = () => {
       
       // Try to fetch competitor price
       const { data: competitorData } = await supabase
-        .from("competitor_prices")
-        .select("competitor_price")
+        .from("competitor_price_history")
+        .select("price")
         .order("date", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (competitorData) {
-        setCompetitorPrice(competitorData.competitor_price.toString());
+        setCompetitorPrice(competitorData.price.toString());
       }
     }
   };
