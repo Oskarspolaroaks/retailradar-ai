@@ -22,7 +22,7 @@ serve(async (req) => {
     // Get all active products with their pricing data
     const { data: products, error: productsError } = await supabase
       .from('products')
-      .select('id, sku, name, category, cost_price, current_price, currency, abc_category, is_private_label')
+      .select('id, sku, name, category, cost_price, current_price, currency, abc_category, is_private_label, tenant_id')
       .eq('status', 'active');
 
     if (productsError) throw productsError;
@@ -162,6 +162,7 @@ serve(async (req) => {
 
         recommendations.push({
           product_id: product.id,
+          tenant_id: product.tenant_id,
           current_price: currentPrice,
           current_cost_price: costPrice,
           competitor_avg_price: competitorData?.avg || null,
