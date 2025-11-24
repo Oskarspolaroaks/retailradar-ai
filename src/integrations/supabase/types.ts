@@ -86,6 +86,65 @@ export type Database = {
           },
         ]
       }
+      category_metrics: {
+        Row: {
+          avg_rotation_days: number | null
+          category: string
+          created_at: string
+          id: string
+          period_end: string
+          period_start: string
+          promo_revenue_share: number
+          sku_count: number
+          slow_movers_count: number
+          tenant_id: string
+          total_margin: number
+          total_revenue: number
+          total_units: number
+          updated_at: string
+        }
+        Insert: {
+          avg_rotation_days?: number | null
+          category: string
+          created_at?: string
+          id?: string
+          period_end: string
+          period_start: string
+          promo_revenue_share?: number
+          sku_count?: number
+          slow_movers_count?: number
+          tenant_id: string
+          total_margin?: number
+          total_revenue?: number
+          total_units?: number
+          updated_at?: string
+        }
+        Update: {
+          avg_rotation_days?: number | null
+          category?: string
+          created_at?: string
+          id?: string
+          period_end?: string
+          period_start?: string
+          promo_revenue_share?: number
+          sku_count?: number
+          slow_movers_count?: number
+          tenant_id?: string
+          total_margin?: number
+          total_revenue?: number
+          total_units?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_metrics_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competitor_price_history: {
         Row: {
           competitor_product_id: string
@@ -888,6 +947,60 @@ export type Database = {
           },
         ]
       }
+      product_price_elasticity: {
+        Row: {
+          calculated_at: string
+          confidence: number
+          created_at: string
+          data_points: number
+          elasticity_coefficient: number
+          id: string
+          product_id: string
+          sensitivity_label: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          calculated_at?: string
+          confidence: number
+          created_at?: string
+          data_points: number
+          elasticity_coefficient: number
+          id?: string
+          product_id: string
+          sensitivity_label: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          calculated_at?: string
+          confidence?: number
+          created_at?: string
+          data_points?: number
+          elasticity_coefficient?: number
+          id?: string
+          product_id?: string
+          sensitivity_label?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_price_elasticity_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_price_elasticity_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           abc_category: string | null
@@ -896,6 +1009,7 @@ export type Database = {
           brand: string | null
           category: string | null
           category_id: string | null
+          category_role: string | null
           cost_price: number
           created_at: string | null
           currency: string | null
@@ -917,6 +1031,7 @@ export type Database = {
           brand?: string | null
           category?: string | null
           category_id?: string | null
+          category_role?: string | null
           cost_price: number
           created_at?: string | null
           currency?: string | null
@@ -938,6 +1053,7 @@ export type Database = {
           brand?: string | null
           category?: string | null
           category_id?: string | null
+          category_role?: string | null
           cost_price?: number
           created_at?: string | null
           currency?: string | null
@@ -1222,6 +1338,53 @@ export type Database = {
             columns: ["competitor_id"]
             isOneToOne: false
             referencedRelation: "competitors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      smart_price_config: {
+        Row: {
+          abc_a_max_discount_percent: number
+          abc_b_max_discount_percent: number
+          abc_c_max_discount_percent: number
+          created_at: string
+          global_min_margin_percent: number
+          id: string
+          match_competitor_promo: boolean
+          never_below_competitor_min: boolean
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          abc_a_max_discount_percent?: number
+          abc_b_max_discount_percent?: number
+          abc_c_max_discount_percent?: number
+          created_at?: string
+          global_min_margin_percent?: number
+          id?: string
+          match_competitor_promo?: boolean
+          never_below_competitor_min?: boolean
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          abc_a_max_discount_percent?: number
+          abc_b_max_discount_percent?: number
+          abc_c_max_discount_percent?: number
+          created_at?: string
+          global_min_margin_percent?: number
+          id?: string
+          match_competitor_promo?: boolean
+          never_below_competitor_min?: boolean
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "smart_price_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
