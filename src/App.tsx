@@ -12,6 +12,8 @@ import Competitors from "./pages/Competitors";
 import Alerts from "./pages/Alerts";
 import PricingSimulator from "./pages/PricingSimulator";
 import Settings from "./pages/Settings";
+import Symphony from "./pages/Symphony";
+import SmartPrice from "./pages/SmartPrice";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,6 +33,8 @@ const App = () => (
           <Route path="/competitors" element={<Layout><Competitors /></Layout>} />
           <Route path="/alerts" element={<Layout><Alerts /></Layout>} />
           <Route path="/pricing-simulator" element={<Layout><PricingSimulator /></Layout>} />
+          <Route path="/symphony" element={<Layout><Symphony /></Layout>} />
+          <Route path="/smart-price" element={<Layout><SmartPrice /></Layout>} />
           <Route path="/settings" element={<Layout><Settings /></Layout>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

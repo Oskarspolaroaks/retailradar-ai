@@ -3,6 +3,15 @@ project_id = "kmdclnoafohauvblqsop"
 [functions.seed-data]
 verify_jwt = false
 
+[functions.calculate-elasticity]
+verify_jwt = true
+
+[functions.generate-smart-prices]
+verify_jwt = true
+
+[functions.calculate-category-metrics]
+verify_jwt = true
+
 [functions.calculate-abc]
 verify_jwt = false
 
