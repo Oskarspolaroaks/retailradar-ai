@@ -118,7 +118,7 @@ const Dashboard = () => {
   };
 
   const seedDemoData = async () => {
-    if (!confirm('Vai tiešām vēlaties izveidot simulācijas datus? Esošie dati tiks dzēsti.')) {
+    if (!confirm('Izveidosim demo datus: 20 produktus, pārdošanas vēsturi, konkurentus un rekomendācijas. Esošie dati tiks dzēsti. Vai turpināt?')) {
       return;
     }
     
@@ -130,7 +130,7 @@ const Dashboard = () => {
 
       toast({
         title: "Veiksmīgi!",
-        description: `Izveidoti ${data.counts.products} produkti, ${data.counts.sales} pārdošanas ieraksti, ${data.counts.competitors} konkurenti un daudz vairāk.`,
+        description: `Izveidoti ${data.counts.products} produkti, ${data.counts.sales} pārdošanas ieraksti, ${data.counts.competitors} konkurenti. Tagad dodieties uz Recommendations lapu un nospiediet "Ģenerēt Jaunas Rekomendācijas".`,
       });
 
       // Refresh dashboard data
@@ -411,7 +411,7 @@ const Dashboard = () => {
                 ) : (
                   <Zap className="h-4 w-4" />
                 )}
-                Izveidot Simulācijas Datus
+                Izveidot Demo Datus (20 produkti, pārdošana, konkurenti)
               </Button>
               <Button
                 onClick={recalculateABC}

@@ -103,8 +103,8 @@ const Recommendations = () => {
       if (error) throw error;
 
       toast({
-        title: "Success",
-        description: data.message || "Recommendations generated",
+        title: "Izdevās",
+        description: data.message || "Rekomendācijas ģenerētas",
       });
 
       fetchRecommendations();
@@ -138,8 +138,8 @@ const Recommendations = () => {
       if (recError) throw recError;
 
       toast({
-        title: "Price Updated",
-        description: `${rec.products?.name} price updated to €${rec.recommended_price.toFixed(2)}`,
+        title: "Cena Atjaunināta",
+        description: `${rec.products?.name} cena atjaunināta uz €${rec.recommended_price.toFixed(2)}`,
       });
 
       fetchRecommendations();
@@ -162,7 +162,7 @@ const Recommendations = () => {
       if (error) throw error;
 
       toast({
-        title: "Recommendation Rejected",
+        title: "Rekomendācija Noraidīta",
       });
 
       fetchRecommendations();
@@ -213,14 +213,14 @@ const Recommendations = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold mb-2">AI Recommendations</h1>
+          <h1 className="text-3xl font-bold mb-2">AI Cenu Rekomendācijas</h1>
           <p className="text-muted-foreground">
-            Intelligent pricing suggestions based on market analysis
+            Inteliģentas cenu ieteikumi balstīti uz tirgus analīzi
           </p>
         </div>
         <Button onClick={generateRecommendations} disabled={generating}>
           <RefreshCw className={`h-4 w-4 mr-2 ${generating ? 'animate-spin' : ''}`} />
-          {generating ? "Generating..." : "Generate New Recommendations"}
+          {generating ? "Ģenerē..." : "Ģenerēt Jaunas Rekomendācijas"}
         </Button>
       </div>
 
@@ -228,29 +228,29 @@ const Recommendations = () => {
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Price Increases</CardTitle>
+              <CardTitle className="text-sm font-medium">Cenu Paaugstināšana</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-success">{increaseCount}</div>
-              <p className="text-xs text-muted-foreground">Products to increase</p>
+              <p className="text-xs text-muted-foreground">Produkti kuriem palielināt cenu</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Price Decreases</CardTitle>
+              <CardTitle className="text-sm font-medium">Cenu Samazināšana</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-warning">{decreaseCount}</div>
-              <p className="text-xs text-muted-foreground">Products to decrease</p>
+              <p className="text-xs text-muted-foreground">Produkti kuriem samazināt cenu</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Keep Current</CardTitle>
+              <CardTitle className="text-sm font-medium">Saglabāt Cenu</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{keepCount}</div>
-              <p className="text-xs text-muted-foreground">Optimal pricing</p>
+              <p className="text-xs text-muted-foreground">Optimāla cena</p>
             </CardContent>
           </Card>
         </div>
@@ -260,32 +260,32 @@ const Recommendations = () => {
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
-              <CardTitle>Pricing Recommendations</CardTitle>
+              <CardTitle>Cenu Rekomendācijas</CardTitle>
               <CardDescription>
-                Review and apply AI-generated pricing suggestions
+                Pārskatiet un pieņemiet AI ģenerētas cenu rekomendācijas
               </CardDescription>
             </div>
             <div className="flex gap-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Filter by status" />
+                  <SelectValue placeholder="Filtrēt pēc statusa" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="new">New</SelectItem>
-                  <SelectItem value="accepted">Accepted</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="all">Visi Statusi</SelectItem>
+                  <SelectItem value="new">Jauni</SelectItem>
+                  <SelectItem value="accepted">Pieņemti</SelectItem>
+                  <SelectItem value="rejected">Noraidīti</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={abcFilter} onValueChange={setAbcFilter}>
                 <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Filter by ABC" />
+                  <SelectValue placeholder="Filtrēt pēc ABC" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Classes</SelectItem>
-                  <SelectItem value="A">Class A</SelectItem>
-                  <SelectItem value="B">Class B</SelectItem>
-                  <SelectItem value="C">Class C</SelectItem>
+                  <SelectItem value="all">Visas Klases</SelectItem>
+                  <SelectItem value="A">Klase A</SelectItem>
+                  <SelectItem value="B">Klase B</SelectItem>
+                  <SelectItem value="C">Klase C</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -293,36 +293,37 @@ const Recommendations = () => {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading recommendations...</div>
+            <div className="text-center py-8 text-muted-foreground">Ielādē rekomendācijas...</div>
           ) : allRecommendations.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-muted-foreground mb-4">
-                <h3 className="text-lg font-semibold mb-2">No Recommendations Yet</h3>
-                <p className="text-sm mb-4">Generate AI-powered pricing recommendations based on your products, competitor prices, and sales data.</p>
+                <h3 className="text-lg font-semibold mb-2">Nav Rekomendāciju</h3>
+                <p className="text-sm mb-4">Ģenerējiet AI cenu rekomendācijas balstoties uz jūsu produktiem, konkurentu cenām un pārdošanas datiem.</p>
               </div>
               <Button onClick={generateRecommendations} disabled={generating} size="lg">
                 <RefreshCw className={`h-4 w-4 mr-2 ${generating ? 'animate-spin' : ''}`} />
-                {generating ? "Generating..." : "Generate AI Recommendations"}
+                {generating ? "Ģenerē..." : "Ģenerēt AI Rekomendācijas"}
               </Button>
             </div>
           ) : recommendations.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <p>No recommendations match the current filters</p>
-              <p className="text-sm mt-2">Try adjusting your filters or generate new recommendations</p>
+              <p>Nav rekomendāciju, kas atbilst pašreizējiem filtriem</p>
+              <p className="text-sm mt-2">Pamēģiniet mainīt filtrus vai ģenerēt jaunas rekomendācijas</p>
             </div>
           ) : (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
-                  <TableRow>
+          <TableRow>
                     <TableHead>SKU</TableHead>
-                    <TableHead>Product</TableHead>
+                    <TableHead>Produkts</TableHead>
                     <TableHead className="text-center">ABC</TableHead>
-                    <TableHead className="text-right">Current Price</TableHead>
-                    <TableHead className="text-right">Recommended</TableHead>
-                    <TableHead className="text-right">Change</TableHead>
-                    <TableHead className="text-right">New Margin</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Pašreizējā Cena</TableHead>
+                    <TableHead className="text-right">Ieteiktā Cena</TableHead>
+                    <TableHead className="text-right">Izmaiņas</TableHead>
+                    <TableHead className="text-center">Darbība</TableHead>
+                    <TableHead className="text-right">Jauna Marža</TableHead>
+                    <TableHead>Statuss</TableHead>
                     <TableHead className="w-8"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -330,6 +331,7 @@ const Recommendations = () => {
                   {recommendations.map((rec) => {
                     const newMargin = ((rec.recommended_price - Number(rec.products?.cost_price || 0)) / rec.recommended_price * 100);
                     const changePercent = rec.recommended_change_percent;
+                    const actionType = getActionType(changePercent);
                     
                     return (
                       <TableRow key={rec.id}>
@@ -355,6 +357,19 @@ const Recommendations = () => {
                             </span>
                           </div>
                         </TableCell>
+                        <TableCell className="text-center">
+                          <Badge 
+                            variant={
+                              actionType === "increase_price" ? "default" : 
+                              actionType === "decrease_price" ? "secondary" : 
+                              "outline"
+                            }
+                          >
+                            {actionType === "increase_price" && "📈 PALIELINĀT"}
+                            {actionType === "decrease_price" && "📉 SAMAZINĀT"}
+                            {actionType === "keep_price" && "✓ SAGLABĀT"}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-right">
                           <Badge variant="default">{newMargin.toFixed(1)}%</Badge>
                         </TableCell>
@@ -366,7 +381,7 @@ const Recommendations = () => {
                               "outline"
                             }
                           >
-                            {rec.status}
+                            {rec.status === "new" ? "Jauns" : rec.status === "accepted" ? "Pieņemts" : "Noraidīts"}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -377,14 +392,14 @@ const Recommendations = () => {
                                 variant="default"
                                 onClick={() => handleAcceptRecommendation(rec)}
                               >
-                                Accept
+                                Pieņemt
                               </Button>
                               <Button 
                                 size="sm" 
                                 variant="outline"
                                 onClick={() => handleRejectRecommendation(rec.id)}
                               >
-                                Reject
+                                Noraidīt
                               </Button>
                             </div>
                           )}

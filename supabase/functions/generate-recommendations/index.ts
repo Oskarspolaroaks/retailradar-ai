@@ -12,18 +12,58 @@ serve(async (req) => {
   }
 
   try {
+    // Get auth header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('Generating pricing recommendations...');
+    // Get user's tenant_id
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    );
 
-    // Get all active products with their pricing data
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get user's tenant
+    const { data: userTenant } = await supabase
+      .from('user_tenants')
+      .select('tenant_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!userTenant) {
+      return new Response(JSON.stringify({ error: 'No tenant found' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const tenant_id = userTenant.tenant_id;
+    console.log('Generating pricing recommendations for tenant:', tenant_id);
+
+    // Get all products with their pricing data for this tenant
     const { data: products, error: productsError } = await supabase
       .from('products')
       .select('id, sku, name, category, cost_price, current_price, currency, abc_category, is_private_label, tenant_id')
-      .eq('status', 'active');
+      .eq('tenant_id', tenant_id)
+      .or('status.eq.active,status.is.null');
 
     if (productsError) throw productsError;
     if (!products || products.length === 0) {
@@ -35,7 +75,7 @@ serve(async (req) => {
 
     console.log(`Processing ${products.length} products...`);
 
-    // Get competitor pricing data
+    // Get competitor pricing data for this tenant
     const { data: competitorPrices } = await supabase
       .from('competitor_price_history')
       .select(`
@@ -45,6 +85,7 @@ serve(async (req) => {
         competitor_product_id,
         competitor_products!inner(our_product_id)
       `)
+      .eq('tenant_id', tenant_id)
       .order('date', { ascending: false });
 
     // Build competitor price map (product_id -> avg price)
@@ -79,6 +120,7 @@ serve(async (req) => {
     const { data: salesData } = await supabase
       .from('sales_daily')
       .select('product_id, units_sold, revenue, date')
+      .eq('tenant_id', tenant_id)
       .gte('date', dateStr);
 
     // Build sales map
@@ -177,10 +219,11 @@ serve(async (req) => {
 
     console.log(`Generated ${recommendations.length} recommendations`);
 
-    // Clear old recommendations and insert new ones
+    // Clear old recommendations for this tenant and insert new ones
     const { error: deleteError } = await supabase
       .from('pricing_recommendations')
       .delete()
+      .eq('tenant_id', tenant_id)
       .eq('status', 'new');
 
     if (deleteError) console.error('Error deleting old recommendations:', deleteError);
