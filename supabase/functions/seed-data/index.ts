@@ -36,39 +36,82 @@ serve(async (req) => {
       );
     }
 
-    // Verify admin role
-    const { data: roles, error: roleError } = await supabase
-      .from('user_roles')
-      .select('role')
+    // Get tenant_id
+    const { data: tenantData } = await supabase
+      .from('user_tenants')
+      .select('tenant_id')
       .eq('user_id', user.id)
       .single();
 
-    if (roleError || !roles || roles.role !== 'admin') {
-      console.error('Role verification failed:', roleError);
+    if (!tenantData) {
       return new Response(
-        JSON.stringify({ error: 'Admin access required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'No tenant found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Admin user ${user.id} initiated data seeding`);
+    const tenant_id = tenantData.tenant_id;
+    console.log(`User ${user.id} initiated data seeding for tenant ${tenant_id}`);
     
     // Delete existing data in reverse order of dependencies
-    await supabase.from('price_recommendations').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('competitor_prices').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('product_price_elasticity').delete().eq('tenant_id', tenant_id);
+    await supabase.from('category_metrics').delete().eq('tenant_id', tenant_id);
+    await supabase.from('pricing_recommendations').delete().eq('tenant_id', tenant_id);
+    await supabase.from('competitor_promotion_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('competitor_price_history').delete().eq('tenant_id', tenant_id);
     await supabase.from('competitor_product_mapping').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('competitor_promotions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('sales').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('products').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('competitors').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('sales_daily').delete().eq('tenant_id', tenant_id);
+    await supabase.from('products').delete().eq('tenant_id', tenant_id);
+    await supabase.from('competitors').delete().eq('tenant_id', tenant_id);
+    await supabase.from('categories').delete().eq('tenant_id', tenant_id);
+    await supabase.from('stores').delete().eq('tenant_id', tenant_id);
     
     console.log('Existing data deleted. Creating new data...');
 
+    // Create stores
+    const stores = [
+      { tenant_id, code: 'RG01', name: 'Rīga - Centrs', city: 'Rīga', country: 'Latvia', is_active: true },
+      { tenant_id, code: 'RG02', name: 'Rīga - Imanta', city: 'Rīga', country: 'Latvia', is_active: true },
+      { tenant_id, code: 'LV01', name: 'Liepāja', city: 'Liepāja', country: 'Latvia', is_active: true },
+    ];
+
+    const { data: storeData, error: storeError } = await supabase
+      .from('stores')
+      .insert(stores)
+      .select();
+
+    if (storeError) {
+      console.error('Error creating stores:', storeError);
+      throw storeError;
+    }
+
+    const mainStore = storeData[0];
+
+    // Create categories
+    const categories = [
+      { tenant_id, name: 'Dzērieni', parent_id: null },
+      { tenant_id, name: 'Piena produkti', parent_id: null },
+      { tenant_id, name: 'Uzkodas', parent_id: null },
+      { tenant_id, name: 'Saldumi', parent_id: null },
+      { tenant_id, name: 'Konservi', parent_id: null },
+    ];
+
+    const { data: categoryData, error: categoryError } = await supabase
+      .from('categories')
+      .insert(categories)
+      .select();
+
+    if (categoryError) {
+      console.error('Error creating categories:', categoryError);
+      throw categoryError;
+    }
+
     // Create competitors
     const competitors = [
-      { name: 'MarketLeader Inc', website_url: 'https://marketleader.com', type: 'online', country: 'US' },
-      { name: 'ValueMart', website_url: 'https://valuemart.com', type: 'offline', country: 'US' },
-      { name: 'PriceKing', website_url: 'https://priceking.com', type: 'online', country: 'US' },
+      { tenant_id, name: 'Rimi', website_url: 'https://rimi.lv', type: 'offline', country: 'Latvia', scraping_enabled: true },
+      { tenant_id, name: 'Maxima', website_url: 'https://maxima.lv', type: 'offline', country: 'Latvia', scraping_enabled: true },
+      { tenant_id, name: 'Lidl', website_url: 'https://lidl.lv', type: 'offline', country: 'Latvia', scraping_enabled: true },
     ];
 
     const { data: competitorData, error: competitorError } = await supabase
@@ -78,30 +121,55 @@ serve(async (req) => {
 
     if (competitorError) {
       console.error('Error creating competitors:', competitorError);
+      throw competitorError;
     }
 
-    // Create products
-    const categories = ['Electronics', 'Home & Garden', 'Sports', 'Fashion'];
-    const products = [];
+    // Create products with realistic Latvian retail data
+    const productTemplates = [
+      { name: 'Coca-Cola 1.5L', brand: 'Coca-Cola', category: 'Dzērieni', cost: 0.85, price: 1.49, role: 'traffic_builder', abc: 'A' },
+      { name: 'Pepsi 2L', brand: 'Pepsi', category: 'Dzērieni', cost: 0.75, price: 1.39, role: 'traffic_builder', abc: 'A' },
+      { name: 'Fanta Orange 1.5L', brand: 'Coca-Cola', category: 'Dzērieni', cost: 0.80, price: 1.45, role: 'other', abc: 'B' },
+      { name: 'Sprite 1.5L', brand: 'Coca-Cola', category: 'Dzērieni', cost: 0.80, price: 1.45, role: 'other', abc: 'B' },
+      { name: 'Rīgas Miestiņš alus 0.5L', brand: 'Aldaris', category: 'Dzērieni', cost: 0.65, price: 1.29, role: 'margin_driver', abc: 'A', private: true },
+      { name: 'Piena Liepzars 2.5% 1L', brand: 'Liepzars', category: 'Piena produkti', cost: 0.85, price: 1.59, role: 'traffic_builder', abc: 'A' },
+      { name: 'Biezpiens 9% 250g', brand: 'Tukuma Piens', category: 'Piena produkti', cost: 0.65, price: 1.29, role: 'margin_driver', abc: 'B' },
+      { name: 'Jogurts ar zemenēm 150g', brand: 'Baltais', category: 'Piena produkti', cost: 0.35, price: 0.79, role: 'other', abc: 'C' },
+      { name: 'Siers Gouda 200g', brand: 'Kārums', category: 'Piena produkti', cost: 1.85, price: 3.49, role: 'margin_driver', abc: 'A' },
+      { name: 'Lays čipsi Original 150g', brand: 'Lays', category: 'Uzkodas', cost: 1.20, price: 2.29, role: 'traffic_builder', abc: 'A' },
+      { name: 'Estrella čipsi sāļie 175g', brand: 'Estrella', category: 'Uzkodas', cost: 1.15, price: 2.19, role: 'other', abc: 'B' },
+      { name: 'Privātā zīmola čipsi 200g', brand: 'Mūsu Izvēle', category: 'Uzkodas', cost: 0.75, price: 1.49, role: 'margin_driver', abc: 'B', private: true },
+      { name: 'Rieksti 100g', brand: 'Nākotne', category: 'Uzkodas', cost: 1.85, price: 3.49, role: 'margin_driver', abc: 'C' },
+      { name: 'Milka šokolāde 100g', brand: 'Milka', category: 'Saldumi', cost: 1.25, price: 2.49, role: 'image_builder', abc: 'A' },
+      { name: 'Laima konfektes 200g', brand: 'Laima', category: 'Saldumi', cost: 2.15, price: 3.99, role: 'image_builder', abc: 'A' },
+      { name: 'Privātā zīmola cepumi 300g', brand: 'Mūsu Izvēle', category: 'Saldumi', cost: 0.85, price: 1.79, role: 'margin_driver', abc: 'B', private: true },
+      { name: 'Zivs konservi 240g', brand: 'Kaija', category: 'Konservi', cost: 1.65, price: 2.99, role: 'other', abc: 'B' },
+      { name: 'Tomātu mērce 500g', brand: 'Spilva', category: 'Konservi', cost: 0.95, price: 1.89, role: 'other', abc: 'C' },
+      { name: 'Zaļie zirnīši 400g', brand: 'Spilva', category: 'Konservi', cost: 0.75, price: 1.49, role: 'long_tail', abc: 'C' },
+      { name: 'Kukurūza 340g', brand: 'Bonduelle', category: 'Konservi', cost: 0.85, price: 1.69, role: 'other', abc: 'C' },
+    ];
 
-    for (let i = 1; i <= 20; i++) {
-      const category = categories[i % categories.length];
-      const costPrice = 20 + Math.random() * 80;
-      const markup = 1.2 + Math.random() * 0.5;
+    const products = [];
+    for (let i = 0; i < productTemplates.length; i++) {
+      const template = productTemplates[i];
+      const categoryMatch = categoryData.find(c => c.name === template.category);
       
       products.push({
-        sku: `SKU${String(i).padStart(4, '0')}`,
-        name: `Product ${i} - ${category}`,
-        brand: i % 3 === 0 ? 'OwnBrand' : 'BrandName',
-        category,
-        subcategory: `Sub${i % 3}`,
-        cost_price: costPrice,
-        current_price: costPrice * markup,
-        currency: 'USD',
-        is_private_label: i % 4 === 0,
+        tenant_id,
+        sku: `LV${String(i + 1).padStart(5, '0')}`,
+        name: template.name,
+        brand: template.brand,
+        category: template.category,
+        category_id: categoryMatch?.id,
+        category_role: template.role,
+        cost_price: template.cost,
+        current_price: template.price,
+        currency: 'EUR',
+        is_private_label: template.private || false,
+        abc_category: template.abc,
         status: 'active',
-        barcode: `978${String(i).padStart(10, '0')}`,
-        vat_rate: 0.2,
+        barcode: `590${String(i + 1).padStart(10, '0')}`,
+        vat_rate: 0.21,
+        base_unit: 'pcs',
       });
     }
 
@@ -112,6 +180,7 @@ serve(async (req) => {
 
     if (productError) {
       console.error('Error creating products:', productError);
+      throw productError;
     }
 
     // Create sales data for last 6 months
@@ -119,78 +188,106 @@ serve(async (req) => {
     const today = new Date();
     
     for (const product of productData || []) {
+      const baseVolume = product.abc_category === 'A' ? 100 : product.abc_category === 'B' ? 40 : 15;
+      
       for (let month = 0; month < 6; month++) {
-        for (let day = 0; day < 30; day += 3) {
+        for (let day = 0; day < 30; day++) {
           const date = new Date(today);
           date.setMonth(date.getMonth() - month);
           date.setDate(date.getDate() - day);
           
-          const quantitySold = Math.floor(Math.random() * 50) + 5;
-          const netRevenue = product.current_price * quantitySold * (0.9 + Math.random() * 0.1);
+          const seasonality = 1 + 0.2 * Math.sin((day / 30) * Math.PI * 2);
+          const trend = 1 - (month * 0.05);
+          const randomness = 0.7 + Math.random() * 0.6;
+          const unitsSold = Math.floor(baseVolume * seasonality * trend * randomness);
           
-          salesRecords.push({
-            product_id: product.id,
-            date: date.toISOString().split('T')[0],
-            quantity_sold: quantitySold,
-            net_revenue: netRevenue,
-            channel: Math.random() > 0.5 ? 'online' : 'store',
-            promotion_flag: Math.random() > 0.8,
-            discounts_applied: Math.random() > 0.8 ? netRevenue * 0.1 : 0,
-          });
-        }
-      }
-    }
-
-    const { error: salesError } = await supabase.from('sales').insert(salesRecords);
-    if (salesError) {
-      console.error('Error creating sales:', salesError);
-    }
-
-    // Create competitor prices
-    const competitorPrices = [];
-    
-    for (const product of productData || []) {
-      for (const competitor of competitorData || []) {
-        // Create mapping
-        const { data: mapping, error: mappingError } = await supabase
-          .from('competitor_product_mapping')
-          .insert({
-            product_id: product.id,
-            competitor_id: competitor.id,
-            competitor_sku: `COMP-${product.sku}`,
-          })
-          .select()
-          .single();
-
-        if (mappingError) {
-          console.error('Error creating mapping:', mappingError);
-          continue;
-        }
-
-        if (mapping) {
-          // Add price history
-          for (let month = 0; month < 6; month++) {
-            const date = new Date(today);
-            date.setMonth(date.getMonth() - month);
+          if (unitsSold > 0) {
+            const promoFlag = Math.random() > 0.85;
+            const actualPrice = promoFlag ? product.current_price * 0.85 : product.current_price;
+            const revenue = actualPrice * unitsSold;
             
-            const priceVariation = 0.9 + Math.random() * 0.3;
-            competitorPrices.push({
-              mapping_id: mapping.id,
+            salesRecords.push({
+              tenant_id,
+              product_id: product.id,
+              store_id: storeData[Math.floor(Math.random() * storeData.length)].id,
               date: date.toISOString().split('T')[0],
-              competitor_price: product.current_price * priceVariation,
-              currency: 'USD',
-              in_stock: Math.random() > 0.1,
-              is_on_promo: Math.random() > 0.7,
-              source: 'seed_data',
+              units_sold: unitsSold,
+              revenue: revenue,
+              regular_price: product.current_price,
+              promo_flag: promoFlag,
             });
           }
         }
       }
     }
 
-    const { error: pricesError } = await supabase.from('competitor_prices').insert(competitorPrices);
+    const { error: salesError } = await supabase.from('sales_daily').insert(salesRecords);
+    if (salesError) {
+      console.error('Error creating sales:', salesError);
+      throw salesError;
+    }
+
+    // Create competitor products and mappings
+    const competitorProducts = [];
+    const competitorMappings = [];
+    
+    for (const product of productData || []) {
+      for (const competitor of competitorData || []) {
+        const similarity = 0.75 + Math.random() * 0.2;
+        const status = similarity >= 0.90 ? 'auto_matched' : similarity >= 0.80 ? 'user_approved' : 'pending';
+        
+        competitorMappings.push({
+          our_product_id: product.id,
+          competitor_id: competitor.id,
+          competitor_product_name: product.name,
+          competitor_brand: product.brand,
+          competitor_product_sku: `${competitor.name.substring(0, 3).toUpperCase()}-${product.sku}`,
+          ai_similarity_score: similarity,
+          mapping_status: status,
+        });
+      }
+    }
+
+    const { data: mappingData, error: mappingError } = await supabase
+      .from('competitor_product_mapping')
+      .insert(competitorMappings)
+      .select();
+
+    if (mappingError) {
+      console.error('Error creating mappings:', mappingError);
+      throw mappingError;
+    }
+
+    // Create competitor price history
+    const competitorPrices = [];
+    
+    for (const mapping of mappingData || []) {
+      const product = productData.find(p => p.id === mapping.our_product_id);
+      if (!product) continue;
+
+      for (let month = 0; month < 6; month++) {
+        const date = new Date(today);
+        date.setMonth(date.getMonth() - month);
+        
+        const priceVariation = 0.90 + Math.random() * 0.25;
+        const isPromo = Math.random() > 0.75;
+        const competitorPrice = product.current_price * priceVariation;
+        
+        competitorPrices.push({
+          tenant_id,
+          competitor_product_id: mapping.id,
+          date: date.toISOString().split('T')[0],
+          price: competitorPrice,
+          promo_flag: isPromo,
+          note: isPromo ? 'Akcijas cena' : null,
+        });
+      }
+    }
+
+    const { error: pricesError } = await supabase.from('competitor_price_history').insert(competitorPrices);
     if (pricesError) {
       console.error('Error creating competitor prices:', pricesError);
+      throw pricesError;
     }
 
     // Create competitor promotions
@@ -198,46 +295,141 @@ serve(async (req) => {
     for (const competitor of competitorData || []) {
       promotions.push({
         competitor_id: competitor.id,
-        promotion_name: 'Black Friday Sale',
-        slogan: 'Up to 50% off on selected items!',
-        description: 'Major discount event across multiple categories',
-        product_category: 'Electronics',
-        discount_percent: 30 + Math.random() * 20,
-        start_date: new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0],
-        end_date: new Date(today.getFullYear(), today.getMonth(), 7).toISOString().split('T')[0],
-        is_active: true,
+        title: `${competitor.name} Nedēļas piedāvājums`,
+        source_type: 'html',
+        source_url: `https://${competitor.name.toLowerCase()}.lv/akcijas`,
+        valid_from: new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0],
+        valid_to: new Date(today.getFullYear(), today.getMonth(), 7).toISOString().split('T')[0],
+        processed: true,
+        items_count: 15,
       });
     }
 
-    const { error: promotionsError } = await supabase.from('competitor_promotions').insert(promotions);
+    const { data: promotionData, error: promotionsError } = await supabase
+      .from('competitor_promotions')
+      .insert(promotions)
+      .select();
+
     if (promotionsError) {
       console.error('Error creating promotions:', promotionsError);
+      throw promotionsError;
     }
 
-    // Create price recommendations
-    const recommendations = [];
-    for (let i = 0; i < 5; i++) {
-      const product = productData?.[i];
-      if (product) {
-        const currentMargin = ((product.current_price - product.cost_price) / product.current_price) * 100;
-        const recommendedPrice = product.current_price * (1 + (Math.random() - 0.5) * 0.2);
-        const expectedMargin = ((recommendedPrice - product.cost_price) / recommendedPrice) * 100;
+    // Create promotion items
+    const promotionItems = [];
+    for (const promo of promotionData || []) {
+      const competitor = competitorData.find(c => c.id === promo.competitor_id);
+      const relevantMappings = mappingData.filter(m => m.competitor_id === competitor?.id).slice(0, 5);
+      
+      for (const mapping of relevantMappings) {
+        const product = productData.find(p => p.id === mapping.our_product_id);
+        if (!product) continue;
         
-        recommendations.push({
-          product_id: product.id,
-          current_price: product.current_price,
-          recommended_price: recommendedPrice,
-          expected_margin_percent: expectedMargin,
-          recommendation_type: recommendedPrice > product.current_price ? 'increase_price' : 'decrease_price',
-          explanation: `Based on competitor analysis and sales data, ${recommendedPrice > product.current_price ? 'increasing' : 'decreasing'} price could improve margins.`,
-          status: 'pending',
+        const regularPrice = product.current_price * (0.95 + Math.random() * 0.1);
+        const promoPrice = regularPrice * (0.7 + Math.random() * 0.15);
+        
+        promotionItems.push({
+          promotion_id: promo.id,
+          competitor_product_name: mapping.competitor_product_name,
+          competitor_brand: mapping.competitor_brand,
+          regular_price: regularPrice,
+          promo_price: promoPrice,
+          currency: 'EUR',
+          promo_label: '-' + Math.round((1 - promoPrice / regularPrice) * 100) + '%',
+          linked_mapping_id: mapping.id,
         });
       }
     }
 
-    const { error: recommendationsError } = await supabase.from('price_recommendations').insert(recommendations);
+    const { error: itemsError } = await supabase
+      .from('competitor_promotion_items')
+      .insert(promotionItems);
+
+    if (itemsError) {
+      console.error('Error creating promotion items:', itemsError);
+      throw itemsError;
+    }
+
+    // Create price elasticity data
+    const elasticityRecords = [];
+    for (const product of productData || []) {
+      const baseElasticity = product.category_role === 'traffic_builder' ? -1.5 : 
+                           product.category_role === 'margin_driver' ? -0.6 : -1.0;
+      const elasticity = baseElasticity + (Math.random() - 0.5) * 0.4;
+      
+      elasticityRecords.push({
+        tenant_id,
+        product_id: product.id,
+        elasticity_coefficient: elasticity,
+        confidence: 0.65 + Math.random() * 0.25,
+        sensitivity_label: elasticity > -0.8 ? 'inelastic' : elasticity > -1.5 ? 'normal' : 'highly_elastic',
+        data_points: 120 + Math.floor(Math.random() * 60),
+        calculated_at: new Date().toISOString(),
+      });
+    }
+
+    const { error: elasticityError } = await supabase
+      .from('product_price_elasticity')
+      .insert(elasticityRecords);
+
+    if (elasticityError) {
+      console.error('Error creating elasticity data:', elasticityError);
+      throw elasticityError;
+    }
+
+    // Create smart price config
+    const { error: configError } = await supabase
+      .from('smart_price_config')
+      .upsert({
+        tenant_id,
+        global_min_margin_percent: 15,
+        abc_a_max_discount_percent: 10,
+        abc_b_max_discount_percent: 20,
+        abc_c_max_discount_percent: 30,
+        match_competitor_promo: true,
+        never_below_competitor_min: true,
+      });
+
+    if (configError) {
+      console.error('Error creating smart price config:', configError);
+      throw configError;
+    }
+
+    // Create pricing recommendations
+    const recommendations = [];
+    for (let i = 0; i < 8; i++) {
+      const product = productData[i];
+      if (!product) continue;
+      
+      const competitorAvg = product.current_price * (0.92 + Math.random() * 0.16);
+      const isExpensive = product.current_price > competitorAvg;
+      const changePercent = isExpensive ? -(5 + Math.random() * 10) : (3 + Math.random() * 8);
+      const recommendedPrice = product.current_price * (1 + changePercent / 100);
+      
+      recommendations.push({
+        tenant_id,
+        product_id: product.id,
+        store_id: mainStore.id,
+        current_price: product.current_price,
+        current_cost_price: product.cost_price,
+        recommended_price: recommendedPrice,
+        recommended_change_percent: changePercent,
+        competitor_avg_price: competitorAvg,
+        abc_class: product.abc_category,
+        reasoning: isExpensive 
+          ? `Mūsu cena ir ${Math.abs(changePercent).toFixed(1)}% augstāka par konkurentu vidējo. Ieteicams samazināt cenu.`
+          : `Konkurenti ir dārgāki. Varam paaugstināt cenu par ${changePercent.toFixed(1)}% saglabājot konkurētspēju.`,
+        status: 'new',
+      });
+    }
+
+    const { error: recommendationsError } = await supabase
+      .from('pricing_recommendations')
+      .insert(recommendations);
+
     if (recommendationsError) {
       console.error('Error creating recommendations:', recommendationsError);
+      throw recommendationsError;
     }
 
     // Initialize ABC settings if not exists
@@ -247,6 +439,7 @@ serve(async (req) => {
       threshold_c_percent: 5,
       analysis_period_days: 90,
     });
+    
     if (settingsError) {
       console.error('Error creating ABC settings:', settingsError);
     }
@@ -254,13 +447,18 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'Demo data seeded successfully',
+        message: 'Simulācijas dati veiksmīgi izveidoti!',
         counts: {
+          stores: storeData?.length || 0,
+          categories: categoryData?.length || 0,
           competitors: competitorData?.length || 0,
           products: productData?.length || 0,
           sales: salesRecords.length,
+          mappings: mappingData?.length || 0,
           competitorPrices: competitorPrices.length,
-          promotions: promotions.length,
+          promotions: promotionData?.length || 0,
+          promotionItems: promotionItems.length,
+          elasticity: elasticityRecords.length,
           recommendations: recommendations.length,
         }
       }),

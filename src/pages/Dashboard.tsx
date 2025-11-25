@@ -118,6 +118,10 @@ const Dashboard = () => {
   };
 
   const seedDemoData = async () => {
+    if (!confirm('Vai tiešām vēlaties izveidot simulācijas datus? Esošie dati tiks dzēsti.')) {
+      return;
+    }
+    
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("seed-data");
@@ -125,17 +129,18 @@ const Dashboard = () => {
       if (error) throw error;
 
       toast({
-        title: "Success",
-        description: "Demo data seeded successfully",
+        title: "Veiksmīgi!",
+        description: `Izveidoti ${data.counts.products} produkti, ${data.counts.sales} pārdošanas ieraksti, ${data.counts.competitors} konkurenti un daudz vairāk.`,
       });
 
-      setTimeout(() => {
-        recalculateABC();
-      }, 1000);
+      // Refresh dashboard data
+      await fetchDashboardData();
+      await fetchPromotions();
     } catch (error: any) {
+      console.error("Error seeding data:", error);
       toast({
-        title: "Error",
-        description: error.message,
+        title: "Kļūda",
+        description: error.message || "Neizdevās izveidot datus",
         variant: "destructive",
       });
     } finally {
@@ -377,6 +382,54 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <p className="whitespace-pre-wrap">{aiAnswer}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Admin Actions */}
+      {isAdmin && (
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Zap className="h-5 w-5" />
+              Administratora Darbības
+            </CardTitle>
+            <CardDescription>
+              Ģenerēt simulācijas datus un pārrēķināt ABC kategorijas
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-3">
+              <Button
+                onClick={seedDemoData}
+                disabled={loading}
+                variant="default"
+                className="gap-2"
+              >
+                {loading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4" />
+                )}
+                Izveidot Simulācijas Datus
+              </Button>
+              <Button
+                onClick={recalculateABC}
+                disabled={loading}
+                variant="outline"
+                className="gap-2"
+              >
+                {loading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <BarChart3 className="h-4 w-4" />
+                )}
+                Pārrēķināt ABC
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              <strong>Brīdinājums:</strong> Simulācijas datu izveide dzēsīs esošos datus un izveidot jaunus testa datus.
+            </p>
           </CardContent>
         </Card>
       )}
