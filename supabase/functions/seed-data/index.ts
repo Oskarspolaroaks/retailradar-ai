@@ -91,6 +91,7 @@ serve(async (req) => {
     await supabase.from('pricing_recommendations').delete().eq('tenant_id', tenant_id);
     await supabase.from('competitor_promotion_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('competitor_price_history').delete().eq('tenant_id', tenant_id);
+    await supabase.from('competitor_products').delete().eq('tenant_id', tenant_id);
     await supabase.from('competitor_product_mapping').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('competitor_promotions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('sales_daily').delete().eq('tenant_id', tenant_id);
@@ -260,11 +261,40 @@ serve(async (req) => {
     }
 
     // Create competitor products and mappings
-    const competitorProducts = [];
+    const competitorProductRecords = [];
     const competitorMappings = [];
     
     for (const product of productData || []) {
       for (const competitor of competitorData || []) {
+        // First create the competitor product record
+        const competitorProduct = {
+          tenant_id,
+          competitor_id: competitor.id,
+          competitor_name: product.name,
+          competitor_sku: `${competitor.name.substring(0, 3).toUpperCase()}-${product.sku}`,
+          barcode: product.barcode,
+          category_hint: product.category,
+        };
+        competitorProductRecords.push(competitorProduct);
+      }
+    }
+
+    // Insert competitor products
+    const { data: competitorProductData, error: compProdError } = await supabase
+      .from('competitor_products')
+      .insert(competitorProductRecords)
+      .select();
+
+    if (compProdError) {
+      console.error('Error creating competitor products:', compProdError);
+      throw compProdError;
+    }
+
+    // Create mappings between our products and competitor products
+    let idx = 0;
+    for (const product of productData || []) {
+      for (const competitor of competitorData || []) {
+        const competitorProduct = competitorProductData[idx];
         const similarity = 0.75 + Math.random() * 0.2;
         const status = similarity >= 0.90 ? 'auto_matched' : similarity >= 0.80 ? 'user_approved' : 'pending';
         
@@ -273,10 +303,11 @@ serve(async (req) => {
           competitor_id: competitor.id,
           competitor_product_name: product.name,
           competitor_brand: product.brand,
-          competitor_product_sku: `${competitor.name.substring(0, 3).toUpperCase()}-${product.sku}`,
+          competitor_product_sku: competitorProduct.competitor_sku,
           ai_similarity_score: similarity,
           mapping_status: status,
         });
+        idx++;
       }
     }
 
@@ -293,8 +324,10 @@ serve(async (req) => {
     // Create competitor price history
     const competitorPrices = [];
     
-    for (const mapping of mappingData || []) {
-      const product = productData.find(p => p.id === mapping.our_product_id);
+    for (const competitorProduct of competitorProductData || []) {
+      const product = productData.find(p => 
+        competitorProduct.competitor_name === p.name
+      );
       if (!product) continue;
 
       for (let month = 0; month < 6; month++) {
@@ -307,7 +340,7 @@ serve(async (req) => {
         
         competitorPrices.push({
           tenant_id,
-          competitor_product_id: mapping.id,
+          competitor_product_id: competitorProduct.id,
           date: date.toISOString().split('T')[0],
           price: competitorPrice,
           promo_flag: isPromo,
@@ -485,6 +518,7 @@ serve(async (req) => {
           categories: categoryData?.length || 0,
           competitors: competitorData?.length || 0,
           products: productData?.length || 0,
+          competitorProducts: competitorProductData?.length || 0,
           sales: salesRecords.length,
           mappings: mappingData?.length || 0,
           competitorPrices: competitorPrices.length,
