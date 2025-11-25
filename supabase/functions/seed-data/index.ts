@@ -36,21 +36,53 @@ serve(async (req) => {
       );
     }
 
-    // Get tenant_id
-    const { data: tenantData } = await supabase
+    // Get or create tenant for user
+    let { data: tenantData } = await supabase
       .from('user_tenants')
-      .select('tenant_id')
+      .select('tenant_id, tenants(*)')
       .eq('user_id', user.id)
       .single();
 
-    if (!tenantData) {
-      return new Response(
-        JSON.stringify({ error: 'No tenant found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    let tenant_id: string;
 
-    const tenant_id = tenantData.tenant_id;
+    if (!tenantData) {
+      // Create default tenant if user doesn't have one
+      console.log('No tenant found, creating default tenant...');
+      
+      const { data: newTenant, error: tenantError } = await supabase
+        .from('tenants')
+        .insert({
+          name: 'Demo Veikals',
+          slug: 'demo-veikals-' + user.id.substring(0, 8),
+        })
+        .select()
+        .single();
+
+      if (tenantError) {
+        console.error('Error creating tenant:', tenantError);
+        throw tenantError;
+      }
+
+      // Assign user to the new tenant as owner
+      const { error: userTenantError } = await supabase
+        .from('user_tenants')
+        .insert({
+          user_id: user.id,
+          tenant_id: newTenant.id,
+          role: 'owner',
+        });
+
+      if (userTenantError) {
+        console.error('Error assigning user to tenant:', userTenantError);
+        throw userTenantError;
+      }
+
+      tenant_id = newTenant.id;
+      console.log('Created tenant:', tenant_id);
+    } else {
+      tenant_id = tenantData.tenant_id;
+      console.log('Using existing tenant:', tenant_id);
+    }
     console.log(`User ${user.id} initiated data seeding for tenant ${tenant_id}`);
     
     // Delete existing data in reverse order of dependencies
