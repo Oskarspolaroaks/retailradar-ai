@@ -460,32 +460,73 @@ serve(async (req) => {
       throw configError;
     }
 
-    // Create pricing recommendations
+    // Create pricing recommendations - vairāk daudzveidīgu rekomendāciju
     const recommendations = [];
-    for (let i = 0; i < 8; i++) {
-      const product = productData[i];
-      if (!product) continue;
+    
+    // Izveidojam rekomendācijas visām ABC klasēm
+    for (const product of productData || []) {
+      // Izveidojam rekomendācijas tikai produktiem ar zemu maržu vai augstu cenu
+      const currentMargin = ((product.current_price - product.cost_price) / product.current_price) * 100;
+      const competitorAvg = product.current_price * (0.88 + Math.random() * 0.24);
       
-      const competitorAvg = product.current_price * (0.92 + Math.random() * 0.16);
-      const isExpensive = product.current_price > competitorAvg;
-      const changePercent = isExpensive ? -(5 + Math.random() * 10) : (3 + Math.random() * 8);
-      const recommendedPrice = product.current_price * (1 + changePercent / 100);
+      let shouldRecommend = false;
+      let changePercent = 0;
+      let reasoning = '';
       
-      recommendations.push({
-        tenant_id,
-        product_id: product.id,
-        store_id: mainStore.id,
-        current_price: product.current_price,
-        current_cost_price: product.cost_price,
-        recommended_price: recommendedPrice,
-        recommended_change_percent: changePercent,
-        competitor_avg_price: competitorAvg,
-        abc_class: product.abc_category,
-        reasoning: isExpensive 
-          ? `Mūsu cena ir ${Math.abs(changePercent).toFixed(1)}% augstāka par konkurentu vidējo. Ieteicams samazināt cenu.`
-          : `Konkurenti ir dārgāki. Varam paaugstināt cenu par ${changePercent.toFixed(1)}% saglabājot konkurētspēju.`,
-        status: 'new',
-      });
+      // A klases produkti - augsta apgrozījuma
+      if (product.abc_category === 'A') {
+        if (currentMargin < 20 || product.current_price < competitorAvg * 0.95) {
+          shouldRecommend = true;
+          changePercent = 3 + Math.random() * 5;
+          reasoning = `A klases produkts ar lielu apgrozījumu. Konkurenti ir dārgāki (€${competitorAvg.toFixed(2)}). Varam paaugstināt cenu par ${changePercent.toFixed(1)}% saglabājot konkurētspēju un palielinot maržu.`;
+        }
+      }
+      
+      // B klases produkti - vidējs apgrozījums
+      if (product.abc_category === 'B') {
+        if (product.current_price > competitorAvg * 1.1) {
+          shouldRecommend = true;
+          changePercent = -(5 + Math.random() * 8);
+          reasoning = `B klases produkts ir ${Math.abs(changePercent).toFixed(1)}% dārgāks par konkurentu vidējo (€${competitorAvg.toFixed(2)}). Ieteicams samazināt cenu, lai palielinātu pārdošanas apjomus.`;
+        } else if (currentMargin < 18) {
+          shouldRecommend = true;
+          changePercent = 2 + Math.random() * 4;
+          reasoning = `B klases produkts ar zemu maržu (${currentMargin.toFixed(1)}%). Cenas paaugstināšana uzlabos rentabilitāti.`;
+        }
+      }
+      
+      // C klases produkti - zems apgrozījums
+      if (product.abc_category === 'C') {
+        if (product.current_price > competitorAvg * 1.05) {
+          shouldRecommend = true;
+          changePercent = -(8 + Math.random() * 12);
+          reasoning = `C klases produkts ar zemu apgrozījumu un augstu cenu. Konkurenti pārdod €${Math.abs(changePercent).toFixed(1)}% lētāk (€${competitorAvg.toFixed(2)}). Cenas samazināšana stimulēs pieprasījumu.`;
+        }
+      }
+      
+      // Privātās zīmola produkti - var būt lielāka marža
+      if (product.is_private_label && currentMargin < 30) {
+        shouldRecommend = true;
+        changePercent = 5 + Math.random() * 8;
+        reasoning = `Privātā zīmola produkts var nodrošināt augstāku maržu (30%+). Pašlaik marža ir tikai ${currentMargin.toFixed(1)}%. Ieteicams paaugstināt cenu.`;
+      }
+      
+      if (shouldRecommend) {
+        const recommendedPrice = product.current_price * (1 + changePercent / 100);
+        
+        recommendations.push({
+          tenant_id,
+          product_id: product.id,
+          current_price: product.current_price,
+          current_cost_price: product.cost_price,
+          recommended_price: recommendedPrice,
+          recommended_change_percent: changePercent,
+          competitor_avg_price: competitorAvg,
+          abc_class: product.abc_category,
+          reasoning,
+          status: 'new',
+        });
+      }
     }
 
     const { error: recommendationsError } = await supabase

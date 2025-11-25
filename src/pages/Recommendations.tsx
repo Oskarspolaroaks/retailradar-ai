@@ -47,22 +47,26 @@ const Recommendations = () => {
 
   const fetchRecommendations = async () => {
     try {
-      let query = supabase
+      const { data, error } = await supabase
         .from("pricing_recommendations")
         .select(`
           *,
-          products(sku, name, cost_price, category, brand, abc_category)
+          products!inner(sku, name, cost_price, category, brand, abc_category)
         `)
         .order("recommended_change_percent", { ascending: false });
 
-      const { data, error } = await query as any;
-
-      if (error) throw error;
+      if (error) {
+        console.error("Fetch error:", error);
+        throw error;
+      }
+      
+      console.log("Fetched recommendations:", data?.length || 0);
       setAllRecommendations(data || []);
       applyFilters(data || []);
     } catch (error: any) {
+      console.error("Error fetching recommendations:", error);
       toast({
-        title: "Error",
+        title: "Kļūda ielādējot rekomendācijas",
         description: error.message,
         variant: "destructive",
       });
