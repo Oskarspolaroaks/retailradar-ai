@@ -115,15 +115,31 @@ const SmartPrice = () => {
       setSmartPrices(data.smart_prices || []);
       
       toast({
-        title: "Success",
-        description: data.message || "Smart prices generated",
+        title: "Veiksmīgi",
+        description: data.message || `Ģenerētas ${data.smart_prices?.length || 0} viedās cenas`,
       });
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      console.error('Smart price generation error:', error);
+      
+      // Check if it's a "no products" error
+      if (error.message?.includes('Nav atrasts') || error.message?.includes('No products')) {
+        toast({
+          title: "Nav produktu",
+          description: "Lūdzu, vispirms ielādējiet demo datus vai pievienojiet produktus manuāli.",
+          variant: "destructive",
+          action: (
+            <Button variant="outline" size="sm" onClick={() => window.location.href = '/dashboard'}>
+              Doties uz Dashboard
+            </Button>
+          ),
+        });
+      } else {
+        toast({
+          title: "Kļūda",
+          description: error.message || "Neizdevās ģenerēt viedās cenas",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -196,10 +212,28 @@ const SmartPrice = () => {
 
               <Button onClick={generateSmartPrices} disabled={loading}>
                 <Zap className={`h-4 w-4 mr-2 ${loading ? 'animate-pulse' : ''}`} />
-                {loading ? "Generating..." : "Generate Smart Prices"}
+                {loading ? "Ģenerē..." : "Ģenerēt Viedās Cenas"}
               </Button>
             </CardContent>
           </Card>
+
+          {/* Empty state */}
+          {smartPrices.length === 0 && !loading && (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Zap className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Nav ģenerētu viedo cenu</h3>
+                <p className="text-sm text-muted-foreground mb-4 text-center max-w-md">
+                  Izmantojiet filtrus augstāk un nospiediet "Ģenerēt Viedās Cenas" lai aprēķinātu optimālās akcijas cenas produktiem.
+                </p>
+                {categories.length === 0 && (
+                  <p className="text-sm text-warning mb-4">
+                    ⚠️ Nav atrasts neviens produkts. Dodieties uz Dashboard un ielādējiet demo datus.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Results */}
           {smartPrices.length > 0 && (
