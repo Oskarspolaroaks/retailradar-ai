@@ -82,7 +82,17 @@ serve(async (req) => {
     const { data: products } = await query;
 
     if (!products || products.length === 0) {
-      return new Response(JSON.stringify({ error: 'No products found' }), {
+      // Count total products to give helpful error message
+      const { count } = await supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenant_id);
+      
+      const message = count === 0 
+        ? 'Nav atrasts neviens produkts. Lūdzu, vispirms ielādējiet produktu datus.'
+        : 'Nav atrasts neviens produkts ar norādītajiem filtriem. Pārbaudiet filtru iestatījumus.';
+      
+      return new Response(JSON.stringify({ error: message, totalProducts: count || 0 }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
