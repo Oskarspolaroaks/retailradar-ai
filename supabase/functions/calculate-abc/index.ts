@@ -52,17 +52,36 @@ Deno.serve(async (req) => {
 
     console.log('Starting ABC calculation...');
 
-    // Get ABC settings
-    const { data: settings, error: settingsError } = await supabase
+    // Get ABC settings, create default if doesn't exist
+    let { data: settings, error: settingsError } = await supabase
       .from('abc_settings')
       .select('*')
       .single();
 
     if (settingsError || !settings) {
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch ABC settings' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.log('No ABC settings found, creating defaults...');
+      
+      // Create default settings
+      const { data: newSettings, error: insertError } = await supabase
+        .from('abc_settings')
+        .insert({
+          analysis_period_days: 90,
+          threshold_a_percent: 80,
+          threshold_b_percent: 15,
+          threshold_c_percent: 5,
+        })
+        .select()
+        .single();
+
+      if (insertError || !newSettings) {
+        console.error('Failed to create default ABC settings:', insertError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to initialize ABC settings' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      settings = newSettings;
     }
 
     const { analysis_period_days, threshold_a_percent, threshold_b_percent } = settings;

@@ -539,15 +539,25 @@ serve(async (req) => {
     }
 
     // Initialize ABC settings if not exists
-    const { error: settingsError } = await supabase.from('abc_settings').upsert({
-      threshold_a_percent: 80,
-      threshold_b_percent: 15,
-      threshold_c_percent: 5,
-      analysis_period_days: 90,
-    });
-    
-    if (settingsError) {
-      console.error('Error creating ABC settings:', settingsError);
+    const { data: existingSettings } = await supabase
+      .from('abc_settings')
+      .select('id')
+      .limit(1)
+      .single();
+
+    if (!existingSettings) {
+      const { error: settingsError } = await supabase
+        .from('abc_settings')
+        .insert({
+          threshold_a_percent: 80,
+          threshold_b_percent: 15,
+          threshold_c_percent: 5,
+          analysis_period_days: 90,
+        });
+      
+      if (settingsError) {
+        console.error('Error creating ABC settings:', settingsError);
+      }
     }
 
     return new Response(
