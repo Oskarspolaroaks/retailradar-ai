@@ -1,4 +1,4 @@
-import { BarChart3, Package, TrendingUp, Users, AlertCircle, Calculator, Settings, LogOut, Music, Zap } from "lucide-react";
+import { BarChart3, Package, TrendingUp, Users, AlertCircle, Calculator, Settings, LogOut, Music, Zap, CalendarDays } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,7 @@ import {
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "Products", url: "/products", icon: Package },
+  { title: "Weekly Sales", url: "/weekly-sales", icon: CalendarDays },
   { title: "Recommendations", url: "/recommendations", icon: TrendingUp },
   { title: "Smart Price", url: "/smart-price", icon: Zap },
   { title: "Symphony", url: "/symphony", icon: Music },
