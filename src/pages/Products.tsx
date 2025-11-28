@@ -17,6 +17,7 @@ import { Plus, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddProductDialog } from "@/components/AddProductDialog";
 import { ImportDataDialog } from "@/components/ImportDataDialog";
+import { WeeklySalesImportDialog } from "@/components/WeeklySalesImportDialog";
 
 interface Product {
   id: string;
@@ -88,6 +89,7 @@ const Products = () => {
           </p>
         </div>
         <div className="flex gap-2">
+          <WeeklySalesImportDialog onImportComplete={fetchProducts} />
           <ImportDataDialog onImportComplete={fetchProducts} />
           <AddProductDialog onProductAdded={fetchProducts} />
         </div>
