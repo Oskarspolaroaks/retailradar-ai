@@ -14,6 +14,7 @@ import PricingSimulator from "./pages/PricingSimulator";
 import Settings from "./pages/Settings";
 import Symphony from "./pages/Symphony";
 import SmartPrice from "./pages/SmartPrice";
+import WeeklySales from "./pages/WeeklySales";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/pricing-simulator" element={<Layout><PricingSimulator /></Layout>} />
           <Route path="/symphony" element={<Layout><Symphony /></Layout>} />
           <Route path="/smart-price" element={<Layout><SmartPrice /></Layout>} />
+          <Route path="/weekly-sales" element={<Layout><WeeklySales /></Layout>} />
           <Route path="/settings" element={<Layout><Settings /></Layout>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
