@@ -1556,6 +1556,69 @@ export type Database = {
           },
         ]
       }
+      weekly_sales: {
+        Row: {
+          created_at: string
+          gross_margin: number
+          id: string
+          mapped: boolean
+          partner: string
+          period_type: string
+          product_id: string | null
+          product_name: string
+          stock_end: number | null
+          tenant_id: string
+          units_sold: number
+          updated_at: string
+          week_end: string
+        }
+        Insert: {
+          created_at?: string
+          gross_margin?: number
+          id?: string
+          mapped?: boolean
+          partner: string
+          period_type: string
+          product_id?: string | null
+          product_name: string
+          stock_end?: number | null
+          tenant_id: string
+          units_sold?: number
+          updated_at?: string
+          week_end: string
+        }
+        Update: {
+          created_at?: string
+          gross_margin?: number
+          id?: string
+          mapped?: boolean
+          partner?: string
+          period_type?: string
+          product_id?: string | null
+          product_name?: string
+          stock_end?: number | null
+          tenant_id?: string
+          units_sold?: number
+          updated_at?: string
+          week_end?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_weekly_sales_product"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_weekly_sales_tenant"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
