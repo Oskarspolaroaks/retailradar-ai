@@ -7,7 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, TrendingUp, Package } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar, TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, Minus, BarChart3 } from "lucide-react";
+import { WeeklySalesImportDialog } from "@/components/WeeklySalesImportDialog";
 
 type ProductAgg = {
   product_id: string | null;
@@ -18,9 +20,32 @@ type ProductAgg = {
 
 type ProductWithABC = ProductAgg & { abc_category: "A" | "B" | "C" };
 
+type ComparisonRow = {
+  product_name: string;
+  product_id: string | null;
+  lw_units: number;
+  pw_units: number;
+  lw_margin: number;
+  pw_margin: number;
+  stock_end: number | null;
+  units_change: number;
+  units_change_pct: number;
+  margin_change: number;
+  margin_change_pct: number;
+  abc_lw: "A" | "B" | "C" | null;
+  abc_pw: "A" | "B" | "C" | null;
+  mapped: boolean;
+};
+
 function assignABC(products: ProductAgg[]): ProductWithABC[] {
+  if (products.length === 0) return [];
+  
   const sorted = [...products].sort((a, b) => b.total_revenue - a.total_revenue);
   const totalRevenue = sorted.reduce((sum, p) => sum + p.total_revenue, 0);
+
+  if (totalRevenue === 0) {
+    return sorted.map(p => ({ ...p, abc_category: "C" as const }));
+  }
 
   let cumulative = 0;
   return sorted.map(p => {
@@ -37,12 +62,12 @@ function assignABC(products: ProductAgg[]): ProductWithABC[] {
 }
 
 const WeeklySales = () => {
-  const [periodFilter, setPeriodFilter] = useState<string>("all");
   const [partnerFilter, setPartnerFilter] = useState<string>("all");
   const [productSearch, setProductSearch] = useState<string>("");
   const [abcFilter, setAbcFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("margin_desc");
 
-  const { data: weeklySales, isLoading } = useQuery({
+  const { data: weeklySales, isLoading, refetch } = useQuery({
     queryKey: ["weekly-sales"],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -64,7 +89,9 @@ const WeeklySales = () => {
             name,
             sku,
             category,
-            brand
+            brand,
+            current_price,
+            cost_price
           )
         `)
         .eq("tenant_id", userTenants.tenant_id)
@@ -75,29 +102,34 @@ const WeeklySales = () => {
     },
   });
 
-  // Calculate ABC for LW and PW separately
-  const abcAnalysis = useMemo(() => {
+  // Calculate ABC and comparison data
+  const { abcAnalysis, comparisonData, totals } = useMemo(() => {
     if (!weeklySales || weeklySales.length === 0) {
-      return { LW: [], PW: [], abcMap: new Map<string, { LW?: "A" | "B" | "C", PW?: "A" | "B" | "C" }>() };
+      return { 
+        abcAnalysis: { LW: [], PW: [], abcMap: new Map() },
+        comparisonData: [],
+        totals: { lwUnits: 0, pwUnits: 0, lwMargin: 0, pwMargin: 0 }
+      };
     }
 
     const lwSales = weeklySales.filter(s => s.period_type === "LW");
     const pwSales = weeklySales.filter(s => s.period_type === "PW");
 
-    const aggregateByProduct = (sales: typeof weeklySales) => {
+    // Aggregate by product for ABC
+    const aggregateByProduct = (sales: typeof weeklySales): ProductAgg[] => {
       const map = new Map<string, ProductAgg>();
       sales.forEach(sale => {
         const key = sale.product_id || sale.product_name;
         const existing = map.get(key);
         if (existing) {
-          existing.total_units += sale.units_sold;
-          existing.total_revenue += sale.gross_margin;
+          existing.total_units += Number(sale.units_sold) || 0;
+          existing.total_revenue += Number(sale.gross_margin) || 0;
         } else {
           map.set(key, {
             product_id: sale.product_id,
             product_name: sale.product_name,
-            total_units: sale.units_sold,
-            total_revenue: sale.gross_margin,
+            total_units: Number(sale.units_sold) || 0,
+            total_revenue: Number(sale.gross_margin) || 0,
           });
         }
       });
@@ -110,451 +142,520 @@ const WeeklySales = () => {
     const lwWithABC = assignABC(lwAgg);
     const pwWithABC = assignABC(pwAgg);
 
-    // Create a map for quick lookup
+    // Create ABC map
     const abcMap = new Map<string, { LW?: "A" | "B" | "C", PW?: "A" | "B" | "C" }>();
-    
     lwWithABC.forEach(p => {
       const key = p.product_id || p.product_name;
       abcMap.set(key, { ...abcMap.get(key), LW: p.abc_category });
     });
-    
     pwWithABC.forEach(p => {
       const key = p.product_id || p.product_name;
       abcMap.set(key, { ...abcMap.get(key), PW: p.abc_category });
     });
 
-    return { LW: lwWithABC, PW: pwWithABC, abcMap };
+    // Build comparison data
+    const productMap = new Map<string, ComparisonRow>();
+    
+    lwSales.forEach(sale => {
+      const key = sale.product_id || sale.product_name;
+      const existing = productMap.get(key);
+      const abcData = abcMap.get(key);
+      
+      if (existing) {
+        existing.lw_units += Number(sale.units_sold) || 0;
+        existing.lw_margin += Number(sale.gross_margin) || 0;
+        existing.stock_end = sale.stock_end ? Number(sale.stock_end) : existing.stock_end;
+        existing.mapped = sale.mapped || existing.mapped;
+      } else {
+        productMap.set(key, {
+          product_name: sale.product_name,
+          product_id: sale.product_id,
+          lw_units: Number(sale.units_sold) || 0,
+          pw_units: 0,
+          lw_margin: Number(sale.gross_margin) || 0,
+          pw_margin: 0,
+          stock_end: sale.stock_end ? Number(sale.stock_end) : null,
+          units_change: 0,
+          units_change_pct: 0,
+          margin_change: 0,
+          margin_change_pct: 0,
+          abc_lw: abcData?.LW || null,
+          abc_pw: abcData?.PW || null,
+          mapped: sale.mapped,
+        });
+      }
+    });
+
+    pwSales.forEach(sale => {
+      const key = sale.product_id || sale.product_name;
+      const existing = productMap.get(key);
+      const abcData = abcMap.get(key);
+      
+      if (existing) {
+        existing.pw_units += Number(sale.units_sold) || 0;
+        existing.pw_margin += Number(sale.gross_margin) || 0;
+        existing.abc_pw = abcData?.PW || null;
+      } else {
+        productMap.set(key, {
+          product_name: sale.product_name,
+          product_id: sale.product_id,
+          lw_units: 0,
+          pw_units: Number(sale.units_sold) || 0,
+          lw_margin: 0,
+          pw_margin: Number(sale.gross_margin) || 0,
+          stock_end: sale.stock_end ? Number(sale.stock_end) : null,
+          units_change: 0,
+          units_change_pct: 0,
+          margin_change: 0,
+          margin_change_pct: 0,
+          abc_lw: abcData?.LW || null,
+          abc_pw: abcData?.PW || null,
+          mapped: sale.mapped,
+        });
+      }
+    });
+
+    // Calculate changes
+    productMap.forEach((row, key) => {
+      row.units_change = row.lw_units - row.pw_units;
+      row.margin_change = row.lw_margin - row.pw_margin;
+      row.units_change_pct = row.pw_units > 0 ? ((row.lw_units - row.pw_units) / row.pw_units) * 100 : (row.lw_units > 0 ? 100 : 0);
+      row.margin_change_pct = row.pw_margin > 0 ? ((row.lw_margin - row.pw_margin) / row.pw_margin) * 100 : (row.lw_margin > 0 ? 100 : 0);
+    });
+
+    const comparison = Array.from(productMap.values());
+
+    // Calculate totals
+    const totals = {
+      lwUnits: comparison.reduce((sum, r) => sum + r.lw_units, 0),
+      pwUnits: comparison.reduce((sum, r) => sum + r.pw_units, 0),
+      lwMargin: comparison.reduce((sum, r) => sum + r.lw_margin, 0),
+      pwMargin: comparison.reduce((sum, r) => sum + r.pw_margin, 0),
+    };
+
+    return { 
+      abcAnalysis: { LW: lwWithABC, PW: pwWithABC, abcMap },
+      comparisonData: comparison,
+      totals
+    };
   }, [weeklySales]);
 
-  const filteredSales = weeklySales?.filter((sale) => {
-    const matchesPeriod = periodFilter === "all" || sale.period_type === periodFilter;
-    const matchesPartner = partnerFilter === "all" || sale.partner === partnerFilter;
-    const matchesProduct = !productSearch || 
-      sale.product_name.toLowerCase().includes(productSearch.toLowerCase()) ||
-      sale.products?.name?.toLowerCase().includes(productSearch.toLowerCase());
-    
-    // ABC filter
-    let matchesABC = true;
-    if (abcFilter !== "all") {
-      const key = sale.product_id || sale.product_name;
-      const abcData = abcAnalysis.abcMap.get(key);
-      const abc = sale.period_type === "LW" ? abcData?.LW : abcData?.PW;
-      matchesABC = abc === abcFilter;
+  // Filter and sort comparison data
+  const filteredData = useMemo(() => {
+    let data = comparisonData.filter(row => {
+      const matchesPartner = partnerFilter === "all"; // All data is from the same query
+      const matchesProduct = !productSearch || 
+        row.product_name.toLowerCase().includes(productSearch.toLowerCase());
+      const matchesABC = abcFilter === "all" || row.abc_lw === abcFilter;
+      return matchesPartner && matchesProduct && matchesABC;
+    });
+
+    // Sort
+    switch (sortBy) {
+      case "margin_desc":
+        data.sort((a, b) => b.lw_margin - a.lw_margin);
+        break;
+      case "margin_asc":
+        data.sort((a, b) => a.lw_margin - b.lw_margin);
+        break;
+      case "units_desc":
+        data.sort((a, b) => b.lw_units - a.lw_units);
+        break;
+      case "change_desc":
+        data.sort((a, b) => b.margin_change_pct - a.margin_change_pct);
+        break;
+      case "change_asc":
+        data.sort((a, b) => a.margin_change_pct - b.margin_change_pct);
+        break;
+      case "abc":
+        data.sort((a, b) => {
+          const order = { A: 0, B: 1, C: 2 };
+          return (order[a.abc_lw || "C"] || 2) - (order[b.abc_lw || "C"] || 2);
+        });
+        break;
     }
-    
-    return matchesPeriod && matchesPartner && matchesProduct && matchesABC;
-  });
+
+    return data;
+  }, [comparisonData, partnerFilter, productSearch, abcFilter, sortBy]);
 
   const uniquePartners = [...new Set(weeklySales?.map(s => s.partner) || [])];
 
-  const totalUnits = filteredSales?.reduce((sum, sale) => sum + (sale.units_sold || 0), 0) || 0;
-  const totalMargin = filteredSales?.reduce((sum, sale) => sum + (sale.gross_margin || 0), 0) || 0;
-
-  // ABC distribution stats
-  const getAbcStats = (abcProducts: ProductWithABC[]) => {
-    const total = abcProducts.length;
-    const aCount = abcProducts.filter(p => p.abc_category === "A").length;
-    const bCount = abcProducts.filter(p => p.abc_category === "B").length;
-    const cCount = abcProducts.filter(p => p.abc_category === "C").length;
+  // ABC stats
+  const getAbcStats = (products: ProductWithABC[]) => {
+    const total = products.length;
+    if (total === 0) return null;
     
-    const aRevenue = abcProducts.filter(p => p.abc_category === "A").reduce((sum, p) => sum + p.total_revenue, 0);
-    const bRevenue = abcProducts.filter(p => p.abc_category === "B").reduce((sum, p) => sum + p.total_revenue, 0);
-    const cRevenue = abcProducts.filter(p => p.abc_category === "C").reduce((sum, p) => sum + p.total_revenue, 0);
-    const totalRevenue = aRevenue + bRevenue + cRevenue;
+    const aProducts = products.filter(p => p.abc_category === "A");
+    const bProducts = products.filter(p => p.abc_category === "B");
+    const cProducts = products.filter(p => p.abc_category === "C");
+
+    const totalRevenue = products.reduce((sum, p) => sum + p.total_revenue, 0);
 
     return {
-      A: { count: aCount, percent: (aCount / total * 100).toFixed(1), revenue: aRevenue, revenuePercent: (aRevenue / totalRevenue * 100).toFixed(1) },
-      B: { count: bCount, percent: (bCount / total * 100).toFixed(1), revenue: bRevenue, revenuePercent: (bRevenue / totalRevenue * 100).toFixed(1) },
-      C: { count: cCount, percent: (cCount / total * 100).toFixed(1), revenue: cRevenue, revenuePercent: (cRevenue / totalRevenue * 100).toFixed(1) },
+      A: { 
+        count: aProducts.length, 
+        pct: (aProducts.length / total * 100).toFixed(0),
+        revenue: aProducts.reduce((sum, p) => sum + p.total_revenue, 0),
+        revenuePct: totalRevenue > 0 ? (aProducts.reduce((sum, p) => sum + p.total_revenue, 0) / totalRevenue * 100).toFixed(0) : "0"
+      },
+      B: { 
+        count: bProducts.length, 
+        pct: (bProducts.length / total * 100).toFixed(0),
+        revenue: bProducts.reduce((sum, p) => sum + p.total_revenue, 0),
+        revenuePct: totalRevenue > 0 ? (bProducts.reduce((sum, p) => sum + p.total_revenue, 0) / totalRevenue * 100).toFixed(0) : "0"
+      },
+      C: { 
+        count: cProducts.length, 
+        pct: (cProducts.length / total * 100).toFixed(0),
+        revenue: cProducts.reduce((sum, p) => sum + p.total_revenue, 0),
+        revenuePct: totalRevenue > 0 ? (cProducts.reduce((sum, p) => sum + p.total_revenue, 0) / totalRevenue * 100).toFixed(0) : "0"
+      },
     };
   };
 
-  const lwStats = abcAnalysis.LW.length > 0 ? getAbcStats(abcAnalysis.LW) : null;
-  const pwStats = abcAnalysis.PW.length > 0 ? getAbcStats(abcAnalysis.PW) : null;
+  const lwStats = getAbcStats(abcAnalysis.LW);
+
+  const unitsChangePct = totals.pwUnits > 0 ? ((totals.lwUnits - totals.pwUnits) / totals.pwUnits * 100) : 0;
+  const marginChangePct = totals.pwMargin > 0 ? ((totals.lwMargin - totals.pwMargin) / totals.pwMargin * 100) : 0;
+
+  const renderChangeIndicator = (value: number, pct: number, isCurrency = false) => {
+    if (pct === 0) {
+      return <span className="text-muted-foreground flex items-center gap-1"><Minus className="h-3 w-3" /> 0%</span>;
+    }
+    const isPositive = pct > 0;
+    return (
+      <span className={`flex items-center gap-1 ${isPositive ? "text-green-600" : "text-red-600"}`}>
+        {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+        {isPositive ? "+" : ""}{pct.toFixed(1)}%
+      </span>
+    );
+  };
+
+  const ABCBadge = ({ abc }: { abc: "A" | "B" | "C" | null }) => {
+    if (!abc) return <span className="text-muted-foreground">-</span>;
+    
+    const styles = {
+      A: "bg-green-500/10 text-green-700 border-green-500/20 hover:bg-green-500/20",
+      B: "bg-yellow-500/10 text-yellow-700 border-yellow-500/20 hover:bg-yellow-500/20",
+      C: "bg-muted text-muted-foreground border-muted hover:bg-muted/80",
+    };
+
+    return <Badge className={styles[abc]}>{abc}</Badge>;
+  };
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Nedēļas Pārdošanas Pārskats</h1>
-        <p className="text-muted-foreground mt-2">
-          Spirits&Wine importēto datu analīze
-        </p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Nedēļas Pārdošanas Pārskats</h1>
+          <p className="text-muted-foreground mt-1">
+            LW vs PW salīdzinājums ar ABC analīzi
+          </p>
+        </div>
+        <WeeklySalesImportDialog onImportComplete={() => refetch()} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Kopā Pārdots</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              LW Pārdots
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalUnits.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">vienības</p>
+            <div className="text-2xl font-bold">{totals.lwUnits.toLocaleString()}</div>
+            <div className="text-sm mt-1">
+              {renderChangeIndicator(totals.lwUnits - totals.pwUnits, unitsChangePct)}
+            </div>
           </CardContent>
-      </Card>
+        </Card>
 
-      {(lwStats || pwStats) && (
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <TrendingUp className="h-6 w-6 text-primary" />
-              ABC Analīze
-            </h2>
-            <p className="text-muted-foreground mt-1">
-              Produktu segmentācija pēc ieņēmumu ieguldījuma (Pareto 80/15/5 princips)
-            </p>
-          </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              LW Bruto Marža
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">€{totals.lwMargin.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+            <div className="text-sm mt-1">
+              {renderChangeIndicator(totals.lwMargin - totals.pwMargin, marginChangePct, true)}
+            </div>
+          </CardContent>
+        </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {lwStats && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Badge variant="default">LW</Badge>
-                    Pēdējā Nedēļa ABC
-                  </CardTitle>
-                  <CardDescription>{abcAnalysis.LW.length} produkti</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-green-500/10 text-green-700 border-green-500/20">A</Badge>
-                        <span className="text-sm">Top produkti (80% ieņ.)</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold">{lwStats.A.count}</div>
-                        <div className="text-xs text-muted-foreground">{lwStats.A.percent}% produktu</div>
-                      </div>
-                    </div>
-                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-green-500" 
-                        style={{ width: `${lwStats.A.revenuePercent}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      €{lwStats.A.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })} ({lwStats.A.revenuePercent}%)
-                    </div>
-                  </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Produktu Skaits
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{comparisonData.length}</div>
+            <div className="text-sm text-muted-foreground mt-1">
+              {filteredData.length} filtrēti
+            </div>
+          </CardContent>
+        </Card>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-yellow-500/10 text-yellow-700 border-yellow-500/20">B</Badge>
-                        <span className="text-sm">Vidējie (15% ieņ.)</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold">{lwStats.B.count}</div>
-                        <div className="text-xs text-muted-foreground">{lwStats.B.percent}% produktu</div>
-                      </div>
-                    </div>
-                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-yellow-500" 
-                        style={{ width: `${lwStats.B.revenuePercent}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      €{lwStats.B.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })} ({lwStats.B.revenuePercent}%)
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-muted-foreground">C</Badge>
-                        <span className="text-sm">Zemi (5% ieņ.)</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold">{lwStats.C.count}</div>
-                        <div className="text-xs text-muted-foreground">{lwStats.C.percent}% produktu</div>
-                      </div>
-                    </div>
-                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-muted" 
-                        style={{ width: `${lwStats.C.revenuePercent}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      €{lwStats.C.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })} ({lwStats.C.revenuePercent}%)
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              ABC Sadalījums
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {lwStats ? (
+              <div className="flex items-center gap-2">
+                <ABCBadge abc="A" />
+                <span className="text-sm">{lwStats.A.count}</span>
+                <ABCBadge abc="B" />
+                <span className="text-sm">{lwStats.B.count}</span>
+                <ABCBadge abc="C" />
+                <span className="text-sm">{lwStats.C.count}</span>
+              </div>
+            ) : (
+              <span className="text-muted-foreground">Nav datu</span>
             )}
+          </CardContent>
+        </Card>
+      </div>
 
-            {pwStats && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Badge variant="secondary">PW</Badge>
-                    Iepriekšējā Nedēļa ABC
-                  </CardTitle>
-                  <CardDescription>{abcAnalysis.PW.length} produkti</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-green-500/10 text-green-700 border-green-500/20">A</Badge>
-                        <span className="text-sm">Top produkti (80% ieņ.)</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold">{pwStats.A.count}</div>
-                        <div className="text-xs text-muted-foreground">{pwStats.A.percent}% produktu</div>
-                      </div>
-                    </div>
-                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-green-500" 
-                        style={{ width: `${pwStats.A.revenuePercent}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      €{pwStats.A.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })} ({pwStats.A.revenuePercent}%)
-                    </div>
-                  </div>
+      {/* ABC Analysis Cards */}
+      {lwStats && (
+        <div className="grid grid-cols-3 gap-4">
+          <Card className="border-green-500/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <ABCBadge abc="A" />
+                Top Produkti (A)
+              </CardTitle>
+              <CardDescription>~80% ieņēmumu</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{lwStats.A.count}</div>
+              <div className="text-sm text-muted-foreground">
+                €{lwStats.A.revenue.toLocaleString(undefined, { minimumFractionDigits: 0 })} ({lwStats.A.revenuePct}%)
+              </div>
+              <div className="h-2 bg-secondary rounded-full mt-2 overflow-hidden">
+                <div className="h-full bg-green-500" style={{ width: `${lwStats.A.revenuePct}%` }} />
+              </div>
+            </CardContent>
+          </Card>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-yellow-500/10 text-yellow-700 border-yellow-500/20">B</Badge>
-                        <span className="text-sm">Vidējie (15% ieņ.)</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold">{pwStats.B.count}</div>
-                        <div className="text-xs text-muted-foreground">{pwStats.B.percent}% produktu</div>
-                      </div>
-                    </div>
-                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-yellow-500" 
-                        style={{ width: `${pwStats.B.revenuePercent}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      €{pwStats.B.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })} ({pwStats.B.revenuePercent}%)
-                    </div>
-                  </div>
+          <Card className="border-yellow-500/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <ABCBadge abc="B" />
+                Vidējie Produkti (B)
+              </CardTitle>
+              <CardDescription>~15% ieņēmumu</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{lwStats.B.count}</div>
+              <div className="text-sm text-muted-foreground">
+                €{lwStats.B.revenue.toLocaleString(undefined, { minimumFractionDigits: 0 })} ({lwStats.B.revenuePct}%)
+              </div>
+              <div className="h-2 bg-secondary rounded-full mt-2 overflow-hidden">
+                <div className="h-full bg-yellow-500" style={{ width: `${lwStats.B.revenuePct}%` }} />
+              </div>
+            </CardContent>
+          </Card>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-muted-foreground">C</Badge>
-                        <span className="text-sm">Zemi (5% ieņ.)</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold">{pwStats.C.count}</div>
-                        <div className="text-xs text-muted-foreground">{pwStats.C.percent}% produktu</div>
-                      </div>
-                    </div>
-                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-muted" 
-                        style={{ width: `${pwStats.C.revenuePercent}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      €{pwStats.C.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })} ({pwStats.C.revenuePercent}%)
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          <Card className="border-muted">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <ABCBadge abc="C" />
+                Zemi Produkti (C)
+              </CardTitle>
+              <CardDescription>~5% ieņēmumu</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{lwStats.C.count}</div>
+              <div className="text-sm text-muted-foreground">
+                €{lwStats.C.revenue.toLocaleString(undefined, { minimumFractionDigits: 0 })} ({lwStats.C.revenuePct}%)
+              </div>
+              <div className="h-2 bg-secondary rounded-full mt-2 overflow-hidden">
+                <div className="h-full bg-muted-foreground/30" style={{ width: `${lwStats.C.revenuePct}%` }} />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
+      {/* Filters */}
       <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Bruto Marža</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">€{totalMargin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground mt-1">kopējā marža</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Produktu Skaits</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{filteredSales?.length || 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">ieraksti</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Filtri</CardTitle>
-          <CardDescription>Filtrēt pārdošanas datus pēc perioda, partnera un produkta</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="period">Periods</Label>
-              <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                <SelectTrigger id="period">
-                  <SelectValue placeholder="Izvēlēties periodu" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Visi periodi</SelectItem>
-                  <SelectItem value="LW">Pēdējā Nedēļa (LW)</SelectItem>
-                  <SelectItem value="PW">Iepriekšējā Nedēļa (PW)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="partner">Partneris</Label>
+        <CardContent className="pt-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="space-y-1.5 min-w-[140px]">
+              <Label className="text-xs">Partneris</Label>
               <Select value={partnerFilter} onValueChange={setPartnerFilter}>
-                <SelectTrigger id="partner">
-                  <SelectValue placeholder="Izvēlēties partneri" />
+                <SelectTrigger className="h-9">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Visi partneri</SelectItem>
+                  <SelectItem value="all">Visi</SelectItem>
                   {uniquePartners.map((partner) => (
-                    <SelectItem key={partner} value={partner}>
-                      {partner}
-                    </SelectItem>
+                    <SelectItem key={partner} value={partner}>{partner}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="abc">ABC Kategorija</Label>
+            <div className="space-y-1.5 min-w-[140px]">
+              <Label className="text-xs">ABC Kategorija</Label>
               <Select value={abcFilter} onValueChange={setAbcFilter}>
-                <SelectTrigger id="abc">
-                  <SelectValue placeholder="Izvēlēties ABC" />
+                <SelectTrigger className="h-9">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Visas kategorijas</SelectItem>
-                  <SelectItem value="A">A - Top (80% ieņēmumu)</SelectItem>
-                  <SelectItem value="B">B - Vidējie (15% ieņēmumu)</SelectItem>
-                  <SelectItem value="C">C - Zemi (5% ieņēmumu)</SelectItem>
+                  <SelectItem value="all">Visas</SelectItem>
+                  <SelectItem value="A">A - Top</SelectItem>
+                  <SelectItem value="B">B - Vidējie</SelectItem>
+                  <SelectItem value="C">C - Zemi</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="product">Produkts</Label>
+            <div className="space-y-1.5 min-w-[140px]">
+              <Label className="text-xs">Kārtot pēc</Label>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="margin_desc">Marža ↓</SelectItem>
+                  <SelectItem value="margin_asc">Marža ↑</SelectItem>
+                  <SelectItem value="units_desc">Pārdots ↓</SelectItem>
+                  <SelectItem value="change_desc">Izaugsme ↓</SelectItem>
+                  <SelectItem value="change_asc">Kritums ↓</SelectItem>
+                  <SelectItem value="abc">ABC kategorija</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5 flex-1 min-w-[200px]">
+              <Label className="text-xs">Meklēt produktu</Label>
               <Input
-                id="product"
-                placeholder="Meklēt produktu..."
+                placeholder="Nosaukums..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
+                className="h-9"
               />
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* Data Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Pārdošanas Dati</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle>LW vs PW Salīdzinājums</CardTitle>
           <CardDescription>
-            {filteredSales?.length || 0} ieraksti atrasti
+            {filteredData.length} produkti no {comparisonData.length}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Ielādē datus...</div>
-          ) : filteredSales && filteredSales.length > 0 ? (
-            <div className="rounded-md border">
+            <div className="text-center py-12 text-muted-foreground">Ielādē datus...</div>
+          ) : filteredData.length > 0 ? (
+            <div className="rounded-md border overflow-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Produkts</TableHead>
-                    <TableHead>ABC</TableHead>
-                    <TableHead>Partneris</TableHead>
-                    <TableHead>Periods</TableHead>
-                    <TableHead>Nedēļas Beigas</TableHead>
-                    <TableHead className="text-right">Pārdots</TableHead>
-                    <TableHead className="text-right">Bruto Marža</TableHead>
-                    <TableHead className="text-right">Atlikums</TableHead>
-                    <TableHead>Status</TableHead>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="sticky left-0 bg-muted/50 min-w-[200px]">Produkts</TableHead>
+                    <TableHead className="text-center w-[60px]">ABC</TableHead>
+                    <TableHead className="text-right w-[100px]">LW Pārdots</TableHead>
+                    <TableHead className="text-right w-[100px]">PW Pārdots</TableHead>
+                    <TableHead className="text-center w-[100px]">Δ Vienības</TableHead>
+                    <TableHead className="text-right w-[100px]">LW Marža</TableHead>
+                    <TableHead className="text-right w-[100px]">PW Marža</TableHead>
+                    <TableHead className="text-center w-[100px]">Δ Marža</TableHead>
+                    <TableHead className="text-right w-[80px]">Atlikums</TableHead>
+                    <TableHead className="text-center w-[80px]">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredSales.map((sale) => {
-                    const key = sale.product_id || sale.product_name;
-                    const abcData = abcAnalysis.abcMap.get(key);
-                    const abc = sale.period_type === "LW" ? abcData?.LW : abcData?.PW;
-                    
-                    return (
-                      <TableRow key={sale.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{sale.product_name}</div>
-                            {sale.products?.name && (
-                              <div className="text-xs text-muted-foreground">
-                                → {sale.products.name} ({sale.products.sku})
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {abc && (
-                            <Badge 
-                              className={
-                                abc === "A" 
-                                  ? "bg-green-500/10 text-green-700 border-green-500/20" 
-                                  : abc === "B"
-                                  ? "bg-yellow-500/10 text-yellow-700 border-yellow-500/20"
-                                  : "border-muted text-muted-foreground"
-                              }
-                            >
-                              {abc}
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>{sale.partner}</TableCell>
-                        <TableCell>
-                          <Badge variant={sale.period_type === "LW" ? "default" : "secondary"}>
-                            {sale.period_type}
+                  {filteredData.map((row) => (
+                    <TableRow key={row.product_id || row.product_name}>
+                      <TableCell className="sticky left-0 bg-background font-medium">
+                        <div className="truncate max-w-[200px]" title={row.product_name}>
+                          {row.product_name}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <ABCBadge abc={row.abc_lw} />
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {row.lw_units.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-muted-foreground">
+                        {row.pw_units.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {renderChangeIndicator(row.units_change, row.units_change_pct)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        €{row.lw_margin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-muted-foreground">
+                        €{row.pw_margin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {renderChangeIndicator(row.margin_change, row.margin_change_pct, true)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {row.stock_end !== null ? row.stock_end.toLocaleString() : '-'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {row.mapped ? (
+                          <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20 text-xs">
+                            ✓
                           </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3 text-muted-foreground" />
-                            {new Date(sale.week_end).toLocaleDateString('lv-LV')}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {sale.units_sold.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          €{sale.gross_margin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {sale.stock_end ? sale.stock_end.toLocaleString() : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {sale.mapped ? (
-                            <Badge variant="default" className="bg-green-500/10 text-green-700 border-green-500/20">
-                              Kartēts
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-yellow-700 border-yellow-500/20">
-                              Nav kartēts
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                        ) : (
+                          <Badge variant="outline" className="text-yellow-600 border-yellow-500/30 text-xs">
+                            ?
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              Nav atrasti dati. Importējiet Spirits&Wine failu, lai redzētu datus.
+            <div className="text-center py-12 text-muted-foreground">
+              <Package className="h-12 w-12 mx-auto mb-4 opacity-30" />
+              <p>Nav atrasti dati.</p>
+              <p className="text-sm mt-1">Importējiet Spirits&Wine Excel failu, lai redzētu pārskatu.</p>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* ABC Legend */}
+      <Card>
+        <CardContent className="py-3">
+          <div className="flex items-center gap-6 text-sm">
+            <span className="font-medium">ABC Leģenda:</span>
+            <div className="flex items-center gap-2">
+              <ABCBadge abc="A" />
+              <span className="text-muted-foreground">Top produkti (~80% ieņēmumu)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ABCBadge abc="B" />
+              <span className="text-muted-foreground">Vidējie (~15% ieņēmumu)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ABCBadge abc="C" />
+              <span className="text-muted-foreground">Zemi (~5% ieņēmumu)</span>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
