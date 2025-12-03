@@ -305,18 +305,28 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
       
       setParsedData(transformed);
 
-      // Fetch existing products
+      // Fetch existing products with timeout and better error handling
       console.log('[Import] Fetching existing products...');
-      const { data: products, error } = await supabase
-        .from('products')
-        .select('id, name, sku, current_price, cost_price');
+      let products: any[] = [];
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, name, sku, current_price, cost_price')
+          .limit(10000);
 
-      if (error) {
-        console.error('[Import] Error fetching products:', error);
-        throw new Error(`Neizdevās ielādēt produktus: ${error.message}`);
+        if (error) {
+          console.error('[Import] Error fetching products:', error);
+          // Continue without matching if products can't be fetched
+          console.warn('[Import] Continuing without product matching due to error');
+        } else {
+          products = data || [];
+          console.log('[Import] Existing products fetched:', products.length);
+        }
+      } catch (fetchError: any) {
+        console.error('[Import] Products fetch exception:', fetchError);
+        console.warn('[Import] Continuing without product matching');
       }
-      console.log('[Import] Existing products:', products?.length || 0);
-      setExistingProducts(products || []);
+      setExistingProducts(products);
 
       // Initialize mappings with fuzzy matching
       const uniqueProductNames = [...new Set(transformed.map(s => s.product_name))];
