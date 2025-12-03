@@ -65,56 +65,110 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
     }
   };
 
+  // Normalize column name for matching (trim, lowercase)
+  const normalizeColumn = (col: string): string => {
+    return col?.toString().trim().toLowerCase() || '';
+  };
+
+  // Find column by flexible matching
+  const findColumn = (columns: string[], patterns: string[]): string | null => {
+    for (const col of columns) {
+      const normalized = normalizeColumn(col);
+      for (const pattern of patterns) {
+        if (normalized === pattern.toLowerCase() || normalized.includes(pattern.toLowerCase())) {
+          return col; // Return original column name
+        }
+      }
+    }
+    return null;
+  };
+
   const analyzeFile = async (file: File) => {
+    console.log('[Import] Starting file analysis:', file.name);
     try {
       const data = await readExcelFile(file);
+      console.log('[Import] Excel parsed, rows:', data.length);
+      
       if (data.length === 0) {
+        console.warn('[Import] No data rows found in file');
         setFileInfo(null);
+        toast({
+          title: "Tukša datne",
+          description: "Excel datnē nav datu rindu",
+          variant: "destructive",
+        });
         return;
       }
 
       const columns = Object.keys(data[0]);
+      console.log('[Import] Detected columns:', columns);
       
-      // Check for Spirits&Wine format
-      const hasNosaukums = columns.some(c => c === "Nosaukums");
-      const hasSumOfSkaits = columns.some(c => c === "Sum of Skaits");
-      const hasSumOfGM = columns.some(c => c === "Sum of GM");
+      // Flexible column detection (case-insensitive, trimmed)
+      const nosaukumsCol = findColumn(columns, ['Nosaukums']);
+      const sumOfSkaitsCol = findColumn(columns, ['Sum of Skaits']);
+      const sumOfGMCol = findColumn(columns, ['Sum of GM']);
       
-      // Find "Atlikumi XX.XX" column dynamically
-      const atlikumiColumn = columns.find(c => c.startsWith("Atlikumi "));
+      // Find "Atlikumi XX.XX" column dynamically (case-insensitive)
+      const atlikumiColumn = columns.find(c => 
+        normalizeColumn(c).startsWith('atlikumi ')
+      );
+      
+      console.log('[Import] Column detection:', {
+        nosaukums: nosaukumsCol,
+        sumOfSkaits: sumOfSkaitsCol,
+        sumOfGM: sumOfGMCol,
+        atlikumi: atlikumiColumn,
+      });
       
       let parsedDate: string | null = null;
       if (atlikumiColumn) {
         // Parse date from "Atlikumi 24.11" or similar format
-        const dateMatch = atlikumiColumn.match(/Atlikumi\s+(\d{1,2})\.(\d{1,2})/);
+        const dateMatch = atlikumiColumn.match(/[Aa]tlikumi\s+(\d{1,2})\.(\d{1,2})/);
         if (dateMatch) {
           const day = dateMatch[1].padStart(2, '0');
           const month = dateMatch[2].padStart(2, '0');
           parsedDate = `${year}-${month}-${day}`;
           setWeekEnd(parsedDate);
+          console.log('[Import] Parsed date from column:', parsedDate);
         }
       }
 
-      const isSpiritsWine = hasNosaukums && hasSumOfSkaits && hasSumOfGM;
+      const isSpiritsWine = !!(nosaukumsCol && sumOfSkaitsCol && sumOfGMCol);
+      console.log('[Import] Is Spirits&Wine format:', isSpiritsWine);
 
       setFileInfo({
         isSpiritsWine,
-        atlikumiColumn,
+        atlikumiColumn: atlikumiColumn || null,
         parsedDate,
         rowCount: data.length,
         columns,
       });
 
       if (!isSpiritsWine) {
+        const missing: string[] = [];
+        if (!nosaukumsCol) missing.push('Nosaukums');
+        if (!sumOfSkaitsCol) missing.push('Sum of Skaits');
+        if (!sumOfGMCol) missing.push('Sum of GM');
+        
         toast({
           title: "Formāta brīdinājums",
-          description: "Fails neatbilst Spirits&Wine formātam. Pārbaudiet, vai ir kolonnas: Nosaukums, Sum of Skaits, Sum of GM",
+          description: `Trūkst kolonnas: ${missing.join(', ')}. Esošās kolonnas: ${columns.slice(0, 5).join(', ')}${columns.length > 5 ? '...' : ''}`,
           variant: "destructive",
         });
+      } else {
+        toast({
+          title: "Datne atpazīta",
+          description: `Spirits&Wine formāts, ${data.length} rindas`,
+        });
       }
-    } catch (error) {
-      console.error('Error analyzing file:', error);
+    } catch (error: any) {
+      console.error('[Import] Error analyzing file:', error);
       setFileInfo(null);
+      toast({
+        title: "Kļūda lasot datni",
+        description: error?.message || "Neizdevās nolasīt Excel datni",
+        variant: "destructive",
+      });
     }
   };
 
@@ -138,27 +192,48 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
   };
 
   const transformSpiritsWine = (rows: any[], weekEndDate: string, atlikumiColumn: string | null): WeeklySale[] => {
+    console.log('[Import] Transforming rows:', rows.length, 'weekEnd:', weekEndDate);
     const result: WeeklySale[] = [];
     const pwDate = new Date(weekEndDate);
     pwDate.setDate(pwDate.getDate() - 7);
     const pwDateStr = pwDate.toISOString().split('T')[0];
 
+    // Get column keys from first row for flexible matching
+    const sampleRow = rows[0];
+    const allKeys = sampleRow ? Object.keys(sampleRow) : [];
+    
+    // Find actual column names (case-insensitive)
+    const nosaukumsKey = allKeys.find(k => normalizeColumn(k) === 'nosaukums') || 'Nosaukums';
+    const sumOfSkaitsKey = allKeys.find(k => normalizeColumn(k) === 'sum of skaits') || 'Sum of Skaits';
+    const sumOfGMKey = allKeys.find(k => normalizeColumn(k) === 'sum of gm') || 'Sum of GM';
+    const sumOfSkaits1Key = allKeys.find(k => normalizeColumn(k) === 'sum of skaits.1') || 'Sum of Skaits.1';
+    const sumOfGM1Key = allKeys.find(k => normalizeColumn(k) === 'sum of gm.1') || 'Sum of GM.1';
+    
+    console.log('[Import] Using column keys:', { nosaukumsKey, sumOfSkaitsKey, sumOfGMKey, sumOfSkaits1Key, sumOfGM1Key });
+
+    let skippedRows = 0;
+
     for (const row of rows) {
-      const name = row["Nosaukums"]?.toString().trim();
+      const name = row[nosaukumsKey]?.toString().trim();
 
       // Skip invalid rows
-      if (!name || name === "False" || name === "(blank)" || name === "Grand Total" || name.includes("Total")) {
+      if (!name || 
+          name.toLowerCase() === "false" || 
+          name === "(blank)" || 
+          name.toLowerCase().includes("grand total") || 
+          name.toLowerCase().includes("total")) {
+        skippedRows++;
         continue;
       }
 
       const stockEnd = atlikumiColumn ? row[atlikumiColumn] : null;
-      const lwUnits = row["Sum of Skaits"];
-      const lwGM = row["Sum of GM"];
-      const pwUnits = row["Sum of Skaits.1"];
-      const pwGM = row["Sum of GM.1"];
+      const lwUnits = row[sumOfSkaitsKey];
+      const lwGM = row[sumOfGMKey];
+      const pwUnits = row[sumOfSkaits1Key];
+      const pwGM = row[sumOfGM1Key];
 
-      // Last Week (LW)
-      if (lwUnits != null && !isNaN(Number(lwUnits))) {
+      // Last Week (LW) - allow 0 values
+      if (lwUnits !== undefined && lwUnits !== null && lwUnits !== '' && !isNaN(Number(lwUnits))) {
         result.push({
           partner: "Spirits&Wine",
           product_name: name,
@@ -166,12 +241,12 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
           week_end: weekEndDate,
           units_sold: Number(lwUnits) || 0,
           gross_margin: Number(lwGM) || 0,
-          stock_end: stockEnd ? Number(stockEnd) : null,
+          stock_end: stockEnd !== undefined && stockEnd !== null && stockEnd !== '' ? Number(stockEnd) : null,
         });
       }
 
-      // Previous Week (PW)
-      if (pwUnits != null && !isNaN(Number(pwUnits))) {
+      // Previous Week (PW) - allow 0 values
+      if (pwUnits !== undefined && pwUnits !== null && pwUnits !== '' && !isNaN(Number(pwUnits))) {
         result.push({
           partner: "Spirits&Wine",
           product_name: name,
@@ -179,35 +254,70 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
           week_end: pwDateStr,
           units_sold: Number(pwUnits) || 0,
           gross_margin: Number(pwGM) || 0,
-          stock_end: stockEnd ? Number(stockEnd) : null,
+          stock_end: stockEnd !== undefined && stockEnd !== null && stockEnd !== '' ? Number(stockEnd) : null,
         });
       }
     }
 
+    console.log('[Import] Transformation complete:', result.length, 'records created,', skippedRows, 'rows skipped');
     return result;
   };
 
   const handleParseFile = async () => {
-    if (!file || !fileInfo?.isSpiritsWine) return;
+    console.log('[Import] handleParseFile called, file:', file?.name, 'isSpiritsWine:', fileInfo?.isSpiritsWine);
+    
+    if (!file) {
+      toast({
+        title: "Kļūda",
+        description: "Nav izvēlēta datne",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!fileInfo?.isSpiritsWine) {
+      toast({
+        title: "Kļūda",
+        description: "Datne nav atpazīta kā Spirits&Wine formāts",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsImporting(true);
     try {
+      console.log('[Import] Reading Excel file...');
       const data = await readExcelFile(file);
+      console.log('[Import] Excel read successfully, rows:', data.length);
+      
       const transformed = transformSpiritsWine(data, weekEnd, fileInfo.atlikumiColumn);
+      console.log('[Import] Transformed records:', transformed.length);
+      
+      if (transformed.length === 0) {
+        throw new Error('Nav derīgu ierakstu datnē. Pārbaudiet, vai kolonnās ir skaitliskas vērtības.');
+      }
+      
       setParsedData(transformed);
 
       // Fetch existing products
+      console.log('[Import] Fetching existing products...');
       const { data: products, error } = await supabase
         .from('products')
         .select('id, name, sku, current_price, cost_price');
 
-      if (error) throw error;
+      if (error) {
+        console.error('[Import] Error fetching products:', error);
+        throw new Error(`Neizdevās ielādēt produktus: ${error.message}`);
+      }
+      console.log('[Import] Existing products:', products?.length || 0);
       setExistingProducts(products || []);
 
       // Initialize mappings with fuzzy matching
       const uniqueProductNames = [...new Set(transformed.map(s => s.product_name))];
+      console.log('[Import] Unique products in import:', uniqueProductNames.length);
       const newMappings = new Map<string, ProductMapping>();
 
+      let matchedCount = 0;
       for (const productName of uniqueProductNames) {
         // Try exact match first
         let existingProduct = products?.find(p => 
@@ -222,6 +332,8 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
           );
         }
 
+        if (existingProduct) matchedCount++;
+
         newMappings.set(productName, {
           product_name: productName,
           product_id: existingProduct?.id || null,
@@ -232,17 +344,18 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
         });
       }
 
+      console.log('[Import] Matched products:', matchedCount, '/', uniqueProductNames.length);
       setMappings(newMappings);
       setStep('mapping');
       
       toast({
         title: "Datne apstrādāta",
-        description: `Atrasti ${transformed.length} ieraksti ar ${uniqueProductNames.length} unikāliem produktiem.`,
+        description: `Atrasti ${transformed.length} ieraksti ar ${uniqueProductNames.length} unikāliem produktiem (${matchedCount} kartēti).`,
       });
     } catch (error: any) {
-      console.error('Error parsing file:', error);
+      console.error('[Import] Error parsing file:', error);
       toast({
-        title: "Kļūda",
+        title: "Kļūda apstrādājot datni",
         description: error.message || "Neizdevās apstrādāt datni",
         variant: "destructive",
       });
@@ -259,25 +372,38 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
   };
 
   const handleImport = async () => {
+    console.log('[Import] handleImport called, records to import:', parsedData.length);
     setIsImporting(true);
     try {
       // Get tenant_id
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Nav autorizēts');
+      console.log('[Import] Getting user and tenant...');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error('[Import] Error getting user:', userError);
+        throw new Error(`Autentifikācijas kļūda: ${userError.message}`);
+      }
+      if (!user) throw new Error('Nav autorizēts. Lūdzu, piesakieties.');
 
-      const { data: userTenant } = await supabase
+      const { data: userTenant, error: tenantError } = await supabase
         .from('user_tenants')
         .select('tenant_id')
         .eq('user_id', user.id)
         .single();
 
-      if (!userTenant) throw new Error('Tenant nav atrasts');
+      if (tenantError) {
+        console.error('[Import] Error getting tenant:', tenantError);
+        throw new Error(`Neizdevās atrast uzņēmumu: ${tenantError.message}`);
+      }
+      if (!userTenant) throw new Error('Uzņēmums nav atrasts');
+      
       const tenantId = userTenant.tenant_id;
+      console.log('[Import] Tenant ID:', tenantId);
 
       // Create new products where needed
       const productsToCreate = Array.from(mappings.values())
         .filter(m => m.action === 'create');
 
+      console.log('[Import] Products to create:', productsToCreate.length);
       const createdProductIds = new Map<string, string>();
 
       if (productsToCreate.length > 0) {
@@ -295,63 +421,95 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
           )
           .select();
 
-        if (createError) throw createError;
+        if (createError) {
+          console.error('[Import] Error creating products:', createError);
+          throw new Error(`Neizdevās izveidot produktus: ${createError.message}`);
+        }
 
-        // Store created product IDs
+        console.log('[Import] Created products:', newProducts?.length);
         newProducts?.forEach((product, index) => {
           const mapping = productsToCreate[index];
           createdProductIds.set(mapping.product_name, product.id);
         });
       }
 
-      // Prepare weekly sales records
-      const salesRecords = parsedData
-        .filter(sale => {
-          const mapping = mappings.get(sale.product_name);
-          return mapping && mapping.action !== 'skip';
-        })
-        .map(sale => {
-          const mapping = mappings.get(sale.product_name)!;
-          const productId = mapping.action === 'create' 
-            ? createdProductIds.get(sale.product_name) 
-            : mapping.product_id;
+      // Prepare weekly sales records - IMPORT ALL including skipped (unmapped)
+      const salesRecords = parsedData.map(sale => {
+        const mapping = mappings.get(sale.product_name);
+        let productId: string | null = null;
+        
+        if (mapping) {
+          if (mapping.action === 'create') {
+            productId = createdProductIds.get(sale.product_name) || null;
+          } else if (mapping.action === 'map') {
+            productId = mapping.product_id;
+          }
+        }
 
-          return {
-            tenant_id: tenantId,
-            partner: sale.partner,
-            product_id: productId || null,
-            product_name: sale.product_name,
-            period_type: sale.period_type,
-            week_end: sale.week_end,
-            units_sold: sale.units_sold,
-            gross_margin: sale.gross_margin,
-            stock_end: sale.stock_end,
-            mapped: !!productId,
-          };
-        });
+        return {
+          tenant_id: tenantId,
+          partner: sale.partner,
+          product_id: productId,
+          product_name: sale.product_name,
+          period_type: sale.period_type,
+          week_end: sale.week_end,
+          units_sold: sale.units_sold,
+          gross_margin: sale.gross_margin,
+          stock_end: sale.stock_end,
+          mapped: !!productId,
+        };
+      });
 
+      console.log('[Import] Sales records to insert:', salesRecords.length);
+      
       if (salesRecords.length === 0) {
-        throw new Error('Nav ierakstu importēšanai. Lūdzu, kartējiet vismaz vienu produktu.');
+        throw new Error('Nav ierakstu importēšanai.');
       }
 
-      const { error: insertError } = await supabase
-        .from('weekly_sales')
-        .insert(salesRecords);
+      // Insert in batches of 500 to handle large datasets
+      const batchSize = 500;
+      let totalInserted = 0;
+      let failedBatches = 0;
 
-      if (insertError) throw insertError;
+      for (let i = 0; i < salesRecords.length; i += batchSize) {
+        const batch = salesRecords.slice(i, i + batchSize);
+        console.log(`[Import] Inserting batch ${Math.floor(i / batchSize) + 1}, records: ${batch.length}`);
+        
+        const { error: insertError } = await supabase
+          .from('weekly_sales')
+          .insert(batch);
 
+        if (insertError) {
+          console.error(`[Import] Batch ${Math.floor(i / batchSize) + 1} failed:`, insertError);
+          failedBatches++;
+          // Continue with other batches instead of failing completely
+        } else {
+          totalInserted += batch.length;
+        }
+      }
+
+      if (totalInserted === 0) {
+        throw new Error('Neizdevās importēt nevienu ierakstu. Pārbaudiet datubāzes atļaujas.');
+      }
+
+      const message = failedBatches > 0
+        ? `Importēti ${totalInserted} no ${salesRecords.length} ierakstiem (${failedBatches} partijas neizdevās).`
+        : `Importēti ${totalInserted} nedēļas pārdošanas ieraksti.`;
+
+      console.log('[Import] Complete:', message);
       toast({
-        title: "Imports veiksmīgs",
-        description: `Importēti ${salesRecords.length} nedēļas pārdošanas ieraksti.`,
+        title: failedBatches > 0 ? "Imports daļēji veiksmīgs" : "Imports veiksmīgs",
+        description: message,
+        variant: failedBatches > 0 ? "destructive" : "default",
       });
 
       setOpen(false);
       resetState();
       onImportComplete?.();
     } catch (error: any) {
-      console.error('Error importing:', error);
+      console.error('[Import] Error importing:', error);
       toast({
-        title: "Kļūda",
+        title: "Importa kļūda",
         description: error.message || "Neizdevās importēt datus",
         variant: "destructive",
       });
