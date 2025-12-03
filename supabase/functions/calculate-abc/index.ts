@@ -158,23 +158,22 @@ Deno.serve(async (req) => {
 
     console.log(`Updating ${productCategories.size} products...`);
 
-    // Update products in batches
-    const updates = Array.from(productCategories.entries()).map(([productId, category]) => ({
-      id: productId,
-      abc_category: category,
-    }));
+    // Update products individually (can't use upsert as it requires all NOT NULL columns)
+    let updateErrors = 0;
+    for (const [productId, category] of productCategories.entries()) {
+      const { error: updateError } = await supabase
+        .from('products')
+        .update({ abc_category: category })
+        .eq('id', productId);
 
-    // Batch update (Supabase can handle large upserts)
-    const { error: updateError } = await supabase
-      .from('products')
-      .upsert(updates, { onConflict: 'id' });
+      if (updateError) {
+        console.error(`Update error for product ${productId}:`, updateError);
+        updateErrors++;
+      }
+    }
 
-    if (updateError) {
-      console.error('Update error:', updateError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to update product categories' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (updateErrors > 0) {
+      console.warn(`${updateErrors} products failed to update`);
     }
 
     // Update last_calculated_at timestamp
