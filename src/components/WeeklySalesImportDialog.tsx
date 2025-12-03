@@ -202,12 +202,18 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
     const sampleRow = rows[0];
     const allKeys = sampleRow ? Object.keys(sampleRow) : [];
     
-    // Find actual column names (case-insensitive)
+    // Find actual column names (case-insensitive, support both .1 and _1 variants)
     const nosaukumsKey = allKeys.find(k => normalizeColumn(k) === 'nosaukums') || 'Nosaukums';
     const sumOfSkaitsKey = allKeys.find(k => normalizeColumn(k) === 'sum of skaits') || 'Sum of Skaits';
     const sumOfGMKey = allKeys.find(k => normalizeColumn(k) === 'sum of gm') || 'Sum of GM';
-    const sumOfSkaits1Key = allKeys.find(k => normalizeColumn(k) === 'sum of skaits.1') || 'Sum of Skaits.1';
-    const sumOfGM1Key = allKeys.find(k => normalizeColumn(k) === 'sum of gm.1') || 'Sum of GM.1';
+    const sumOfSkaits1Key = allKeys.find(k => {
+      const n = normalizeColumn(k);
+      return n === 'sum of skaits.1' || n === 'sum of skaits_1';
+    }) || 'Sum of Skaits_1';
+    const sumOfGM1Key = allKeys.find(k => {
+      const n = normalizeColumn(k);
+      return n === 'sum of gm.1' || n === 'sum of gm_1';
+    }) || 'Sum of GM_1';
     
     console.log('[Import] Using column keys:', { nosaukumsKey, sumOfSkaitsKey, sumOfGMKey, sumOfSkaits1Key, sumOfGM1Key });
 
