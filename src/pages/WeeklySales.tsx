@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, Minus, BarChart3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar, TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, Minus, BarChart3, Trash2, Loader2 } from "lucide-react";
 import { WeeklySalesImportDialog } from "@/components/WeeklySalesImportDialog";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type ProductAgg = {
   product_id: string | null;
@@ -62,10 +75,13 @@ function assignABC(products: ProductAgg[]): ProductWithABC[] {
 }
 
 const WeeklySales = () => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [partnerFilter, setPartnerFilter] = useState<string>("all");
   const [productSearch, setProductSearch] = useState<string>("");
   const [abcFilter, setAbcFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("margin_desc");
+  const [displayLimit, setDisplayLimit] = useState<number>(100);
 
   const { data: weeklySales, isLoading, refetch } = useQuery({
     queryKey: ["weekly-sales"],
@@ -81,7 +97,8 @@ const WeeklySales = () => {
 
       if (!userTenants) throw new Error("No tenant found");
 
-      const { data, error } = await supabase
+      // Fetch ALL records without limit
+      const { data, error, count } = await supabase
         .from("weekly_sales")
         .select(`
           *,
@@ -93,12 +110,49 @@ const WeeklySales = () => {
             current_price,
             cost_price
           )
-        `)
+        `, { count: 'exact' })
         .eq("tenant_id", userTenants.tenant_id)
         .order("week_end", { ascending: false });
 
       if (error) throw error;
+      console.log(`Loaded ${data?.length} weekly sales records`);
       return data;
+    },
+  });
+
+  const deleteAllMutation = useMutation({
+    mutationFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data: userTenants } = await supabase
+        .from("user_tenants")
+        .select("tenant_id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!userTenants) throw new Error("No tenant found");
+
+      const { error } = await supabase
+        .from("weekly_sales")
+        .delete()
+        .eq("tenant_id", userTenants.tenant_id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["weekly-sales"] });
+      toast({
+        title: "Dati dzēsti",
+        description: "Visi nedēļas pārdošanas dati ir veiksmīgi dzēsti.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Kļūda",
+        description: error.message || "Neizdevās dzēst datus",
+        variant: "destructive",
+      });
     },
   });
 
@@ -343,6 +397,13 @@ const WeeklySales = () => {
     return <Badge className={styles[abc]}>{abc}</Badge>;
   };
 
+  // Apply display limit
+  const displayedData = useMemo(() => {
+    return filteredData.slice(0, displayLimit);
+  }, [filteredData, displayLimit]);
+
+  const hasMore = filteredData.length > displayLimit;
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -351,9 +412,51 @@ const WeeklySales = () => {
           <h1 className="text-3xl font-bold">Nedēļas Pārdošanas Pārskats</h1>
           <p className="text-muted-foreground mt-1">
             LW vs PW salīdzinājums ar ABC analīzi
+            {weeklySales && weeklySales.length > 0 && (
+              <span className="ml-2 text-xs">
+                ({weeklySales.length} ieraksti datubāzē)
+              </span>
+            )}
           </p>
         </div>
-        <WeeklySalesImportDialog onImportComplete={() => refetch()} />
+        <div className="flex items-center gap-2">
+          {weeklySales && weeklySales.length > 0 && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Dzēst Visus
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Dzēst visus nedēļas pārdošanas datus?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Šī darbība dzēsīs {weeklySales.length} ierakstus. To nevar atsaukt.
+                    Pēc dzēšanas varēsiet importēt jaunus datus.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Atcelt</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deleteAllMutation.mutate()}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {deleteAllMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Dzēš...
+                      </>
+                    ) : (
+                      "Dzēst Visus"
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          <WeeklySalesImportDialog onImportComplete={() => refetch()} />
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -555,79 +658,126 @@ const WeeklySales = () => {
       {/* Data Table */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle>LW vs PW Salīdzinājums</CardTitle>
-          <CardDescription>
-            {filteredData.length} produkti no {comparisonData.length}
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>LW vs PW Salīdzinājums</CardTitle>
+              <CardDescription>
+                Rāda {displayedData.length} no {filteredData.length} produktiem 
+                {comparisonData.length !== filteredData.length && ` (kopā ${comparisonData.length})`}
+              </CardDescription>
+            </div>
+            {filteredData.length > 100 && (
+              <Select 
+                value={displayLimit.toString()} 
+                onValueChange={(v) => setDisplayLimit(Number(v))}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Rādīt..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="100">Rādīt 100</SelectItem>
+                  <SelectItem value="500">Rādīt 500</SelectItem>
+                  <SelectItem value="1000">Rādīt 1000</SelectItem>
+                  <SelectItem value="99999">Rādīt Visus</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-12 text-muted-foreground">Ielādē datus...</div>
-          ) : filteredData.length > 0 ? (
-            <div className="rounded-md border overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="sticky left-0 bg-muted/50 min-w-[200px]">Produkts</TableHead>
-                    <TableHead className="text-center w-[60px]">ABC</TableHead>
-                    <TableHead className="text-right w-[100px]">LW Pārdots</TableHead>
-                    <TableHead className="text-right w-[100px]">PW Pārdots</TableHead>
-                    <TableHead className="text-center w-[100px]">Δ Vienības</TableHead>
-                    <TableHead className="text-right w-[100px]">LW Marža</TableHead>
-                    <TableHead className="text-right w-[100px]">PW Marža</TableHead>
-                    <TableHead className="text-center w-[100px]">Δ Marža</TableHead>
-                    <TableHead className="text-right w-[80px]">Atlikums</TableHead>
-                    <TableHead className="text-center w-[80px]">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredData.map((row) => (
-                    <TableRow key={row.product_id || row.product_name}>
-                      <TableCell className="sticky left-0 bg-background font-medium">
-                        <div className="truncate max-w-[200px]" title={row.product_name}>
-                          {row.product_name}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <ABCBadge abc={row.abc_lw} />
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {row.lw_units.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-muted-foreground">
-                        {row.pw_units.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {renderChangeIndicator(row.units_change, row.units_change_pct)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        €{row.lw_margin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-muted-foreground">
-                        €{row.pw_margin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {renderChangeIndicator(row.margin_change, row.margin_change_pct, true)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {row.stock_end !== null ? row.stock_end.toLocaleString() : '-'}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {row.mapped ? (
-                          <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20 text-xs">
-                            ✓
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-yellow-600 border-yellow-500/30 text-xs">
-                            ?
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin mb-4" />
+              <p>Ielādē datus...</p>
             </div>
+          ) : displayedData.length > 0 ? (
+            <>
+              <div className="rounded-md border overflow-auto max-h-[600px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="sticky left-0 top-0 bg-muted/50 min-w-[200px] z-20">Produkts</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-center w-[60px]">ABC</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[100px]">LW Pārdots</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[100px]">PW Pārdots</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-center w-[100px]">Δ Vienības</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[100px]">LW Marža</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[100px]">PW Marža</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-center w-[100px]">Δ Marža</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[80px]">Atlikums</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-center w-[80px]">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {displayedData.map((row, idx) => (
+                      <TableRow key={`${row.product_id || row.product_name}-${idx}`}>
+                        <TableCell className="sticky left-0 bg-background font-medium">
+                          <div className="truncate max-w-[200px]" title={row.product_name}>
+                            {row.product_name}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <ABCBadge abc={row.abc_lw} />
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {row.lw_units.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-muted-foreground">
+                          {row.pw_units.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {renderChangeIndicator(row.units_change, row.units_change_pct)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          €{row.lw_margin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-muted-foreground">
+                          €{row.pw_margin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {renderChangeIndicator(row.margin_change, row.margin_change_pct, true)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {row.stock_end !== null ? row.stock_end.toLocaleString() : '-'}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {row.mapped ? (
+                            <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20 text-xs">
+                              ✓
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-yellow-600 border-yellow-500/30 text-xs">
+                              ?
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {hasMore && (
+                <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t">
+                  <span className="text-sm text-muted-foreground">
+                    Rāda {displayedData.length} no {filteredData.length}
+                  </span>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setDisplayLimit(prev => Math.min(prev + 500, 99999))}
+                  >
+                    Rādīt vairāk (+500)
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setDisplayLimit(99999)}
+                  >
+                    Rādīt Visus ({filteredData.length})
+                  </Button>
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <Package className="h-12 w-12 mx-auto mb-4 opacity-30" />
