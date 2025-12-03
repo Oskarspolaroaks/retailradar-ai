@@ -684,6 +684,13 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
                     {skipCount} Izlaisti
                   </Badge>
                 </div>
+                
+                {skipCount > 0 && skipCount === mappings.size && (
+                  <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-md text-sm text-amber-800">
+                    <strong>Piezīme:</strong> Visi produkti ir izlaisti (nekartēti). Dati tiks importēti bez sasaistes ar produktu katalogu. 
+                    Vēlāk varēsiet veikt kartēšanu Weekly Sales lapā.
+                  </div>
+                )}
 
                 <div className="rounded-md border max-h-80 overflow-y-auto">
                   <Table>
@@ -806,9 +813,9 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
               </Button>
               <Button 
                 onClick={handleImport} 
-                disabled={isImporting || (mappedCount + createCount) === 0}
+                disabled={isImporting || parsedData.length === 0}
               >
-                {isImporting ? "Importē..." : `Importēt ${mappedCount + createCount} produktus`}
+                {isImporting ? "Importē..." : `Importēt ${parsedData.length} ierakstus`}
               </Button>
             </>
           )}
