@@ -257,16 +257,60 @@ serve(async (req) => {
         shouldRecommend = true;
       }
 
-      // 5. MARGIN TOO HIGH CHECK - rare but possible
-      if (!shouldRecommend && currentMargin > 50 && competitorData && currentPrice > competitorData.max) {
-        recommendedPrice = competitorData.max * 0.98;
-        action = 'decrease_price';
-        reasoning = `Ļoti augsta marža (${currentMargin.toFixed(1)}%) un cena virs visiem konkurentiem. Samazini, lai uzlabotu konkurētspēju.`;
-        shouldRecommend = true;
+      // 5. MARGIN TOO HIGH CHECK - can recommend price decrease to boost volume
+      if (!shouldRecommend && currentMargin > 50) {
+        // Even without competitor data, very high margins might mean we could lower price to boost volume
+        if (salesInfo && salesInfo.units < 50) {
+          // Low sales + high margin = opportunity to reduce price
+          const newMargin = 40; // Reduce to more reasonable margin
+          recommendedPrice = costPrice / (1 - newMargin / 100);
+          action = 'decrease_price';
+          reasoning = `Ļoti augsta marža (${currentMargin.toFixed(1)}%) ar zemiem pārdošanas apjomiem (${salesInfo.units} vien.). Samazini cenu apgrozījuma stimulēšanai.`;
+          shouldRecommend = true;
+        } else if (competitorData && currentPrice > competitorData.max) {
+          recommendedPrice = competitorData.max * 0.98;
+          action = 'decrease_price';
+          reasoning = `Ļoti augsta marža (${currentMargin.toFixed(1)}%) un cena virs visiem konkurentiem. Samazini, lai uzlabotu konkurētspēju.`;
+          shouldRecommend = true;
+        }
+      }
+
+      // 6. HIGH MARGIN OPTIMIZATION - suggest promotional pricing for high-margin products
+      if (!shouldRecommend && currentMargin > 45 && abcCategory !== 'A') {
+        // B and C class products with high margins could benefit from promotional activity
+        if (!salesInfo || salesInfo.units < 100) {
+          const promoMargin = abcCategory === 'B' ? 35 : 30;
+          recommendedPrice = costPrice / (1 - promoMargin / 100);
+          action = 'decrease_price';
+          reasoning = `${abcCategory} klases produkts ar augstu maržu (${currentMargin.toFixed(1)}%). Ieteicama cenas samazināšana vai akcija apgrozījuma palielināšanai.`;
+          shouldRecommend = true;
+        }
+      }
+
+      // 7. A-CLASS VOLUME PROTECTION - ensure A products maintain competitive positioning
+      if (!shouldRecommend && abcCategory === 'A' && currentMargin > 48) {
+        // A class with very high margins might be leaving money on table or risking volume
+        if (salesInfo && salesInfo.units > 200) {
+          // High volume A-class with high margin - can consider slight reduction for market share
+          recommendedPrice = currentPrice * 0.97; // 3% reduction
+          action = 'decrease_price';
+          reasoning = `A klases produkts ar augstu maržu (${currentMargin.toFixed(1)}%) un labu apgrozījumu. Neliela cenas samazināšana var palielināt tirgus daļu.`;
+          shouldRecommend = true;
+        }
+      }
+
+      // 8. GENERATE "KEEP" RECOMMENDATIONS for well-performing products
+      if (!shouldRecommend && salesInfo && salesInfo.units > 150) {
+        // Products with good sales and acceptable margins - confirm pricing is optimal
+        if (currentMargin >= targetMargin && currentMargin <= targetMargin + 15) {
+          action = 'keep_price';
+          reasoning = `Optimāla cena - laba marža (${currentMargin.toFixed(1)}%) un stabili pārdošanas apjomi (${salesInfo.units} vien.). Saglabā esošo cenu.`;
+          shouldRecommend = true;
+        }
       }
 
       // Create recommendation if needed
-      if (shouldRecommend && Math.abs(recommendedPrice - currentPrice) > 0.05) {
+      if (shouldRecommend && (action === 'keep_price' || Math.abs(recommendedPrice - currentPrice) > 0.05)) {
         const changePercent = ((recommendedPrice - currentPrice) / currentPrice) * 100;
         
         // Only include recommendations with meaningful change (>1%)
