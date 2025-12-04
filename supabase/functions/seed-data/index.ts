@@ -442,7 +442,7 @@ serve(async (req) => {
       throw elasticityError;
     }
 
-    // Create smart price config
+    // Create smart price config (upsert with onConflict to handle existing records)
     const { error: configError } = await supabase
       .from('smart_price_config')
       .upsert({
@@ -453,7 +453,7 @@ serve(async (req) => {
         abc_c_max_discount_percent: 30,
         match_competitor_promo: true,
         never_below_competitor_min: true,
-      });
+      }, { onConflict: 'tenant_id' });
 
     if (configError) {
       console.error('Error creating smart price config:', configError);
