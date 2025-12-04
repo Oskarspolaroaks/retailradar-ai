@@ -88,45 +88,175 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
   };
 
   const importSales = async (data: any[]) => {
-    // TODO: Get actual tenant_id and store_id from auth context
-    const tempTenantId = '00000000-0000-0000-0000-000000000000';
-    const tempStoreId = '00000000-0000-0000-0000-000000000000';
+    console.log('[Sales Import] Starting import, rows to process:', data.length);
     
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      throw new Error('Jums jābūt autorizētam, lai importētu pārdošanas datus');
+    }
+    console.log('[Sales Import] User authenticated:', user.id);
+
+    // Get tenant_id from user_tenants
+    const { data: userTenant, error: tenantError } = await supabase
+      .from('user_tenants')
+      .select('tenant_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    if (tenantError) {
+      console.error('[Sales Import] Tenant lookup error:', tenantError);
+      throw new Error('Neizdevās atrast jūsu organizāciju: ' + tenantError.message);
+    }
+    
+    if (!userTenant?.tenant_id) {
+      throw new Error('Jums nav piešķirta organizācija. Lūdzu sazinieties ar administratoru.');
+    }
+    
+    const tenantId = userTenant.tenant_id;
+    console.log('[Sales Import] Tenant ID:', tenantId);
+
+    // Get or create a default store for this tenant
+    let storeId: string;
+    const { data: existingStore, error: storeError } = await supabase
+      .from('stores')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1)
+      .maybeSingle();
+    
+    if (storeError) {
+      console.error('[Sales Import] Store lookup error:', storeError);
+      throw new Error('Neizdevās atrast veikalu: ' + storeError.message);
+    }
+
+    if (existingStore) {
+      storeId = existingStore.id;
+      console.log('[Sales Import] Using existing store:', storeId);
+    } else {
+      // Create a default store
+      const { data: newStore, error: createStoreError } = await supabase
+        .from('stores')
+        .insert({
+          tenant_id: tenantId,
+          name: 'Noklusējuma veikals',
+          code: 'DEFAULT',
+          is_active: true
+        })
+        .select('id')
+        .single();
+      
+      if (createStoreError || !newStore) {
+        console.error('[Sales Import] Store creation error:', createStoreError);
+        throw new Error('Neizdevās izveidot veikalu: ' + (createStoreError?.message || 'Nezināma kļūda'));
+      }
+      storeId = newStore.id;
+      console.log('[Sales Import] Created new store:', storeId);
+    }
+
+    // Get products for SKU mapping (filter by tenant)
     const { data: products, error: productsError } = await supabase
       .from('products')
-      .select('id, sku');
+      .select('id, sku')
+      .eq('tenant_id', tenantId);
     
-    if (productsError) throw productsError;
+    if (productsError) {
+      console.error('[Sales Import] Products lookup error:', productsError);
+      throw new Error('Neizdevās ielādēt produktus: ' + productsError.message);
+    }
 
+    console.log('[Sales Import] Found products for tenant:', products?.length || 0);
     const skuToId = new Map(products?.map(p => [p.sku, p.id]) || []);
 
+    // Parse sales rows
+    const skippedSkus: string[] = [];
     const sales = data
-      .map((row: any) => {
+      .map((row: any, index: number) => {
         const sku = row.SKU || row.sku;
+        if (!sku) {
+          console.warn(`[Sales Import] Row ${index + 1}: Missing SKU`);
+          return null;
+        }
+        
         const productId = skuToId.get(sku);
         
         if (!productId) {
-          console.warn(`Product not found for SKU: ${sku}`);
+          skippedSkus.push(sku);
+          console.warn(`[Sales Import] Row ${index + 1}: Product not found for SKU: ${sku}`);
           return null;
         }
 
+        const dateValue = row.Date || row.date || row.Datums;
+        let parsedDate: string;
+        if (dateValue instanceof Date) {
+          parsedDate = dateValue.toISOString().split('T')[0];
+        } else if (typeof dateValue === 'number') {
+          // Excel serial date
+          const excelDate = new Date((dateValue - 25569) * 86400 * 1000);
+          parsedDate = excelDate.toISOString().split('T')[0];
+        } else if (typeof dateValue === 'string') {
+          parsedDate = dateValue;
+        } else {
+          parsedDate = new Date().toISOString().split('T')[0];
+        }
+
+        const unitsSold = parseInt(row['Quantity Sold'] || row.quantity_sold || row.Quantity || row.Skaits || 0);
+        const revenue = parseFloat(row['Net Revenue'] || row.net_revenue || row.Revenue || row.Ieņēmumi || 0);
+
         return {
-          tenant_id: tempTenantId,
-          store_id: tempStoreId,
+          tenant_id: tenantId,
+          store_id: storeId,
           product_id: productId,
-          date: row.Date || row.date || new Date().toISOString().split('T')[0],
-          units_sold: parseInt(row['Quantity Sold'] || row.quantity_sold || row.Quantity || 0),
-          revenue: parseFloat(row['Net Revenue'] || row.net_revenue || row.Revenue || 0),
-          regular_price: parseFloat(row['Regular Price'] || row.regular_price || 0),
-          promo_flag: row['Promotion'] === 'Yes' || row.promotion_flag === true || false,
+          date: parsedDate,
+          units_sold: isNaN(unitsSold) ? 0 : unitsSold,
+          revenue: isNaN(revenue) ? 0 : revenue,
+          regular_price: parseFloat(row['Regular Price'] || row.regular_price || row.Cena || 0) || null,
+          promo_flag: row['Promotion'] === 'Yes' || row.promotion_flag === true || row.Akcija === 'Jā' || false,
           promotion_id: null
         };
       })
       .filter(Boolean);
 
-    const { error } = await supabase.from('sales_daily').insert(sales as any);
-    if (error) throw error;
-    return sales.length;
+    console.log('[Sales Import] Valid sales records to insert:', sales.length);
+    console.log('[Sales Import] Skipped SKUs (not found):', skippedSkus.length, skippedSkus.slice(0, 10));
+
+    if (sales.length === 0) {
+      if (skippedSkus.length > 0) {
+        throw new Error(`Neviena ieraksta netika importēta. Netika atrasti produkti ar SKU: ${skippedSkus.slice(0, 5).join(', ')}${skippedSkus.length > 5 ? '...' : ''}`);
+      }
+      throw new Error('Nav derīgu ierakstu importēšanai. Pārbaudiet faila formātu.');
+    }
+
+    // Insert in batches of 500
+    const batchSize = 500;
+    let insertedCount = 0;
+    
+    for (let i = 0; i < sales.length; i += batchSize) {
+      const batch = sales.slice(i, i + batchSize);
+      console.log(`[Sales Import] Inserting batch ${Math.floor(i / batchSize) + 1}, records: ${batch.length}`);
+      
+      const { error: insertError, data: insertedData } = await supabase
+        .from('sales_daily')
+        .insert(batch as any)
+        .select('id');
+      
+      if (insertError) {
+        console.error('[Sales Import] Insert error:', insertError);
+        throw new Error(`Neizdevās saglabāt pārdošanas datus: ${insertError.message}`);
+      }
+      
+      insertedCount += insertedData?.length || batch.length;
+      console.log(`[Sales Import] Batch inserted, total so far: ${insertedCount}`);
+    }
+
+    console.log('[Sales Import] Import completed. Total records:', insertedCount);
+    
+    return { 
+      count: insertedCount, 
+      warning: skippedSkus.length > 0 
+        ? `Importēti ${insertedCount} ieraksti. Izlaisti ${skippedSkus.length} ieraksti ar neatrastiem SKU.` 
+        : undefined
+    };
   };
 
   const importCompetitors = async (data: any[]) => {
@@ -227,24 +357,35 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
   const handleImport = async () => {
     if (!file) {
       toast({
-        title: "No File Selected",
-        description: "Please select a file to import",
+        title: "Nav izvēlēts fails",
+        description: "Lūdzu izvēlieties failu importēšanai",
         variant: "destructive",
       });
       return;
     }
 
     setIsImporting(true);
+    console.log('[Import] Starting import, type:', importType, 'file:', file.name);
+    
     try {
       const data = await parseExcelFile(file);
+      console.log('[Import] Parsed rows:', data.length);
+      
+      if (data.length === 0) {
+        throw new Error('Fails ir tukšs vai neizdevās nolasīt datus');
+      }
       
       let count = 0;
+      let warning: string | undefined;
+      
       switch (importType) {
         case 'products':
           count = await importProducts(data);
           break;
         case 'sales':
-          count = await importSales(data);
+          const salesResult = await importSales(data);
+          count = salesResult.count;
+          warning = salesResult.warning;
           break;
         case 'competitors':
           count = await importCompetitors(data);
@@ -254,9 +395,12 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
           break;
       }
 
+      console.log('[Import] Completed, count:', count);
+
       toast({
-        title: "Import Successful",
-        description: `Imported ${count} records successfully`,
+        title: "Imports veiksmīgs",
+        description: warning || `Importēti ${count} ieraksti`,
+        variant: warning ? "default" : "default",
       });
 
       setOpen(false);
@@ -264,10 +408,10 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
       setPreview([]);
       onImportComplete?.();
     } catch (error: any) {
-      console.error('Import error:', error);
+      console.error('[Import] Error:', error);
       toast({
-        title: "Import Failed",
-        description: error.message || "Failed to import data",
+        title: "Importēšanas kļūda",
+        description: error.message || "Neizdevās importēt datus. Pārbaudiet konsoli.",
         variant: "destructive",
       });
     } finally {
