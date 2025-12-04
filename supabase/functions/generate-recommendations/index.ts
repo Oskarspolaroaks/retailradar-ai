@@ -112,6 +112,8 @@ serve(async (req) => {
       });
     }
 
+    console.log(`Found competitor data for ${competitorPriceMap.size} products`);
+
     // Get sales data for the last 90 days
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
@@ -135,91 +137,159 @@ serve(async (req) => {
       });
     }
 
+    console.log(`Found sales data for ${salesMap.size} products`);
+
     // Generate recommendations
     const recommendations = [];
-    const targetMargin = 25; // Default target margin %
+    const targetMarginA = 20; // Target margin for A class
+    const targetMarginB = 25; // Target margin for B class  
+    const targetMarginC = 30; // Target margin for C class
+    const targetMarginDefault = 25;
 
     for (const product of products) {
       const costPrice = Number(product.cost_price);
       const currentPrice = Number(product.current_price);
+      
+      // Skip invalid data
+      if (costPrice <= 0 || currentPrice <= 0) {
+        console.log(`Skipping product ${product.sku}: invalid prices (cost: ${costPrice}, current: ${currentPrice})`);
+        continue;
+      }
+      
       const currentMargin = ((currentPrice - costPrice) / currentPrice) * 100;
       
       const competitorData = competitorPriceMap.get(product.id);
       const salesInfo = salesMap.get(product.id);
+      const abcCategory = product.abc_category || 'C'; // Default to C if no category
       
       let recommendedPrice = currentPrice;
       let action = 'keep_price';
       let reasoning = '';
+      let shouldRecommend = false;
 
-      // Pricing Engine Logic
-      if (product.abc_category === 'A') {
-        // Class A products: High revenue contributors
-        if (competitorData && competitorData.avg >= currentPrice * 1.05 && salesInfo && salesInfo.units > 10) {
-          // We're significantly cheaper than competitors and have good sales
-          recommendedPrice = Math.min(currentPrice * 1.05, competitorData.avg * 0.98);
+      // Get target margin based on ABC class
+      const targetMargin = abcCategory === 'A' ? targetMarginA : 
+                          abcCategory === 'B' ? targetMarginB : targetMarginC;
+
+      // === PRICING ENGINE LOGIC ===
+
+      // 1. LOW MARGIN CHECK - Always recommend if margin is too low
+      if (currentMargin < targetMargin - 5) {
+        recommendedPrice = costPrice / (1 - targetMargin / 100);
+        action = 'increase_price';
+        reasoning = `Zema marža (${currentMargin.toFixed(1)}%) - mērķis ${targetMargin}%. Palielini cenu līdz €${recommendedPrice.toFixed(2)} labākai rentabilitātei.`;
+        shouldRecommend = true;
+      }
+      
+      // 2. COMPETITOR-BASED RECOMMENDATIONS (if we have competitor data)
+      if (!shouldRecommend && competitorData) {
+        const priceDiffPercent = ((currentPrice - competitorData.avg) / competitorData.avg) * 100;
+        
+        // We're significantly cheaper than competitors (>8%)
+        if (priceDiffPercent < -8) {
+          recommendedPrice = competitorData.avg * 0.97; // Just below competitor avg
           action = 'increase_price';
-          reasoning = `Class A product with strong sales (${salesInfo.units} units). Competitors average €${competitorData.avg.toFixed(2)}, you can increase price while staying competitive.`;
-        } else if (currentMargin < targetMargin && (!competitorData || currentPrice <= competitorData.avg)) {
-          // Low margin, room to increase
-          recommendedPrice = costPrice / (1 - targetMargin / 100);
-          action = 'increase_price';
-          reasoning = `Current margin ${currentMargin.toFixed(1)}% is below target ${targetMargin}%. Increase to improve profitability.`;
+          reasoning = `Mūsu cena €${currentPrice.toFixed(2)} ir ${Math.abs(priceDiffPercent).toFixed(1)}% zem konkurentu vidējās (€${competitorData.avg.toFixed(2)}). Paaugstini cenu, lai palielinātu maržu.`;
+          shouldRecommend = true;
         }
-      } else if (product.abc_category === 'C') {
-        // Class C products: Low revenue contributors
-        if (competitorData && currentPrice >= competitorData.avg * 1.03 && salesInfo && salesInfo.units < 5) {
-          // We're more expensive than average and have poor sales
-          recommendedPrice = competitorData.avg * 0.95;
+        // We're significantly more expensive than competitors (>10%)
+        else if (priceDiffPercent > 10 && abcCategory !== 'A') {
+          recommendedPrice = competitorData.avg * 1.02; // Slightly above competitor avg
           action = 'decrease_price';
-          reasoning = `Class C product with weak sales (${salesInfo?.units || 0} units). You're €${(currentPrice - competitorData.avg).toFixed(2)} above competitor average. Lower price to stimulate demand.`;
-        }
-      } else if (product.abc_category === 'B') {
-        // Class B products: Medium performers
-        if (currentMargin < targetMargin - 5) {
-          recommendedPrice = costPrice / (1 - targetMargin / 100);
-          action = 'increase_price';
-          reasoning = `Margin ${currentMargin.toFixed(1)}% is significantly below target. Increase to ${targetMargin}%.`;
-        } else if (competitorData && currentPrice > competitorData.max && salesInfo && salesInfo.units < 10) {
-          recommendedPrice = competitorData.avg;
-          action = 'decrease_price';
-          reasoning = `You're more expensive than all competitors. Reduce to average market price to improve sales.`;
+          reasoning = `Mūsu cena €${currentPrice.toFixed(2)} ir ${priceDiffPercent.toFixed(1)}% virs konkurentu vidējās (€${competitorData.avg.toFixed(2)}). Samazini cenu konkurētspējas uzlabošanai.`;
+          shouldRecommend = true;
         }
       }
 
-      // Private label products can have higher margins
-      if (product.is_private_label && currentMargin < 35 && action === 'keep_price') {
+      // 3. ABC-CLASS SPECIFIC RULES
+      if (!shouldRecommend) {
+        if (abcCategory === 'A') {
+          // A class: High revenue - protect volume, but optimize margin
+          if (currentMargin < targetMarginA && (!competitorData || currentPrice <= competitorData.avg)) {
+            recommendedPrice = costPrice / (1 - targetMarginA / 100);
+            action = 'increase_price';
+            reasoning = `A klases produkts ar zemu maržu (${currentMargin.toFixed(1)}%). Mērķis: ${targetMarginA}%. Palielini cenu saglabājot konkurētspēju.`;
+            shouldRecommend = true;
+          } else if (competitorData && competitorData.avg > currentPrice * 1.05) {
+            // Competitors significantly higher, room to increase
+            recommendedPrice = Math.min(currentPrice * 1.04, competitorData.avg * 0.96);
+            action = 'increase_price';
+            reasoning = `A klases produkts - konkurenti vidēji par €${competitorData.avg.toFixed(2)}. Iespēja palielināt cenu par ~4%.`;
+            shouldRecommend = true;
+          }
+        } 
+        else if (abcCategory === 'C') {
+          // C class: Low revenue - can be more aggressive with pricing
+          if (currentMargin < targetMarginC) {
+            recommendedPrice = costPrice / (1 - targetMarginC / 100);
+            action = 'increase_price';
+            reasoning = `C klases produkts ar zemu maržu (${currentMargin.toFixed(1)}%). Šiem produktiem vajag augstāku maržu (${targetMarginC}%).`;
+            shouldRecommend = true;
+          } else if (competitorData && currentPrice > competitorData.max * 1.05 && salesInfo && salesInfo.units < 5) {
+            // More expensive than all competitors with poor sales
+            recommendedPrice = competitorData.avg;
+            action = 'decrease_price';
+            reasoning = `C klases produkts ar vājiem pārdošanas rezultātiem. Cena virs visiem konkurentiem. Samazini līdz tirgus vidējai.`;
+            shouldRecommend = true;
+          }
+        }
+        else if (abcCategory === 'B') {
+          // B class: Balance between volume and margin
+          if (currentMargin < targetMarginB - 3) {
+            recommendedPrice = costPrice / (1 - targetMarginB / 100);
+            action = 'increase_price';
+            reasoning = `B klases produkts ar maržu ${currentMargin.toFixed(1)}% zem mērķa (${targetMarginB}%). Ieteicams cenas paaugstinājums.`;
+            shouldRecommend = true;
+          } else if (competitorData && currentPrice > competitorData.avg * 1.15) {
+            recommendedPrice = competitorData.avg * 1.05;
+            action = 'decrease_price';
+            reasoning = `B klases produkts ir >15% virs konkurentu vidējā. Samazini cenu apgrozījuma stimulēšanai.`;
+            shouldRecommend = true;
+          }
+        }
+      }
+
+      // 4. PRIVATE LABEL PRODUCTS - can sustain higher margins
+      if (!shouldRecommend && product.is_private_label && currentMargin < 35) {
         recommendedPrice = costPrice / (1 - 0.35);
         action = 'increase_price';
-        reasoning = 'Private label product can sustain higher margins (35%+) without direct competitor comparison.';
+        reasoning = `Privātā zīmola produkts var noturēt augstāku maržu (35%+). Pašreizējā marža: ${currentMargin.toFixed(1)}%.`;
+        shouldRecommend = true;
       }
 
-      // Only create recommendation if action is not keep_price or if there's a significant change
-      if (action !== 'keep_price' || Math.abs(recommendedPrice - currentPrice) > 0.01) {
+      // 5. MARGIN TOO HIGH CHECK - rare but possible
+      if (!shouldRecommend && currentMargin > 50 && competitorData && currentPrice > competitorData.max) {
+        recommendedPrice = competitorData.max * 0.98;
+        action = 'decrease_price';
+        reasoning = `Ļoti augsta marža (${currentMargin.toFixed(1)}%) un cena virs visiem konkurentiem. Samazini, lai uzlabotu konkurētspēju.`;
+        shouldRecommend = true;
+      }
+
+      // Create recommendation if needed
+      if (shouldRecommend && Math.abs(recommendedPrice - currentPrice) > 0.05) {
         const changePercent = ((recommendedPrice - currentPrice) / currentPrice) * 100;
-        const newMargin = ((recommendedPrice - costPrice) / recommendedPrice) * 100;
-
-        if (action === 'keep_price' && Math.abs(changePercent) < 1) {
-          continue; // Skip if change is less than 1%
+        
+        // Only include recommendations with meaningful change (>1%)
+        if (Math.abs(changePercent) >= 1) {
+          recommendations.push({
+            product_id: product.id,
+            tenant_id: product.tenant_id,
+            current_price: currentPrice,
+            current_cost_price: costPrice,
+            competitor_avg_price: competitorData?.avg || null,
+            recommended_price: Math.round(recommendedPrice * 100) / 100, // Round to 2 decimals
+            recommended_change_percent: Math.round(changePercent * 10) / 10, // Round to 1 decimal
+            reasoning: reasoning,
+            abc_class: abcCategory,
+            status: 'new',
+          });
         }
-
-        recommendations.push({
-          product_id: product.id,
-          tenant_id: product.tenant_id,
-          current_price: currentPrice,
-          current_cost_price: costPrice,
-          competitor_avg_price: competitorData?.avg || null,
-          recommended_price: recommendedPrice,
-          recommended_change_percent: changePercent,
-          reasoning: reasoning || `Current pricing is optimal at €${currentPrice.toFixed(2)} with ${currentMargin.toFixed(1)}% margin.`,
-          abc_class: product.abc_category,
-          status: 'new',
-        });
       }
     }
 
     console.log(`Generated ${recommendations.length} recommendations`);
 
-    // Clear old recommendations for this tenant and insert new ones
+    // Clear old 'new' recommendations for this tenant and insert new ones
     const { error: deleteError } = await supabase
       .from('pricing_recommendations')
       .delete()
@@ -246,7 +316,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         count: recommendations.length,
-        message: `Generated ${recommendations.length} pricing recommendations`,
+        message: `Izveidotas ${recommendations.length} cenu rekomendācijas`,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
