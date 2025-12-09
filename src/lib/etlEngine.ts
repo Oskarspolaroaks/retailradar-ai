@@ -102,12 +102,15 @@ const PRODUCT_COLUMN_MAP: Record<keyof ProductRow, string[]> = {
 };
 
 const SALES_COLUMN_MAP: Record<string, string[]> = {
-  SKU: ['sku', 'code', 'product code', 'artikuls'],
+  SKU: ['sku', 'code', 'product code', 'artikuls', 'brio cod'],
+  Product_Name: ['nosaukums', 'product name', 'produkta nosaukums', 'name'],
   Week_End_Date: ['week_end_date', 'week end', 'date', 'datums', 'nedēļas datums', 'week_end'],
   Store_Code: ['store', 'store_code', 'branch', 'veikals', 'filiāle'],
+  Supplier: ['supplier', 'item.supplier_name', 'piegādātājs'],
   Units_Sold: ['units sold', 'units_sold', 'quantity sold', 'qty', 'skaits', 'sum of skaits', 'daudzums'],
-  Net_Revenue: ['net revenue', 'net_revenue', 'revenue', 'sales', 'apgrozījums', 'ieņēmumi'],
+  Net_Revenue: ['net revenue', 'net_revenue', 'revenue', 'sales', 'apgrozījums', 'ieņēmumi', 'summa (ar pvn)', 'summa'],
   Gross_Margin: ['gross margin', 'gross_margin', 'gm', 'bruto marža', 'sum of gm', 'marža'],
+  Gross_Margin_Percent: ['gm %', 'gm%', 'gross margin %', 'marža %'],
   Regular_Price: ['regular price', 'regular_price', 'price', 'cena'],
   Promo_Price: ['promo price', 'promo_price', 'akcijas cena', 'atlaide'],
   Promo_Flag: ['promotion', 'promo', 'promo_flag', 'akcija', 'ir akcija'],
@@ -380,6 +383,18 @@ function detectFileType(data: Record<string, any>[], contextYear?: number): Dete
     return { type: 'product', format: 'latvianProduct' };
   }
   
+  // Check for Latvian sales format (BRIO COD + Nosaukums + Skaits + Summa)
+  // This is the Sales_dati_Oskaram.xlsx format: Veikals, Item.Supplier_Name, BRIO COD, Nosaukums, Skaits, Summa (ar PVN), GM, GM %, Atlikumi
+  const hasBrioCod = normalizedColumns.some(c => c === 'brio cod');
+  const hasNosaukums = normalizedColumns.some(c => c === 'nosaukums');
+  const hasSkaits = normalizedColumns.some(c => c === 'skaits');
+  const hasSumma = normalizedColumns.some(c => c.includes('summa'));
+  
+  if ((hasBrioCod || hasNosaukums) && hasSkaits && hasSumma) {
+    console.log('[ETL] Detected: Latvian sales format (BRIO COD/Nosaukums + Skaits + Summa)');
+    return { type: 'sales', format: 'latvianSales' };
+  }
+  
   // Check for product master format (before sales to prioritize product detection)
   const hasName = normalizedColumns.some(c => 
     ['name', 'product_name', 'product name', 'nosaukums', 'preču nosaukums'].includes(c)
@@ -521,54 +536,77 @@ function transformProducts(data: Record<string, any>[]): { rows: ProductRow[]; s
 }
 
 // ============================================================
-// SALES TRANSFORMATION (GENERIC)
+// SALES TRANSFORMATION (GENERIC / LATVIAN SALES)
 // ============================================================
 
-function transformGenericSales(data: Record<string, any>[]): { rows: SalesRow[]; skipped: SkipReason } {
+function transformGenericSales(data: Record<string, any>[], format?: string): { rows: SalesRow[]; skipped: SkipReason } {
   const rows: SalesRow[] = [];
   const skipped: SkipReason = {};
   
-  console.log('[ETL] Transforming generic sales, input rows:', data.length);
+  console.log('[ETL] Transforming sales, input rows:', data.length, 'format:', format);
   
   for (const row of data) {
-    const sku = cleanString(findColumnValue(row, SALES_COLUMN_MAP.SKU));
+    // Get SKU - support BRIO COD for Latvian sales format
+    let sku = cleanString(findColumnValue(row, SALES_COLUMN_MAP.SKU));
+    
+    // Get product name (especially for Latvian format)
+    const productName = cleanString(findColumnValue(row, SALES_COLUMN_MAP.Product_Name));
+    
+    // Get store code
+    const storeCode = cleanString(findColumnValue(row, SALES_COLUMN_MAP.Store_Code));
+    
+    // Get sales data
     const unitsSold = parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Units_Sold));
     const netRevenue = parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Net_Revenue));
+    const grossMargin = parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Gross_Margin));
+    const stockEnd = parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Stock_End));
     
-    // Skip if SKU is missing
-    if (!sku) {
-      skipped['Missing SKU'] = (skipped['Missing SKU'] || 0) + 1;
+    // Skip total rows and empty rows
+    if (productName && (
+        normalize(productName).includes('total') ||
+        normalize(productName) === '-' ||
+        normalize(productName) === '(blank)'
+    )) {
+      skipped['Total/Summary row'] = (skipped['Total/Summary row'] || 0) + 1;
       continue;
     }
     
-    // Skip if both units_sold and net_revenue are missing
-    if (unitsSold === null && netRevenue === null) {
+    // For Latvian sales format, allow rows without SKU if they have product name
+    if (!sku && !productName) {
+      skipped['Missing SKU and Product_Name'] = (skipped['Missing SKU and Product_Name'] || 0) + 1;
+      continue;
+    }
+    
+    // Skip if both units_sold and net_revenue are missing/zero
+    if ((unitsSold === null || unitsSold === 0) && (netRevenue === null || netRevenue === 0)) {
       skipped['Missing Units_Sold and Net_Revenue'] = (skipped['Missing Units_Sold and Net_Revenue'] || 0) + 1;
       continue;
     }
     
-    // Parse date
+    // Parse date - default to today if not provided
     const dateValue = findColumnValue(row, SALES_COLUMN_MAP.Week_End_Date);
     const weekEndDate = parseDate(dateValue) || new Date().toISOString().split('T')[0];
     
     const salesRow: SalesRow = {
       SKU: sku,
+      Product_Name: productName || undefined,
       Week_End_Date: weekEndDate,
-      Store_Code: cleanString(findColumnValue(row, SALES_COLUMN_MAP.Store_Code)),
+      Store_Code: storeCode,
       Units_Sold: unitsSold || 0,
       Net_Revenue: netRevenue,
-      Gross_Margin: parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Gross_Margin)),
+      Gross_Margin: grossMargin,
       Regular_Price: parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Regular_Price)),
       Promo_Price: parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Promo_Price)),
       Promo_Flag: parseBoolean(findColumnValue(row, SALES_COLUMN_MAP.Promo_Flag)),
       Promo_Name: cleanString(findColumnValue(row, SALES_COLUMN_MAP.Promo_Name)),
-      Stock_End: parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Stock_End))
+      Stock_End: stockEnd,
+      Partner: format === 'latvianSales' ? 'Oskars' : undefined
     };
     
     rows.push(salesRow);
   }
   
-  console.log('[ETL] Generic sales transformed:', rows.length, 'valid,', Object.values(skipped).reduce((a, b) => a + b, 0), 'skipped');
+  console.log('[ETL] Sales transformed:', rows.length, 'valid,', Object.values(skipped).reduce((a, b) => a + b, 0), 'skipped');
   return { rows, skipped };
 }
 
@@ -762,8 +800,9 @@ export function processETL(data: Record<string, any>[], options: ETLOptions = {}
       };
     }
     
-    // Generic sales format
-    const { rows, skipped } = transformGenericSales(data);
+    // Latvian sales format or generic sales format
+    const formatName = detection.format === 'latvianSales' ? 'Latvian Sales (Oskars)' : 'Generic Sales';
+    const { rows, skipped } = transformGenericSales(data, detection.format);
     
     return {
       type: 'sales',
@@ -773,7 +812,7 @@ export function processETL(data: Record<string, any>[], options: ETLOptions = {}
         total_rows_valid: rows.length,
         total_rows_skipped: Object.values(skipped).reduce((a, b) => a + b, 0),
         skipped_reasons: skipped,
-        detected_format: 'Generic Sales'
+        detected_format: formatName
       }
     };
   }
