@@ -9,7 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Calendar, TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, Minus, BarChart3, Trash2, Loader2 } from "lucide-react";
+import { Calendar, TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, Minus, BarChart3, Trash2, Loader2, Upload } from "lucide-react";
+import { format } from "date-fns";
+import { lv } from "date-fns/locale";
 import { WeeklySalesImportDialog } from "@/components/WeeklySalesImportDialog";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -155,6 +157,24 @@ const WeeklySales = () => {
       });
     },
   });
+
+  // Get latest upload date
+  const latestUploadDate = useMemo(() => {
+    if (!weeklySales || weeklySales.length === 0) return null;
+    const dates = weeklySales.map(s => new Date(s.created_at)).filter(d => !isNaN(d.getTime()));
+    if (dates.length === 0) return null;
+    return new Date(Math.max(...dates.map(d => d.getTime())));
+  }, [weeklySales]);
+
+  // Get week end date range
+  const weekEndRange = useMemo(() => {
+    if (!weeklySales || weeklySales.length === 0) return null;
+    const dates = weeklySales.map(s => new Date(s.week_end)).filter(d => !isNaN(d.getTime()));
+    if (dates.length === 0) return null;
+    const min = new Date(Math.min(...dates.map(d => d.getTime())));
+    const max = new Date(Math.max(...dates.map(d => d.getTime())));
+    return { min, max };
+  }, [weeklySales]);
 
   // Calculate ABC and comparison data
   const { abcAnalysis, comparisonData, totals } = useMemo(() => {
@@ -418,6 +438,23 @@ const WeeklySales = () => {
               </span>
             )}
           </p>
+          {/* Upload date and data period info */}
+          {weeklySales && weeklySales.length > 0 && (
+            <div className="flex flex-wrap items-center gap-4 mt-2 text-sm">
+              {latestUploadDate && (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Upload className="h-3.5 w-3.5" />
+                  <span>Augšupielādēts: <span className="font-medium text-foreground">{format(latestUploadDate, "dd.MM.yyyy HH:mm", { locale: lv })}</span></span>
+                </div>
+              )}
+              {weekEndRange && (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span>Datu periods: <span className="font-medium text-foreground">{format(weekEndRange.min, "dd.MM.yyyy")} - {format(weekEndRange.max, "dd.MM.yyyy")}</span></span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {weeklySales && weeklySales.length > 0 && (
