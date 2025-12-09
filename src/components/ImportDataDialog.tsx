@@ -67,20 +67,31 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
   };
 
   const importProducts = async (data: any[]) => {
-    const products = data.map((row: any) => ({
-      sku: row.SKU || row.sku || '',
-      name: row.Name || row.name || row.Product || row.product || '',
-      brand: row.Brand || row.brand || null,
-      category: row.Category || row.category || null,
-      subcategory: row.Subcategory || row.subcategory || null,
-      cost_price: parseFloat(row['Cost Price'] || row.cost_price || row.Cost || 0),
-      current_price: parseFloat(row['Current Price'] || row.current_price || row.Price || 0),
-      currency: row.Currency || row.currency || 'EUR',
-      barcode: row.Barcode || row.barcode || row.EAN || null,
-      vat_rate: parseFloat(row['VAT Rate'] || row.vat_rate || 0),
-      is_private_label: row['Private Label'] === 'Yes' || row.is_private_label === true || false,
-      status: 'active'
-    }));
+    const products = data
+      .filter((row: any) => {
+        // Skip empty rows
+        const sku = row.SKU || row.sku || '';
+        const name = row.Product_Name || row.Name || row.name || row.Product || row.product || '';
+        return sku.toString().trim() !== '' && name.toString().trim() !== '';
+      })
+      .map((row: any) => ({
+        sku: (row.SKU || row.sku || '').toString().trim(),
+        name: (row.Product_Name || row.Name || row.name || row.Product || row.product || '').toString().trim(),
+        barcode: row.EAN || row.Barcode || row.barcode || null,
+        brand: row.Brand || row.brand || null,
+        category: row.Category || row.category || null,
+        subcategory: row.Subcategory || row.subcategory || null,
+        cost_price: parseFloat(row.Cost_Price || row['Cost Price'] || row.cost_price || row.Cost || 0),
+        current_price: parseFloat(row.Current_Price || row['Current Price'] || row.current_price || row.Price || 0),
+        currency: 'EUR',
+        vat_rate: parseFloat(row.VAT_Rate || row['VAT Rate'] || row.vat_rate || 21),
+        is_private_label: row.Private_Label === 'Yes' || row['Private Label'] === 'Yes' || row.is_private_label === true || row.Private_Label === 'Jā' || false,
+        status: (row.Status || row.status || 'active').toString().toLowerCase() === 'delisted' ? 'inactive' : 'active'
+      }));
+
+    if (products.length === 0) {
+      throw new Error('Nav atrasti derīgi produktu ieraksti failā');
+    }
 
     const { error } = await supabase.from('products').insert(products);
     if (error) throw error;
@@ -423,8 +434,8 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
     switch (importType) {
       case 'products':
         return {
-          columns: 'SKU, Name, Brand, Category, Cost Price, Current Price, Currency, Barcode, VAT Rate, Private Label',
-          example: 'PROD001, Product Name, Brand A, Electronics, 50.00, 79.99, EUR, 1234567890, 19, No'
+          columns: 'SKU, Product_Name, EAN, Brand, Category, Subcategory, Country, Volume, Volume_Unit, ABV, Cost_Price, Current_Price, VAT_Rate, Private_Label, Status',
+          example: '123456, Sample White Wine 0.75L, 4750123456789, SampleBrand, Wine, White Wine, Latvia, 0.75, L, 12.5, 4.20, 7.99, 21, No, Active'
         };
       case 'sales':
         return {
@@ -450,10 +461,11 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
 
     switch (importType) {
       case 'products':
-        headers = ['SKU', 'Name', 'Brand', 'Category', 'Subcategory', 'Cost Price', 'Current Price', 'Currency', 'Barcode', 'VAT Rate', 'Private Label'];
+        headers = ['SKU', 'Product_Name', 'EAN', 'Brand', 'Category', 'Subcategory', 'Country', 'Volume', 'Volume_Unit', 'ABV', 'Cost_Price', 'Current_Price', 'VAT_Rate', 'Private_Label', 'Status'];
         sampleData = [
-          ['PROD001', 'Wireless Mouse', 'TechBrand', 'Electronics', 'Accessories', 15.00, 29.99, 'EUR', '1234567890123', 21, 'No'],
-          ['PROD002', 'USB Cable 2m', 'TechBrand', 'Electronics', 'Cables', 2.50, 9.99, 'EUR', '1234567890124', 21, 'Yes']
+          ['123456', 'Sample White Wine 0.75L', '4750123456789', 'SampleBrand', 'Wine', 'White Wine', 'Latvia', 0.75, 'L', 12.5, 4.20, 7.99, 21, 'No', 'Active'],
+          ['123457', 'Premium Red Wine 0.75L', '4750123456790', 'SampleBrand', 'Wine', 'Red Wine', 'France', 0.75, 'L', 13.5, 6.50, 12.99, 21, 'No', 'Active'],
+          ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
         ];
         break;
       case 'sales':
