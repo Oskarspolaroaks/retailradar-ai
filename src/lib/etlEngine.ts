@@ -84,8 +84,8 @@ export type ETLResult = ProductETLResult | SalesETLResult | UnknownETLResult;
 // ============================================================
 
 const PRODUCT_COLUMN_MAP: Record<keyof ProductRow, string[]> = {
-  SKU: ['sku', 'product code', 'code', 'artikuls', 'preces kods'],
-  Product_Name: ['name', 'product_name', 'product name', 'nosaukums', 'produkta nosaukums'],
+  SKU: ['sku', 'product code', 'code', 'artikuls', 'preces kods', 'preču kods'],
+  Product_Name: ['name', 'product_name', 'product name', 'nosaukums', 'produkta nosaukums', 'preču nosaukums'],
   EAN: ['ean', 'barcode', 'svītrkods', 'barkods', 'gtin'],
   Brand: ['brand', 'zīmols', 'ražotājs'],
   Category: ['category', 'kategorija'],
@@ -94,11 +94,11 @@ const PRODUCT_COLUMN_MAP: Record<keyof ProductRow, string[]> = {
   Volume: ['volume', 'tilpums', 'apjoms'],
   Volume_Unit: ['volume_unit', 'volume unit', 'tilpuma mērv.', 'mērvienība'],
   ABV: ['abv', 'alcohol', 'alc.%', 'alc', 'alkohols', 'alk.%'],
-  Cost_Price: ['cost price', 'cost_price', 'iepirkuma cena', 'cost', 'pašizmaksa'],
-  Current_Price: ['current price', 'current_price', 'regular price', 'regular_price', 'cena', 'shelf price', 'pārdošanas cena'],
+  Cost_Price: ['cost price', 'cost_price', 'iepirkuma cena', 'cost', 'pašizmaksa', 'iep. cena'],
+  Current_Price: ['current price', 'current_price', 'regular price', 'regular_price', 'cena', 'shelf price', 'pārdošanas cena', 'maz. cena'],
   VAT_Rate: ['vat', 'vat_rate', 'vat rate', 'pvn', 'pvn %'],
   Private_Label: ['private label', 'private_label', 'private', 'privātā marka', 'pl'],
-  Status: ['status', 'active', 'stāvoklis', 'statuss']
+  Status: ['status', 'active', 'stāvoklis', 'statuss', 'atlikums']
 };
 
 const SALES_COLUMN_MAP: Record<string, string[]> = {
@@ -370,7 +370,7 @@ function detectFileType(data: Record<string, any>[], contextYear?: number): Dete
   
   // Check for generic sales format
   const hasSKU = normalizedColumns.some(c => 
-    ['sku', 'code', 'product code'].includes(c)
+    ['sku', 'code', 'product code', 'preču kods'].some(p => c === p || c.includes(p))
   );
   
   const hasDate = normalizedColumns.some(c => 
@@ -388,14 +388,18 @@ function detectFileType(data: Record<string, any>[], contextYear?: number): Dete
   
   // Check for product master format
   const hasName = normalizedColumns.some(c => 
-    ['name', 'product_name', 'product name', 'nosaukums'].includes(c)
+    ['name', 'product_name', 'product name', 'nosaukums', 'preču nosaukums'].includes(c)
   );
   
   const hasProductAttributes = normalizedColumns.some(c => 
-    ['brand', 'category', 'cost', 'price', 'cost_price', 'current_price', 'zīmols', 'kategorija'].some(p => c === p || c.includes(p))
+    ['brand', 'category', 'cost', 'price', 'cost_price', 'current_price', 'zīmols', 'kategorija', 'iep. cena', 'maz. cena'].some(p => c === p || c.includes(p))
   );
   
-  if (hasSKU && hasName && hasProductAttributes) {
+  // Check for Latvian product format (Preču kods, Preču nosaukums, Iep. cena, Maz. cena)
+  const hasLatvianProductFormat = normalizedColumns.some(c => c.includes('preču kods')) &&
+    normalizedColumns.some(c => c.includes('preču nosaukums'));
+  
+  if (hasLatvianProductFormat || (hasSKU && hasName && hasProductAttributes)) {
     console.log('[ETL] Detected: Product master format');
     return { type: 'product', format: 'productMaster' };
   }
