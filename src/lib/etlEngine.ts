@@ -1,0 +1,781 @@
+/**
+ * RetailAI ETL Engine
+ * 
+ * Extract–Transform–Load engine for processing Excel/CSV files.
+ * Supports: Product Master, Weekly Sales (generic), Spirits&Wine LW vs PW format
+ */
+
+// ============================================================
+// TYPE DEFINITIONS
+// ============================================================
+
+export type FileType = 'product' | 'sales' | 'unknown';
+
+export interface ProductRow {
+  SKU: string;
+  Product_Name: string;
+  EAN: string | null;
+  Brand: string | null;
+  Category: string | null;
+  Subcategory: string | null;
+  Country: string | null;
+  Volume: number | null;
+  Volume_Unit: string | null;
+  ABV: number | null;
+  Cost_Price: number | null;
+  Current_Price: number | null;
+  VAT_Rate: number | null;
+  Private_Label: boolean | null;
+  Status: string | null;
+}
+
+export interface SalesRow {
+  SKU: string | null;
+  Product_Name?: string; // For Spirits&Wine format where SKU is matched later by name
+  Week_End_Date: string;
+  Store_Code: string | null;
+  Units_Sold: number;
+  Net_Revenue: number | null;
+  Gross_Margin: number | null;
+  Regular_Price: number | null;
+  Promo_Price: number | null;
+  Promo_Flag: boolean | null;
+  Promo_Name: string | null;
+  Stock_End: number | null;
+  Period_Type?: 'LW' | 'PW'; // For Spirits&Wine format
+  Partner?: string; // Source partner name
+}
+
+export interface SkipReason {
+  [reason: string]: number;
+}
+
+export interface ETLSummary {
+  total_rows_input: number;
+  total_rows_valid: number;
+  total_rows_skipped: number;
+  skipped_reasons: SkipReason;
+  message?: string;
+  detected_format?: string;
+}
+
+export interface ProductETLResult {
+  type: 'product';
+  rows: ProductRow[];
+  summary: ETLSummary;
+}
+
+export interface SalesETLResult {
+  type: 'sales';
+  rows: SalesRow[];
+  summary: ETLSummary;
+}
+
+export interface UnknownETLResult {
+  type: 'unknown';
+  rows: never[];
+  summary: { message: string };
+}
+
+export type ETLResult = ProductETLResult | SalesETLResult | UnknownETLResult;
+
+// ============================================================
+// COLUMN MAPPING PATTERNS (case-insensitive)
+// ============================================================
+
+const PRODUCT_COLUMN_MAP: Record<keyof ProductRow, string[]> = {
+  SKU: ['sku', 'product code', 'code', 'artikuls', 'preces kods'],
+  Product_Name: ['name', 'product_name', 'product name', 'nosaukums', 'produkta nosaukums'],
+  EAN: ['ean', 'barcode', 'svītrkods', 'barkods', 'gtin'],
+  Brand: ['brand', 'zīmols', 'ražotājs'],
+  Category: ['category', 'kategorija'],
+  Subcategory: ['subcategory', 'subkategorija', 'apakškategorija'],
+  Country: ['country', 'valsts', 'izcelsme'],
+  Volume: ['volume', 'tilpums', 'apjoms'],
+  Volume_Unit: ['volume_unit', 'volume unit', 'tilpuma mērv.', 'mērvienība'],
+  ABV: ['abv', 'alcohol', 'alc.%', 'alc', 'alkohols', 'alk.%'],
+  Cost_Price: ['cost price', 'cost_price', 'iepirkuma cena', 'cost', 'pašizmaksa'],
+  Current_Price: ['current price', 'current_price', 'regular price', 'regular_price', 'cena', 'shelf price', 'pārdošanas cena'],
+  VAT_Rate: ['vat', 'vat_rate', 'vat rate', 'pvn', 'pvn %'],
+  Private_Label: ['private label', 'private_label', 'private', 'privātā marka', 'pl'],
+  Status: ['status', 'active', 'stāvoklis', 'statuss']
+};
+
+const SALES_COLUMN_MAP: Record<string, string[]> = {
+  SKU: ['sku', 'code', 'product code', 'artikuls'],
+  Week_End_Date: ['week_end_date', 'week end', 'date', 'datums', 'nedēļas datums', 'week_end'],
+  Store_Code: ['store', 'store_code', 'branch', 'veikals', 'filiāle'],
+  Units_Sold: ['units sold', 'units_sold', 'quantity sold', 'qty', 'skaits', 'sum of skaits', 'daudzums'],
+  Net_Revenue: ['net revenue', 'net_revenue', 'revenue', 'sales', 'apgrozījums', 'ieņēmumi'],
+  Gross_Margin: ['gross margin', 'gross_margin', 'gm', 'bruto marža', 'sum of gm', 'marža'],
+  Regular_Price: ['regular price', 'regular_price', 'price', 'cena'],
+  Promo_Price: ['promo price', 'promo_price', 'akcijas cena', 'atlaide'],
+  Promo_Flag: ['promotion', 'promo', 'promo_flag', 'akcija', 'ir akcija'],
+  Promo_Name: ['promo name', 'promo_name', 'campaign', 'akcija nosaukums', 'kampaņa'],
+  Stock_End: ['stock end', 'stock_end', 'stock', 'atlikums', 'atlikumi', 'krājumi']
+};
+
+// ============================================================
+// UTILITY FUNCTIONS
+// ============================================================
+
+/**
+ * Normalize string for comparison (lowercase, trimmed)
+ */
+function normalize(value: string | null | undefined): string {
+  return (value?.toString().trim().toLowerCase()) || '';
+}
+
+/**
+ * Clean string value (trim whitespace)
+ */
+function cleanString(value: any): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  return value.toString().trim();
+}
+
+/**
+ * Parse number from various formats
+ */
+function parseNumber(value: any): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  
+  // Remove currency symbols, spaces
+  let cleaned = value.toString()
+    .replace(/[€$£¥₽]/g, '')
+    .replace(/\s/g, '')
+    .replace(/,/g, '.') // Convert comma decimals to dots
+    .replace(/%/g, ''); // Remove percentage signs
+  
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+}
+
+/**
+ * Parse boolean from various formats
+ */
+function parseBoolean(value: any): boolean | null {
+  if (value === null || value === undefined || value === '') return null;
+  
+  const normalized = normalize(value.toString());
+  
+  if (['yes', 'y', '1', 'true', 'jā', 'ja'].includes(normalized)) return true;
+  if (['no', 'n', '0', 'false', 'nē', 'ne'].includes(normalized)) return false;
+  
+  return null;
+}
+
+/**
+ * Parse date to ISO format (YYYY-MM-DD)
+ */
+function parseDate(value: any): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  
+  if (value instanceof Date) {
+    return value.toISOString().split('T')[0];
+  }
+  
+  // Handle Excel serial date numbers
+  if (typeof value === 'number') {
+    const excelDate = new Date((value - 25569) * 86400 * 1000);
+    return excelDate.toISOString().split('T')[0];
+  }
+  
+  const str = value.toString().trim();
+  
+  // Try ISO format first
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return str;
+  }
+  
+  // Try DD.MM.YYYY or DD/MM/YYYY
+  const ddmmyyyy = str.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})$/);
+  if (ddmmyyyy) {
+    const day = ddmmyyyy[1].padStart(2, '0');
+    const month = ddmmyyyy[2].padStart(2, '0');
+    return `${ddmmyyyy[3]}-${month}-${day}`;
+  }
+  
+  // Try YYYY/MM/DD
+  const yyyymmdd = str.match(/^(\d{4})[.\/](\d{1,2})[.\/](\d{1,2})$/);
+  if (yyyymmdd) {
+    const month = yyyymmdd[2].padStart(2, '0');
+    const day = yyyymmdd[3].padStart(2, '0');
+    return `${yyyymmdd[1]}-${month}-${day}`;
+  }
+  
+  // Try DD.MM (assume current year)
+  const ddmm = str.match(/^(\d{1,2})[.\/](\d{1,2})$/);
+  if (ddmm) {
+    const year = new Date().getFullYear();
+    const day = ddmm[1].padStart(2, '0');
+    const month = ddmm[2].padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  
+  // Try to parse as date string
+  try {
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().split('T')[0];
+    }
+  } catch {
+    // Ignore parsing errors
+  }
+  
+  return null;
+}
+
+/**
+ * Extract EAN/barcode - keep only digits
+ */
+function parseEAN(value: any): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  const digits = value.toString().replace(/\D/g, '');
+  return digits.length > 0 ? digits : null;
+}
+
+/**
+ * Extract volume from product name (e.g., "0.75L", "750ml")
+ */
+function extractVolume(productName: string): { volume: number | null; unit: string | null } {
+  if (!productName) return { volume: null, unit: null };
+  
+  // Match patterns like "0.75L", "750ml", "1 L", "500 ml"
+  const patterns = [
+    /(\d+(?:[.,]\d+)?)\s*(ml|l|cl|litre?s?)\b/i,
+    /(\d+(?:[.,]\d+)?)\s*(g|kg|gram(?:s)?|kilogram(?:s)?)\b/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = productName.match(pattern);
+    if (match) {
+      let volume = parseFloat(match[1].replace(',', '.'));
+      const unit = normalize(match[2]);
+      
+      // Normalize to L or ml
+      if (unit === 'cl') {
+        volume = volume / 100; // Convert cl to L
+        return { volume, unit: 'L' };
+      } else if (unit === 'ml') {
+        return { volume, unit: 'ml' };
+      } else if (['l', 'litre', 'litres', 'liter', 'liters'].includes(unit)) {
+        return { volume, unit: 'L' };
+      } else if (['g', 'gram', 'grams'].includes(unit)) {
+        return { volume, unit: 'g' };
+      } else if (['kg', 'kilogram', 'kilograms'].includes(unit)) {
+        return { volume, unit: 'kg' };
+      }
+    }
+  }
+  
+  return { volume: null, unit: null };
+}
+
+/**
+ * Find column in row by matching patterns
+ */
+function findColumnValue(row: Record<string, any>, patterns: string[]): any {
+  const rowKeys = Object.keys(row);
+  
+  for (const key of rowKeys) {
+    const normalizedKey = normalize(key);
+    for (const pattern of patterns) {
+      if (normalizedKey === normalize(pattern) || normalizedKey.includes(normalize(pattern))) {
+        return row[key];
+      }
+    }
+  }
+  
+  return undefined;
+}
+
+/**
+ * Get all column names from first row
+ */
+function getColumns(data: Record<string, any>[]): string[] {
+  if (data.length === 0) return [];
+  return Object.keys(data[0]);
+}
+
+// ============================================================
+// FILE TYPE DETECTION
+// ============================================================
+
+interface DetectionResult {
+  type: FileType;
+  format?: string;
+  spiritsWineInfo?: {
+    nosaukumsCol: string | null;
+    sumOfSkaitsCol: string | null;
+    sumOfGMCol: string | null;
+    atlikumiCol: string | null;
+    hasLWPW: boolean;
+    weekEndDate: string | null;
+  };
+}
+
+/**
+ * Detect file type based on column headers
+ */
+function detectFileType(data: Record<string, any>[], contextYear?: number): DetectionResult {
+  if (data.length === 0) {
+    return { type: 'unknown' };
+  }
+  
+  const columns = getColumns(data);
+  const normalizedColumns = columns.map(c => normalize(c));
+  
+  console.log('[ETL] Detecting file type, columns:', columns);
+  
+  // Check for Spirits&Wine LW vs PW format first (most specific)
+  const nosaukumsCol = columns.find(c => normalize(c) === 'nosaukums');
+  const sumOfSkaitsCol = columns.find(c => normalize(c) === 'sum of skaits');
+  const sumOfGMCol = columns.find(c => normalize(c) === 'sum of gm');
+  const atlikumiCol = columns.find(c => normalize(c).startsWith('atlikumi '));
+  
+  // Check for LW/PW columns (variants: .1 or _1)
+  const hasLWPW = columns.some(c => {
+    const n = normalize(c);
+    return n === 'sum of skaits.1' || n === 'sum of skaits_1';
+  });
+  
+  if (nosaukumsCol && sumOfSkaitsCol && sumOfGMCol) {
+    // Parse week end date from Atlikumi column
+    let weekEndDate: string | null = null;
+    if (atlikumiCol) {
+      const dateMatch = atlikumiCol.match(/[Aa]tlikumi\s+(\d{1,2})\.(\d{1,2})/);
+      if (dateMatch) {
+        const year = contextYear || new Date().getFullYear();
+        const day = dateMatch[1].padStart(2, '0');
+        const month = dateMatch[2].padStart(2, '0');
+        weekEndDate = `${year}-${month}-${day}`;
+      }
+    }
+    
+    console.log('[ETL] Detected: Spirits&Wine format');
+    return {
+      type: 'sales',
+      format: 'spiritsWine',
+      spiritsWineInfo: {
+        nosaukumsCol,
+        sumOfSkaitsCol,
+        sumOfGMCol,
+        atlikumiCol,
+        hasLWPW,
+        weekEndDate
+      }
+    };
+  }
+  
+  // Check for generic sales format
+  const hasSKU = normalizedColumns.some(c => 
+    ['sku', 'code', 'product code'].includes(c)
+  );
+  
+  const hasDate = normalizedColumns.some(c => 
+    ['week_end_date', 'week end', 'date', 'datums'].some(p => c === p || c.includes(p))
+  );
+  
+  const hasQuantity = normalizedColumns.some(c => 
+    ['units sold', 'units_sold', 'quantity sold', 'qty', 'skaits', 'sum of skaits'].some(p => c === p || c.includes(p))
+  );
+  
+  if (hasSKU && (hasDate || hasQuantity)) {
+    console.log('[ETL] Detected: Generic sales format');
+    return { type: 'sales', format: 'generic' };
+  }
+  
+  // Check for product master format
+  const hasName = normalizedColumns.some(c => 
+    ['name', 'product_name', 'product name', 'nosaukums'].includes(c)
+  );
+  
+  const hasProductAttributes = normalizedColumns.some(c => 
+    ['brand', 'category', 'cost', 'price', 'cost_price', 'current_price', 'zīmols', 'kategorija'].some(p => c === p || c.includes(p))
+  );
+  
+  if (hasSKU && hasName && hasProductAttributes) {
+    console.log('[ETL] Detected: Product master format');
+    return { type: 'product', format: 'productMaster' };
+  }
+  
+  // Fallback: check if it looks like products or sales
+  if (hasSKU && hasName) {
+    console.log('[ETL] Detected: Probable product format');
+    return { type: 'product', format: 'productMaster' };
+  }
+  
+  if (hasQuantity) {
+    console.log('[ETL] Detected: Probable sales format (quantity column found)');
+    return { type: 'sales', format: 'generic' };
+  }
+  
+  console.log('[ETL] Unknown format');
+  return { type: 'unknown' };
+}
+
+// ============================================================
+// PRODUCT MASTER TRANSFORMATION
+// ============================================================
+
+function transformProducts(data: Record<string, any>[]): { rows: ProductRow[]; skipped: SkipReason } {
+  const rows: ProductRow[] = [];
+  const skipped: SkipReason = {};
+  
+  console.log('[ETL] Transforming products, input rows:', data.length);
+  
+  for (const row of data) {
+    // Get SKU and Product_Name (required)
+    const sku = cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.SKU));
+    const productName = cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Product_Name));
+    
+    // Skip if mandatory fields are missing
+    if (!sku && !productName) {
+      skipped['Missing SKU and Product_Name'] = (skipped['Missing SKU and Product_Name'] || 0) + 1;
+      continue;
+    }
+    
+    if (!sku) {
+      skipped['Missing SKU'] = (skipped['Missing SKU'] || 0) + 1;
+      continue;
+    }
+    
+    if (!productName) {
+      skipped['Missing Product_Name'] = (skipped['Missing Product_Name'] || 0) + 1;
+      continue;
+    }
+    
+    // Extract volume from product name if not provided directly
+    let volume = parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Volume));
+    let volumeUnit = cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Volume_Unit));
+    
+    if (volume === null && productName) {
+      const extracted = extractVolume(productName);
+      volume = extracted.volume;
+      volumeUnit = volumeUnit || extracted.unit;
+    }
+    
+    // Parse status with default
+    let status = cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Status));
+    if (status) {
+      const normalizedStatus = normalize(status);
+      if (['active', 'aktīvs', 'pieejams'].includes(normalizedStatus)) {
+        status = 'Active';
+      } else if (['inactive', 'neaktīvs', 'delisted', 'izņemts'].includes(normalizedStatus)) {
+        status = 'Delisted';
+      } else {
+        status = 'Active';
+      }
+    } else {
+      status = 'Active';
+    }
+    
+    const productRow: ProductRow = {
+      SKU: sku,
+      Product_Name: productName,
+      EAN: parseEAN(findColumnValue(row, PRODUCT_COLUMN_MAP.EAN)),
+      Brand: cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Brand)),
+      Category: cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Category)),
+      Subcategory: cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Subcategory)),
+      Country: cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Country)),
+      Volume: volume,
+      Volume_Unit: volumeUnit,
+      ABV: parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.ABV)),
+      Cost_Price: parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Cost_Price)),
+      Current_Price: parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Current_Price)),
+      VAT_Rate: parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.VAT_Rate)),
+      Private_Label: parseBoolean(findColumnValue(row, PRODUCT_COLUMN_MAP.Private_Label)),
+      Status: status
+    };
+    
+    rows.push(productRow);
+  }
+  
+  console.log('[ETL] Products transformed:', rows.length, 'valid,', Object.values(skipped).reduce((a, b) => a + b, 0), 'skipped');
+  return { rows, skipped };
+}
+
+// ============================================================
+// SALES TRANSFORMATION (GENERIC)
+// ============================================================
+
+function transformGenericSales(data: Record<string, any>[]): { rows: SalesRow[]; skipped: SkipReason } {
+  const rows: SalesRow[] = [];
+  const skipped: SkipReason = {};
+  
+  console.log('[ETL] Transforming generic sales, input rows:', data.length);
+  
+  for (const row of data) {
+    const sku = cleanString(findColumnValue(row, SALES_COLUMN_MAP.SKU));
+    const unitsSold = parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Units_Sold));
+    const netRevenue = parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Net_Revenue));
+    
+    // Skip if SKU is missing
+    if (!sku) {
+      skipped['Missing SKU'] = (skipped['Missing SKU'] || 0) + 1;
+      continue;
+    }
+    
+    // Skip if both units_sold and net_revenue are missing
+    if (unitsSold === null && netRevenue === null) {
+      skipped['Missing Units_Sold and Net_Revenue'] = (skipped['Missing Units_Sold and Net_Revenue'] || 0) + 1;
+      continue;
+    }
+    
+    // Parse date
+    const dateValue = findColumnValue(row, SALES_COLUMN_MAP.Week_End_Date);
+    const weekEndDate = parseDate(dateValue) || new Date().toISOString().split('T')[0];
+    
+    const salesRow: SalesRow = {
+      SKU: sku,
+      Week_End_Date: weekEndDate,
+      Store_Code: cleanString(findColumnValue(row, SALES_COLUMN_MAP.Store_Code)),
+      Units_Sold: unitsSold || 0,
+      Net_Revenue: netRevenue,
+      Gross_Margin: parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Gross_Margin)),
+      Regular_Price: parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Regular_Price)),
+      Promo_Price: parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Promo_Price)),
+      Promo_Flag: parseBoolean(findColumnValue(row, SALES_COLUMN_MAP.Promo_Flag)),
+      Promo_Name: cleanString(findColumnValue(row, SALES_COLUMN_MAP.Promo_Name)),
+      Stock_End: parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Stock_End))
+    };
+    
+    rows.push(salesRow);
+  }
+  
+  console.log('[ETL] Generic sales transformed:', rows.length, 'valid,', Object.values(skipped).reduce((a, b) => a + b, 0), 'skipped');
+  return { rows, skipped };
+}
+
+// ============================================================
+// SALES TRANSFORMATION (SPIRITS&WINE)
+// ============================================================
+
+interface SpiritsWineConfig {
+  nosaukumsCol: string;
+  sumOfSkaitsCol: string;
+  sumOfGMCol: string;
+  atlikumiCol: string | null;
+  weekEndDate: string;
+  hasLWPW: boolean;
+}
+
+function transformSpiritsWineSales(data: Record<string, any>[], config: SpiritsWineConfig): { rows: SalesRow[]; skipped: SkipReason } {
+  const rows: SalesRow[] = [];
+  const skipped: SkipReason = {};
+  
+  console.log('[ETL] Transforming Spirits&Wine sales, input rows:', data.length, 'config:', config);
+  
+  // Calculate previous week date
+  const pwDate = new Date(config.weekEndDate);
+  pwDate.setDate(pwDate.getDate() - 7);
+  const pwDateStr = pwDate.toISOString().split('T')[0];
+  
+  // Get column keys for PW (Previous Week) data
+  const sampleRow = data[0];
+  const allKeys = sampleRow ? Object.keys(sampleRow) : [];
+  
+  // Find PW column variants (.1 or _1)
+  const sumOfSkaits1Key = allKeys.find(k => {
+    const n = normalize(k);
+    return n === 'sum of skaits.1' || n === 'sum of skaits_1';
+  });
+  
+  const sumOfGM1Key = allKeys.find(k => {
+    const n = normalize(k);
+    return n === 'sum of gm.1' || n === 'sum of gm_1';
+  });
+  
+  console.log('[ETL] Spirits&Wine PW columns:', { sumOfSkaits1Key, sumOfGM1Key });
+  
+  for (const row of data) {
+    const productName = cleanString(row[config.nosaukumsCol]);
+    
+    // Skip invalid rows
+    if (!productName || 
+        normalize(productName) === 'false' || 
+        productName === '(blank)' ||
+        normalize(productName).includes('grand total') ||
+        normalize(productName).includes('total') ||
+        normalize(productName) === '(blank)') {
+      skipped['Invalid product name'] = (skipped['Invalid product name'] || 0) + 1;
+      continue;
+    }
+    
+    const stockEnd = config.atlikumiCol ? parseNumber(row[config.atlikumiCol]) : null;
+    const lwUnits = parseNumber(row[config.sumOfSkaitsCol]);
+    const lwGM = parseNumber(row[config.sumOfGMCol]);
+    
+    // Last Week (LW) - allow 0 values
+    if (lwUnits !== null) {
+      rows.push({
+        SKU: null,
+        Product_Name: productName,
+        Week_End_Date: config.weekEndDate,
+        Store_Code: null,
+        Units_Sold: lwUnits,
+        Net_Revenue: null,
+        Gross_Margin: lwGM,
+        Regular_Price: null,
+        Promo_Price: null,
+        Promo_Flag: null,
+        Promo_Name: null,
+        Stock_End: stockEnd,
+        Period_Type: 'LW',
+        Partner: 'Spirits&Wine'
+      });
+    }
+    
+    // Previous Week (PW) - if columns exist
+    if (sumOfSkaits1Key && sumOfGM1Key) {
+      const pwUnits = parseNumber(row[sumOfSkaits1Key]);
+      const pwGM = parseNumber(row[sumOfGM1Key]);
+      
+      if (pwUnits !== null) {
+        rows.push({
+          SKU: null,
+          Product_Name: productName,
+          Week_End_Date: pwDateStr,
+          Store_Code: null,
+          Units_Sold: pwUnits,
+          Net_Revenue: null,
+          Gross_Margin: pwGM,
+          Regular_Price: null,
+          Promo_Price: null,
+          Promo_Flag: null,
+          Promo_Name: null,
+          Stock_End: stockEnd,
+          Period_Type: 'PW',
+          Partner: 'Spirits&Wine'
+        });
+      }
+    }
+  }
+  
+  console.log('[ETL] Spirits&Wine sales transformed:', rows.length, 'valid,', Object.values(skipped).reduce((a, b) => a + b, 0), 'skipped');
+  return { rows, skipped };
+}
+
+// ============================================================
+// MAIN ETL FUNCTION
+// ============================================================
+
+export interface ETLOptions {
+  contextYear?: number;
+  weekEndDate?: string; // Override week end date for Spirits&Wine
+}
+
+/**
+ * Main ETL function - processes raw data and returns structured result
+ */
+export function processETL(data: Record<string, any>[], options: ETLOptions = {}): ETLResult {
+  console.log('[ETL] Processing', data.length, 'rows with options:', options);
+  
+  if (!data || data.length === 0) {
+    console.log('[ETL] No data to process');
+    return {
+      type: 'unknown',
+      rows: [],
+      summary: { message: 'Fails ir tukšs vai nav atrasti dati.' }
+    };
+  }
+  
+  // Detect file type
+  const detection = detectFileType(data, options.contextYear);
+  console.log('[ETL] Detection result:', detection);
+  
+  if (detection.type === 'unknown') {
+    return {
+      type: 'unknown',
+      rows: [],
+      summary: { message: 'Neatpazīts faila formāts. Lūdzu izmantojiet nodrošinātos veidnes failus.' }
+    };
+  }
+  
+  // Process based on type
+  if (detection.type === 'product') {
+    const { rows, skipped } = transformProducts(data);
+    
+    return {
+      type: 'product',
+      rows,
+      summary: {
+        total_rows_input: data.length,
+        total_rows_valid: rows.length,
+        total_rows_skipped: Object.values(skipped).reduce((a, b) => a + b, 0),
+        skipped_reasons: skipped,
+        detected_format: detection.format
+      }
+    };
+  }
+  
+  if (detection.type === 'sales') {
+    // Handle Spirits&Wine format
+    if (detection.format === 'spiritsWine' && detection.spiritsWineInfo) {
+      const info = detection.spiritsWineInfo;
+      const weekEndDate = options.weekEndDate || info.weekEndDate || new Date().toISOString().split('T')[0];
+      
+      const { rows, skipped } = transformSpiritsWineSales(data, {
+        nosaukumsCol: info.nosaukumsCol!,
+        sumOfSkaitsCol: info.sumOfSkaitsCol!,
+        sumOfGMCol: info.sumOfGMCol!,
+        atlikumiCol: info.atlikumiCol,
+        weekEndDate,
+        hasLWPW: info.hasLWPW
+      });
+      
+      return {
+        type: 'sales',
+        rows,
+        summary: {
+          total_rows_input: data.length,
+          total_rows_valid: rows.length,
+          total_rows_skipped: Object.values(skipped).reduce((a, b) => a + b, 0),
+          skipped_reasons: skipped,
+          detected_format: 'Spirits&Wine LW/PW'
+        }
+      };
+    }
+    
+    // Generic sales format
+    const { rows, skipped } = transformGenericSales(data);
+    
+    return {
+      type: 'sales',
+      rows,
+      summary: {
+        total_rows_input: data.length,
+        total_rows_valid: rows.length,
+        total_rows_skipped: Object.values(skipped).reduce((a, b) => a + b, 0),
+        skipped_reasons: skipped,
+        detected_format: 'Generic Sales'
+      }
+    };
+  }
+  
+  // Fallback - should not reach here
+  return {
+    type: 'unknown',
+    rows: [],
+    summary: { message: 'Neatpazīts faila formāts.' }
+  };
+}
+
+/**
+ * Quick detection function - just detects file type without full processing
+ */
+export function detectFileFormat(data: Record<string, any>[], contextYear?: number): { 
+  type: FileType; 
+  format: string | undefined;
+  columns: string[];
+  rowCount: number;
+} {
+  const detection = detectFileType(data, contextYear);
+  return {
+    type: detection.type,
+    format: detection.format,
+    columns: getColumns(data),
+    rowCount: data.length
+  };
+}
