@@ -3,12 +3,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, FileSpreadsheet } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
+import { Badge } from "@/components/ui/badge";
+import { processETL, detectFileFormat, type ETLResult, type ProductRow, type SalesRow } from "@/lib/etlEngine";
 interface ImportDataDialogProps {
   onImportComplete?: () => void;
 }
@@ -22,29 +23,65 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
   const [file, setFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [preview, setPreview] = useState<any[]>([]);
+  const [detectedFormat, setDetectedFormat] = useState<{ type: string; format: string | undefined; columns: string[]; rowCount: number } | null>(null);
+  const [etlResult, setEtlResult] = useState<ETLResult | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
-      previewFile(selectedFile);
+      await analyzeFile(selectedFile);
     }
   };
 
-  const previewFile = async (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-        setPreview(jsonData.slice(0, 3) as any[]); // Show first 3 rows
-      } catch (error) {
-        console.error('Error previewing file:', error);
+  const analyzeFile = async (file: File) => {
+    try {
+      const data = await parseExcelFile(file);
+      console.log('[Import] Analyzing file, rows:', data.length);
+      
+      // Use ETL engine to detect file type
+      const detection = detectFileFormat(data);
+      setDetectedFormat(detection);
+      
+      // Preview first 3 rows
+      setPreview(data.slice(0, 3));
+      
+      // Run full ETL processing for preview
+      const result = processETL(data);
+      setEtlResult(result);
+      
+      console.log('[Import] ETL result:', result.type, 'valid rows:', result.type !== 'unknown' ? result.summary.total_rows_valid : 0);
+      
+      if (result.type !== 'unknown') {
+        const summary = result.summary as { total_rows_valid: number; detected_format?: string };
+        toast({
+          title: "Datne analizēta",
+          description: `Atpazīts formāts: ${summary.detected_format || result.type}. Derīgas rindas: ${summary.total_rows_valid}`,
+        });
+        
+        // Auto-select import type based on detection
+        if (result.type === 'product') {
+          setImportType('products');
+        } else if (result.type === 'sales') {
+          setImportType('sales');
+        }
+      } else {
+        toast({
+          title: "Neatpazīts formāts",
+          description: result.summary.message || "Lūdzu pārbaudiet faila struktūru",
+          variant: "destructive",
+        });
       }
-    };
-    reader.readAsArrayBuffer(file);
+    } catch (error: any) {
+      console.error('[Import] Error analyzing file:', error);
+      setDetectedFormat(null);
+      setEtlResult(null);
+      toast({
+        title: "Kļūda lasot datni",
+        description: error.message || "Neizdevās nolasīt failu",
+        variant: "destructive",
+      });
+    }
   };
 
   const parseExcelFile = async (file: File): Promise<any[]> => {
@@ -64,6 +101,95 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
       reader.onerror = reject;
       reader.readAsArrayBuffer(file);
     });
+  };
+
+  const importProductsFromETL = async (rows: ProductRow[]) => {
+    console.log('[Import] Importing products from ETL, rows:', rows.length);
+    
+    const products = rows.map((row) => ({
+      sku: row.SKU,
+      name: row.Product_Name,
+      barcode: row.EAN,
+      brand: row.Brand,
+      category: row.Category,
+      subcategory: row.Subcategory,
+      cost_price: row.Cost_Price || 0,
+      current_price: row.Current_Price || 0,
+      currency: 'EUR',
+      vat_rate: row.VAT_Rate || 21,
+      is_private_label: row.Private_Label || false,
+      status: row.Status?.toLowerCase() === 'delisted' ? 'inactive' : 'active'
+    }));
+
+    if (products.length === 0) {
+      throw new Error('Nav atrasti derīgi produktu ieraksti failā');
+    }
+
+    const { error } = await supabase.from('products').insert(products);
+    if (error) throw error;
+    return products.length;
+  };
+
+  const importSalesFromETL = async (rows: SalesRow[]) => {
+    console.log('[Sales Import] Starting ETL import, rows:', rows.length);
+    
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) throw new Error('Jums jābūt autorizētam');
+
+    const { data: userTenant } = await supabase
+      .from('user_tenants')
+      .select('tenant_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    if (!userTenant?.tenant_id) throw new Error('Nav atrasta organizācija');
+    const tenantId = userTenant.tenant_id;
+
+    const { data: existingStore } = await supabase.from('stores').select('id').eq('tenant_id', tenantId).limit(1).maybeSingle();
+    let storeId = existingStore?.id;
+    if (!storeId) {
+      const { data: newStore } = await supabase.from('stores').insert({ tenant_id: tenantId, name: 'Noklusējuma veikals', code: 'DEFAULT', is_active: true }).select('id').single();
+      storeId = newStore?.id;
+    }
+
+    const { data: products } = await supabase.from('products').select('id, sku, name').eq('tenant_id', tenantId);
+    const skuToId = new Map(products?.map(p => [p.sku, p.id]) || []);
+    const nameToId = new Map(products?.map(p => [p.name.toLowerCase(), p.id]) || []);
+
+    const sales = rows.map((row) => {
+      let productId = row.SKU ? skuToId.get(row.SKU) : null;
+      if (!productId && row.Product_Name) productId = nameToId.get(row.Product_Name.toLowerCase());
+      return {
+        tenant_id: tenantId,
+        store_id: storeId,
+        product_id: productId || null,
+        date: row.Week_End_Date,
+        units_sold: row.Units_Sold || 0,
+        revenue: row.Net_Revenue || 0,
+        regular_price: row.Regular_Price,
+        promo_flag: row.Promo_Flag || false,
+        promotion_id: null
+      };
+    }).filter(s => s.product_id);
+
+    const batchSize = 500;
+    let insertedCount = 0;
+    for (let i = 0; i < sales.length; i += batchSize) {
+      const { data } = await supabase.from('sales_daily').insert(sales.slice(i, i + batchSize) as any).select('id');
+      insertedCount += data?.length || 0;
+    }
+    
+    return { count: insertedCount, warning: rows.length !== insertedCount ? `Importēti ${insertedCount}/${rows.length}` : undefined };
+  };
+
+  const handleRawImport = async (data: any[], type: ImportType) => {
+    switch (type) {
+      case 'products': return await importProducts(data);
+      case 'sales': return (await importSales(data)).count;
+      case 'competitors': return await importCompetitors(data);
+      case 'competitor_prices': return await importCompetitorPrices(data);
+      default: return 0;
+    }
   };
 
   const importProducts = async (data: any[]) => {
@@ -380,34 +506,38 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
     }
 
     setIsImporting(true);
-    console.log('[Import] Starting import, type:', importType, 'file:', file.name);
+    console.log('[Import] Starting import, type:', importType, 'file:', file.name, 'ETL result:', etlResult?.type);
     
     try {
-      const data = await parseExcelFile(file);
-      console.log('[Import] Parsed rows:', data.length);
-      
-      if (data.length === 0) {
-        throw new Error('Fails ir tukšs vai neizdevās nolasīt datus');
-      }
-      
       let count = 0;
       let warning: string | undefined;
       
-      switch (importType) {
-        case 'products':
-          count = await importProducts(data);
-          break;
-        case 'sales':
-          const salesResult = await importSales(data);
+      // Use ETL result if available and matching the import type
+      if (etlResult && etlResult.type !== 'unknown') {
+        if (etlResult.type === 'product' && importType === 'products') {
+          console.log('[Import] Using ETL processed products');
+          count = await importProductsFromETL(etlResult.rows);
+          const summary = etlResult.summary as { total_rows_skipped: number; skipped_reasons: Record<string, number> };
+          if (summary.total_rows_skipped > 0) {
+            warning = `Importēti ${count} produkti. Izlaisti ${summary.total_rows_skipped} ieraksti.`;
+          }
+        } else if (etlResult.type === 'sales' && importType === 'sales') {
+          console.log('[Import] Using ETL processed sales');
+          const salesResult = await importSalesFromETL(etlResult.rows);
           count = salesResult.count;
           warning = salesResult.warning;
-          break;
-        case 'competitors':
-          count = await importCompetitors(data);
-          break;
-        case 'competitor_prices':
-          count = await importCompetitorPrices(data);
-          break;
+        } else {
+          // Fallback to raw import for non-matching types
+          const data = await parseExcelFile(file);
+          count = await handleRawImport(data, importType);
+        }
+      } else {
+        // Fallback to traditional import
+        const data = await parseExcelFile(file);
+        if (data.length === 0) {
+          throw new Error('Fails ir tukšs vai neizdevās nolasīt datus');
+        }
+        count = await handleRawImport(data, importType);
       }
 
       console.log('[Import] Completed, count:', count);
@@ -581,10 +711,31 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
             />
           </div>
 
+          {etlResult && etlResult.type !== 'unknown' && (
+            <Alert className="border-green-500/50 bg-green-500/10">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <AlertDescription>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">{(etlResult.summary as any).detected_format || etlResult.type}</Badge>
+                  <span className="text-sm">Derīgas rindas: {(etlResult.summary as any).total_rows_valid} / {(etlResult.summary as any).total_rows_input}</span>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {etlResult && etlResult.type === 'unknown' && (
+            <Alert className="border-destructive/50 bg-destructive/10">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <AlertDescription>
+                <span className="text-sm">{etlResult.summary.message}</span>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {preview.length > 0 && (
             <div className="space-y-2">
-              <Label>Preview (first 3 rows)</Label>
-              <div className="border rounded-md p-2 bg-muted/50 overflow-x-auto text-xs">
+              <Label>Priekšskatījums (pirmās 3 rindas)</Label>
+              <div className="border rounded-md p-2 bg-muted/50 overflow-x-auto text-xs max-h-32">
                 <pre className="whitespace-pre-wrap">
                   {preview.map((row, i) => JSON.stringify(row, null, 2)).join('\n---\n')}
                 </pre>
