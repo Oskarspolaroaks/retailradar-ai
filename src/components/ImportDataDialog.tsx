@@ -131,7 +131,7 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
   };
 
   const importSalesFromETL = async (rows: SalesRow[]) => {
-    console.log('[Sales Import] Starting ETL import, rows:', rows.length);
+    console.log('[Sales Import ETL] Starting import, total rows:', rows.length);
     
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) throw new Error('Jums jābūt autorizētam');
@@ -144,6 +144,7 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
     
     if (!userTenant?.tenant_id) throw new Error('Nav atrasta organizācija');
     const tenantId = userTenant.tenant_id;
+    console.log('[Sales Import ETL] Tenant ID:', tenantId);
 
     const { data: existingStore } = await supabase.from('stores').select('id').eq('tenant_id', tenantId).limit(1).maybeSingle();
     let storeId = existingStore?.id;
@@ -151,14 +152,28 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
       const { data: newStore } = await supabase.from('stores').insert({ tenant_id: tenantId, name: 'Noklusējuma veikals', code: 'DEFAULT', is_active: true }).select('id').single();
       storeId = newStore?.id;
     }
+    console.log('[Sales Import ETL] Store ID:', storeId);
 
     const { data: products } = await supabase.from('products').select('id, sku, name').eq('tenant_id', tenantId);
-    const skuToId = new Map(products?.map(p => [p.sku, p.id]) || []);
-    const nameToId = new Map(products?.map(p => [p.name.toLowerCase(), p.id]) || []);
+    console.log('[Sales Import ETL] Available products for matching:', products?.length || 0);
+    
+    const skuToId = new Map(products?.map(p => [p.sku?.toLowerCase(), p.id]) || []);
+    const nameToId = new Map(products?.map(p => [p.name?.toLowerCase(), p.id]) || []);
 
+    let matchedCount = 0;
+    let unmatchedCount = 0;
+    
+    // Process ALL rows - don't filter out unmatched ones
     const sales = rows.map((row) => {
-      let productId = row.SKU ? skuToId.get(row.SKU) : null;
+      let productId = row.SKU ? skuToId.get(row.SKU.toLowerCase()) : null;
       if (!productId && row.Product_Name) productId = nameToId.get(row.Product_Name.toLowerCase());
+      
+      if (productId) {
+        matchedCount++;
+      } else {
+        unmatchedCount++;
+      }
+      
       return {
         tenant_id: tenantId,
         store_id: storeId,
@@ -170,16 +185,41 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
         promo_flag: row.Promo_Flag || false,
         promotion_id: null
       };
-    }).filter(s => s.product_id);
+    });
+    
+    console.log('[Sales Import ETL] Matched:', matchedCount, 'Unmatched:', unmatchedCount, 'Total:', sales.length);
+
+    if (sales.length === 0) {
+      throw new Error('Nav derīgu pārdošanas ierakstu importēšanai');
+    }
 
     const batchSize = 500;
     let insertedCount = 0;
+    let failedBatches = 0;
+    
     for (let i = 0; i < sales.length; i += batchSize) {
-      const { data } = await supabase.from('sales_daily').insert(sales.slice(i, i + batchSize) as any).select('id');
-      insertedCount += data?.length || 0;
+      const batch = sales.slice(i, i + batchSize);
+      console.log(`[Sales Import ETL] Inserting batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(sales.length / batchSize)}, records: ${batch.length}`);
+      
+      const { data, error } = await supabase.from('sales_daily').insert(batch as any).select('id');
+      if (error) {
+        console.error('[Sales Import ETL] Batch error:', error);
+        failedBatches++;
+      } else {
+        insertedCount += data?.length || batch.length;
+      }
     }
     
-    return { count: insertedCount, warning: rows.length !== insertedCount ? `Importēti ${insertedCount}/${rows.length}` : undefined };
+    console.log('[Sales Import ETL] Complete. Inserted:', insertedCount, 'Failed batches:', failedBatches);
+    
+    let warning: string | undefined;
+    if (failedBatches > 0) {
+      warning = `Importēti ${insertedCount}/${rows.length} ieraksti. ${failedBatches} partijas neizdevās.`;
+    } else if (unmatchedCount > 0) {
+      warning = `Importēti ${insertedCount} ieraksti. ${matchedCount} ar produktu sasaisti, ${unmatchedCount} bez sasaistes.`;
+    }
+    
+    return { count: insertedCount, warning };
   };
 
   const handleRawImport = async (data: any[], type: ImportType) => {
@@ -305,22 +345,36 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
     console.log('[Sales Import] Found products for tenant:', products?.length || 0);
     const skuToId = new Map(products?.map(p => [p.sku, p.id]) || []);
 
-    // Parse sales rows
-    const skippedSkus: string[] = [];
+    // Parse ALL sales rows - DO NOT filter out unmatched SKUs
+    console.log('[Sales Import] Processing ALL', data.length, 'rows from file');
+    
+    let matchedCount = 0;
+    let unmatchedCount = 0;
+    let skippedEmpty = 0;
+    
     const sales = data
       .map((row: any, index: number) => {
         const sku = row.SKU || row.sku;
-        if (!sku || sku.toString().trim() === '') {
-          console.warn(`[Sales Import] Row ${index + 1}: Missing SKU`);
+        
+        // Only skip truly empty rows (no SKU AND no meaningful data)
+        const unitsSold = parseInt(row.Units_Sold || row['Quantity Sold'] || row.quantity_sold || row.Quantity || row.Skaits || 0);
+        const revenue = parseFloat(row.Net_Revenue || row['Net Revenue'] || row.net_revenue || row.Revenue || row.Ieņēmumi || 0);
+        
+        if ((!sku || sku.toString().trim() === '') && unitsSold === 0 && revenue === 0) {
+          skippedEmpty++;
           return null;
         }
         
-        const productId = skuToId.get(sku.toString().trim());
+        // Try to match product but DON'T skip if no match
+        const productId = sku ? skuToId.get(sku.toString().trim()) : null;
         
-        if (!productId) {
-          skippedSkus.push(sku);
-          console.warn(`[Sales Import] Row ${index + 1}: Product not found for SKU: ${sku}`);
-          return null;
+        if (productId) {
+          matchedCount++;
+        } else {
+          unmatchedCount++;
+          if (index < 10) {
+            console.log(`[Sales Import] Row ${index + 1}: No product match for SKU: ${sku || '(empty)'} - will import anyway`);
+          }
         }
 
         // Handle date with new column name Week_End_Date
@@ -339,15 +393,13 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
         }
 
         // Handle new column names
-        const unitsSold = parseInt(row.Units_Sold || row['Quantity Sold'] || row.quantity_sold || row.Quantity || row.Skaits || 0);
-        const revenue = parseFloat(row.Net_Revenue || row['Net Revenue'] || row.net_revenue || row.Revenue || row.Ieņēmumi || 0);
         const regularPrice = parseFloat(row.Regular_Price || row['Regular Price'] || row.regular_price || row.Cena || 0) || null;
         const promoFlag = row.Promo_Flag === 'Yes' || row['Promo_Flag'] === 'Yes' || row['Promotion'] === 'Yes' || row.promotion_flag === true || row.Akcija === 'Jā' || false;
 
         return {
           tenant_id: tenantId,
           store_id: storeId,
-          product_id: productId,
+          product_id: productId || null, // Allow null product_id
           date: parsedDate,
           units_sold: isNaN(unitsSold) ? 0 : unitsSold,
           revenue: isNaN(revenue) ? 0 : revenue,
@@ -358,23 +410,25 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
       })
       .filter(Boolean);
 
-    console.log('[Sales Import] Valid sales records to insert:', sales.length);
-    console.log('[Sales Import] Skipped SKUs (not found):', skippedSkus.length, skippedSkus.slice(0, 10));
+    console.log('[Sales Import] Processing summary:');
+    console.log('  - Total rows in file:', data.length);
+    console.log('  - Valid sales records:', sales.length);
+    console.log('  - Matched to products:', matchedCount);
+    console.log('  - Unmatched (will import):', unmatchedCount);
+    console.log('  - Empty rows skipped:', skippedEmpty);
 
     if (sales.length === 0) {
-      if (skippedSkus.length > 0) {
-        throw new Error(`Neviena ieraksta netika importēta. Netika atrasti produkti ar SKU: ${skippedSkus.slice(0, 5).join(', ')}${skippedSkus.length > 5 ? '...' : ''}`);
-      }
       throw new Error('Nav derīgu ierakstu importēšanai. Pārbaudiet faila formātu.');
     }
 
     // Insert in batches of 500
     const batchSize = 500;
     let insertedCount = 0;
+    let failedBatches = 0;
     
     for (let i = 0; i < sales.length; i += batchSize) {
       const batch = sales.slice(i, i + batchSize);
-      console.log(`[Sales Import] Inserting batch ${Math.floor(i / batchSize) + 1}, records: ${batch.length}`);
+      console.log(`[Sales Import] Inserting batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(sales.length / batchSize)}, records: ${batch.length}`);
       
       const { error: insertError, data: insertedData } = await supabase
         .from('sales_daily')
@@ -382,21 +436,29 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
         .select('id');
       
       if (insertError) {
-        console.error('[Sales Import] Insert error:', insertError);
-        throw new Error(`Neizdevās saglabāt pārdošanas datus: ${insertError.message}`);
+        console.error('[Sales Import] Batch insert error:', insertError);
+        failedBatches++;
+        // Continue with next batch instead of failing completely
+      } else {
+        insertedCount += insertedData?.length || batch.length;
+        console.log(`[Sales Import] Batch inserted, total so far: ${insertedCount}`);
       }
-      
-      insertedCount += insertedData?.length || batch.length;
-      console.log(`[Sales Import] Batch inserted, total so far: ${insertedCount}`);
     }
 
-    console.log('[Sales Import] Import completed. Total records:', insertedCount);
+    console.log('[Sales Import] Import completed:');
+    console.log('  - Total inserted:', insertedCount);
+    console.log('  - Failed batches:', failedBatches);
+    
+    let warning: string | undefined;
+    if (failedBatches > 0) {
+      warning = `Importēti ${insertedCount}/${sales.length} ieraksti. ${failedBatches} partijas neizdevās.`;
+    } else if (unmatchedCount > 0) {
+      warning = `Importēti ${insertedCount} ieraksti. ${matchedCount} ar produktu sasaisti, ${unmatchedCount} bez sasaistes (var kartēt vēlāk).`;
+    }
     
     return { 
       count: insertedCount, 
-      warning: skippedSkus.length > 0 
-        ? `Importēti ${insertedCount} ieraksti. Izlaisti ${skippedSkus.length} ieraksti ar neatrastiem SKU.` 
-        : undefined
+      warning
     };
   };
 
