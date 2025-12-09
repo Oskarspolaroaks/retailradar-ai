@@ -491,16 +491,26 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
         const batch = salesRecords.slice(i, i + batchSize);
         console.log(`[Import] Inserting batch ${Math.floor(i / batchSize) + 1}, records: ${batch.length}`);
         
-        const { error: insertError } = await supabase
+        const { data: insertedData, error: insertError } = await supabase
           .from('weekly_sales')
-          .insert(batch);
+          .insert(batch)
+          .select('id');
 
         if (insertError) {
           console.error(`[Import] Batch ${Math.floor(i / batchSize) + 1} failed:`, insertError);
+          console.error(`[Import] Error details:`, JSON.stringify(insertError, null, 2));
+          console.error(`[Import] First record in failed batch:`, JSON.stringify(batch[0], null, 2));
           failedBatches++;
+          // Show error to user immediately
+          toast({
+            title: `Partija ${Math.floor(i / batchSize) + 1} neizdevās`,
+            description: insertError.message || insertError.code || 'Nezināma kļūda',
+            variant: "destructive",
+          });
           // Continue with other batches instead of failing completely
         } else {
-          totalInserted += batch.length;
+          totalInserted += insertedData?.length || batch.length;
+          console.log(`[Import] Batch ${Math.floor(i / batchSize) + 1} inserted successfully:`, insertedData?.length || batch.length, 'records');
         }
       }
 
