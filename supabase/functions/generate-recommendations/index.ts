@@ -58,11 +58,11 @@ serve(async (req) => {
     const tenant_id = userTenant.tenant_id;
     console.log('Generating pricing recommendations for tenant:', tenant_id);
 
-    // Get all products with their pricing data for this tenant
+    // Get all products with their pricing data for this tenant (or no tenant)
     const { data: products, error: productsError } = await supabase
       .from('products')
       .select('id, sku, name, category, cost_price, current_price, currency, abc_category, is_private_label, tenant_id')
-      .eq('tenant_id', tenant_id)
+      .or(`tenant_id.eq.${tenant_id},tenant_id.is.null`)
       .or('status.eq.active,status.is.null');
 
     if (productsError) throw productsError;

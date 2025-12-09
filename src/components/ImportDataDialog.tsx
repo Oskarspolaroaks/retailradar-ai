@@ -109,6 +109,19 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
     if (rows.length === 0) {
       throw new Error('Nav atrasti derīgi produktu ieraksti failā');
     }
+
+    // Get user's tenant_id
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Jums jābūt autorizētam');
+
+    const { data: userTenant } = await supabase
+      .from('user_tenants')
+      .select('tenant_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    const tenantId = userTenant?.tenant_id || null;
+    console.log('[Import] Using tenant_id:', tenantId);
     
     const products = rows.map((row) => ({
       sku: row.SKU,
@@ -122,7 +135,8 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
       currency: 'EUR',
       vat_rate: row.VAT_Rate ?? 21,
       is_private_label: row.Private_Label ?? false,
-      status: row.Status?.toLowerCase() === 'delisted' || row.Status?.toLowerCase() === 'inactive' ? 'inactive' : 'active'
+      status: row.Status?.toLowerCase() === 'delisted' || row.Status?.toLowerCase() === 'inactive' ? 'inactive' : 'active',
+      tenant_id: tenantId
     }));
 
     console.log('[Import] Products to insert:', products.length, 'Sample:', products[0]);
