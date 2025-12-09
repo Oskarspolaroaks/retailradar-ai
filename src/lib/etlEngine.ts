@@ -368,11 +368,37 @@ function detectFileType(data: Record<string, any>[], contextYear?: number): Dete
     };
   }
   
-  // Check for generic sales format
+  // Check for Latvian product format FIRST (Preču kods, Preču nosaukums, Iep. cena, Maz. cena)
+  // This must come before generic sales check because "Preču kods" matches SKU patterns
+  const hasLatvianProductFormat = normalizedColumns.some(c => c.includes('preču kods')) &&
+    normalizedColumns.some(c => c.includes('preču nosaukums'));
+  
+  const hasPriceColumns = normalizedColumns.some(c => c.includes('iep. cena') || c.includes('maz. cena'));
+  
+  if (hasLatvianProductFormat && hasPriceColumns) {
+    console.log('[ETL] Detected: Latvian product format (Preču kods + Iep./Maz. cena)');
+    return { type: 'product', format: 'latvianProduct' };
+  }
+  
+  // Check for product master format (before sales to prioritize product detection)
+  const hasName = normalizedColumns.some(c => 
+    ['name', 'product_name', 'product name', 'nosaukums', 'preču nosaukums'].includes(c)
+  );
+  
+  const hasProductAttributes = normalizedColumns.some(c => 
+    ['brand', 'category', 'cost', 'price', 'cost_price', 'current_price', 'zīmols', 'kategorija', 'iep. cena', 'maz. cena'].some(p => c === p || c.includes(p))
+  );
+  
   const hasSKU = normalizedColumns.some(c => 
     ['sku', 'code', 'product code', 'preču kods'].some(p => c === p || c.includes(p))
   );
   
+  if (hasSKU && hasName && hasProductAttributes) {
+    console.log('[ETL] Detected: Product master format');
+    return { type: 'product', format: 'productMaster' };
+  }
+  
+  // Check for generic sales format (after product checks)
   const hasDate = normalizedColumns.some(c => 
     ['week_end_date', 'week end', 'date', 'datums'].some(p => c === p || c.includes(p))
   );
@@ -384,24 +410,6 @@ function detectFileType(data: Record<string, any>[], contextYear?: number): Dete
   if (hasSKU && (hasDate || hasQuantity)) {
     console.log('[ETL] Detected: Generic sales format');
     return { type: 'sales', format: 'generic' };
-  }
-  
-  // Check for product master format
-  const hasName = normalizedColumns.some(c => 
-    ['name', 'product_name', 'product name', 'nosaukums', 'preču nosaukums'].includes(c)
-  );
-  
-  const hasProductAttributes = normalizedColumns.some(c => 
-    ['brand', 'category', 'cost', 'price', 'cost_price', 'current_price', 'zīmols', 'kategorija', 'iep. cena', 'maz. cena'].some(p => c === p || c.includes(p))
-  );
-  
-  // Check for Latvian product format (Preču kods, Preču nosaukums, Iep. cena, Maz. cena)
-  const hasLatvianProductFormat = normalizedColumns.some(c => c.includes('preču kods')) &&
-    normalizedColumns.some(c => c.includes('preču nosaukums'));
-  
-  if (hasLatvianProductFormat || (hasSKU && hasName && hasProductAttributes)) {
-    console.log('[ETL] Detected: Product master format');
-    return { type: 'product', format: 'productMaster' };
   }
   
   // Fallback: check if it looks like products or sales
@@ -424,7 +432,7 @@ function detectFileType(data: Record<string, any>[], contextYear?: number): Dete
 // ============================================================
 
 function transformProducts(data: Record<string, any>[]): { rows: ProductRow[]; skipped: SkipReason } {
-  const rows: ProductRow[] = [];
+  const productMap = new Map<string, ProductRow>(); // Deduplicate by SKU
   const skipped: SkipReason = {};
   
   console.log('[ETL] Transforming products, input rows:', data.length);
@@ -460,20 +468,15 @@ function transformProducts(data: Record<string, any>[]): { rows: ProductRow[]; s
       volumeUnit = volumeUnit || extracted.unit;
     }
     
-    // Parse status with default
-    let status = cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Status));
-    if (status) {
-      const normalizedStatus = normalize(status);
-      if (['active', 'aktīvs', 'pieejams'].includes(normalizedStatus)) {
-        status = 'Active';
-      } else if (['inactive', 'neaktīvs', 'delisted', 'izņemts'].includes(normalizedStatus)) {
-        status = 'Delisted';
-      } else {
-        status = 'Active';
-      }
-    } else {
-      status = 'Active';
+    // Parse status - check for stock (Atlikums) to determine if active
+    const stockValue = parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Status));
+    let status = 'Active';
+    if (stockValue !== null && stockValue === 0) {
+      status = 'Inactive';
     }
+    
+    const costPrice = parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Cost_Price));
+    const currentPrice = parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Current_Price));
     
     const productRow: ProductRow = {
       SKU: sku,
@@ -486,17 +489,34 @@ function transformProducts(data: Record<string, any>[]): { rows: ProductRow[]; s
       Volume: volume,
       Volume_Unit: volumeUnit,
       ABV: parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.ABV)),
-      Cost_Price: parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Cost_Price)),
-      Current_Price: parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Current_Price)),
+      Cost_Price: costPrice,
+      Current_Price: currentPrice,
       VAT_Rate: parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.VAT_Rate)),
       Private_Label: parseBoolean(findColumnValue(row, PRODUCT_COLUMN_MAP.Private_Label)),
       Status: status
     };
     
-    rows.push(productRow);
+    // Deduplicate by SKU - keep the one with valid prices or update if current has better data
+    const existing = productMap.get(sku);
+    if (!existing) {
+      productMap.set(sku, productRow);
+    } else {
+      // If existing has no prices but this one does, update
+      if ((existing.Cost_Price === null && costPrice !== null) ||
+          (existing.Current_Price === null && currentPrice !== null)) {
+        productMap.set(sku, {
+          ...existing,
+          Cost_Price: costPrice ?? existing.Cost_Price,
+          Current_Price: currentPrice ?? existing.Current_Price
+        });
+      }
+      skipped['Duplicate SKU (merged)'] = (skipped['Duplicate SKU (merged)'] || 0) + 1;
+    }
   }
   
-  console.log('[ETL] Products transformed:', rows.length, 'valid,', Object.values(skipped).reduce((a, b) => a + b, 0), 'skipped');
+  const rows = Array.from(productMap.values());
+  
+  console.log('[ETL] Products transformed:', rows.length, 'unique,', Object.values(skipped).reduce((a, b) => a + b, 0), 'skipped/merged');
   return { rows, skipped };
 }
 

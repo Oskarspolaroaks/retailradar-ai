@@ -106,6 +106,10 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
   const importProductsFromETL = async (rows: ProductRow[]) => {
     console.log('[Import] Importing products from ETL, rows:', rows.length);
     
+    if (rows.length === 0) {
+      throw new Error('Nav atrasti derīgi produktu ieraksti failā');
+    }
+    
     const products = rows.map((row) => ({
       sku: row.SKU,
       name: row.Product_Name,
@@ -113,21 +117,29 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
       brand: row.Brand,
       category: row.Category,
       subcategory: row.Subcategory,
-      cost_price: row.Cost_Price || 0,
-      current_price: row.Current_Price || 0,
+      cost_price: row.Cost_Price ?? 0,
+      current_price: row.Current_Price ?? 0,
       currency: 'EUR',
-      vat_rate: row.VAT_Rate || 21,
-      is_private_label: row.Private_Label || false,
-      status: row.Status?.toLowerCase() === 'delisted' ? 'inactive' : 'active'
+      vat_rate: row.VAT_Rate ?? 21,
+      is_private_label: row.Private_Label ?? false,
+      status: row.Status?.toLowerCase() === 'delisted' || row.Status?.toLowerCase() === 'inactive' ? 'inactive' : 'active'
     }));
 
-    if (products.length === 0) {
-      throw new Error('Nav atrasti derīgi produktu ieraksti failā');
+    console.log('[Import] Products to insert:', products.length, 'Sample:', products[0]);
+    
+    // Use upsert to handle duplicates gracefully
+    const { data, error } = await supabase
+      .from('products')
+      .upsert(products, { onConflict: 'sku', ignoreDuplicates: false })
+      .select('id');
+    
+    if (error) {
+      console.error('[Import] Product insert error:', error);
+      throw new Error(`Kļūda saglabājot produktus: ${error.message}`);
     }
-
-    const { error } = await supabase.from('products').insert(products);
-    if (error) throw error;
-    return products.length;
+    
+    console.log('[Import] Products imported successfully:', data?.length || products.length);
+    return data?.length || products.length;
   };
 
   const importSalesFromETL = async (rows: SalesRow[]) => {
