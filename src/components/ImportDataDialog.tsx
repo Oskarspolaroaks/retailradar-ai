@@ -184,12 +184,12 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
     const sales = data
       .map((row: any, index: number) => {
         const sku = row.SKU || row.sku;
-        if (!sku) {
+        if (!sku || sku.toString().trim() === '') {
           console.warn(`[Sales Import] Row ${index + 1}: Missing SKU`);
           return null;
         }
         
-        const productId = skuToId.get(sku);
+        const productId = skuToId.get(sku.toString().trim());
         
         if (!productId) {
           skippedSkus.push(sku);
@@ -197,7 +197,8 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
           return null;
         }
 
-        const dateValue = row.Date || row.date || row.Datums;
+        // Handle date with new column name Week_End_Date
+        const dateValue = row.Week_End_Date || row.Date || row.date || row.Datums;
         let parsedDate: string;
         if (dateValue instanceof Date) {
           parsedDate = dateValue.toISOString().split('T')[0];
@@ -211,8 +212,11 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
           parsedDate = new Date().toISOString().split('T')[0];
         }
 
-        const unitsSold = parseInt(row['Quantity Sold'] || row.quantity_sold || row.Quantity || row.Skaits || 0);
-        const revenue = parseFloat(row['Net Revenue'] || row.net_revenue || row.Revenue || row.Ieņēmumi || 0);
+        // Handle new column names
+        const unitsSold = parseInt(row.Units_Sold || row['Quantity Sold'] || row.quantity_sold || row.Quantity || row.Skaits || 0);
+        const revenue = parseFloat(row.Net_Revenue || row['Net Revenue'] || row.net_revenue || row.Revenue || row.Ieņēmumi || 0);
+        const regularPrice = parseFloat(row.Regular_Price || row['Regular Price'] || row.regular_price || row.Cena || 0) || null;
+        const promoFlag = row.Promo_Flag === 'Yes' || row['Promo_Flag'] === 'Yes' || row['Promotion'] === 'Yes' || row.promotion_flag === true || row.Akcija === 'Jā' || false;
 
         return {
           tenant_id: tenantId,
@@ -221,8 +225,8 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
           date: parsedDate,
           units_sold: isNaN(unitsSold) ? 0 : unitsSold,
           revenue: isNaN(revenue) ? 0 : revenue,
-          regular_price: parseFloat(row['Regular Price'] || row.regular_price || row.Cena || 0) || null,
-          promo_flag: row['Promotion'] === 'Yes' || row.promotion_flag === true || row.Akcija === 'Jā' || false,
+          regular_price: regularPrice,
+          promo_flag: promoFlag,
           promotion_id: null
         };
       })
@@ -439,8 +443,8 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
         };
       case 'sales':
         return {
-          columns: 'SKU, Date, Quantity Sold, Net Revenue, Channel, Discounts, Promotion',
-          example: 'PROD001, 2024-01-15, 5, 399.95, online, 0, No'
+          columns: 'SKU, Week_End_Date, Store_Code, Units_Sold, Net_Revenue, Gross_Margin, Regular_Price, Promo_Price, Promo_Flag, Promo_Name, Stock_End',
+          example: '123456, 2024-11-24, RIGA01, 42, 320.50, 95.20, 8.99, 7.49, Yes, Weekend -20%, 15'
         };
       case 'competitors':
         return {
@@ -469,10 +473,11 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
         ];
         break;
       case 'sales':
-        headers = ['SKU', 'Date', 'Quantity Sold', 'Net Revenue', 'Channel', 'Discounts', 'Promotion'];
+        headers = ['SKU', 'Week_End_Date', 'Store_Code', 'Units_Sold', 'Net_Revenue', 'Gross_Margin', 'Regular_Price', 'Promo_Price', 'Promo_Flag', 'Promo_Name', 'Stock_End'];
         sampleData = [
-          ['PROD001', '2024-01-15', 5, 149.95, 'online', 0, 'No'],
-          ['PROD002', '2024-01-15', 12, 119.88, 'store', 10.00, 'Yes']
+          ['123456', '2024-11-24', 'RIGA01', 42, 320.50, 95.20, 8.99, 7.49, 'Yes', 'Weekend -20%', 15],
+          ['123457', '2024-11-24', 'RIGA01', 18, 143.82, 42.50, 7.99, '', 'No', '', 8],
+          ['', '', '', '', '', '', '', '', '', '', '']
         ];
         break;
       case 'competitors':
