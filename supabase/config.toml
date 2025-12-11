@@ -44,3 +44,9 @@ verify_jwt = false
 
 [functions.match-products-batch]
 verify_jwt = false
+
+[functions.ai-match-products]
+verify_jwt = false
+
+[functions.scrape-competitor-ai]
+verify_jwt = false

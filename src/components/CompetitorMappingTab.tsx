@@ -2,22 +2,26 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { Loader2, CheckCircle, XCircle, Link as LinkIcon } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, CheckCircle, XCircle, Link as LinkIcon, Brain, RefreshCw, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Mapping {
   id: string;
-  our_product_id: string;
+  our_product_id: string | null;
   competitor_product_name: string;
   competitor_product_url: string | null;
-  ai_similarity_score: number;
+  competitor_brand: string | null;
+  competitor_size: string | null;
+  ai_similarity_score: number | null;
   mapping_status: string;
-  products: {
+  products?: {
     name: string;
     sku: string;
-  };
+  } | null;
 }
 
 interface CompetitorMappingTabProps {
@@ -28,13 +32,19 @@ export function CompetitorMappingTab({ competitorId }: CompetitorMappingTabProps
   const { toast } = useToast();
   const [mappings, setMappings] = useState<Mapping[]>([]);
   const [loading, setLoading] = useState(false);
-  const [batching, setBatching] = useState(false);
+  const [matching, setMatching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
-    loadMappings();
+    if (competitorId) {
+      loadMappings();
+    }
   }, [competitorId]);
 
   const loadMappings = async () => {
+    if (!competitorId) return;
+    
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -44,13 +54,13 @@ export function CompetitorMappingTab({ competitorId }: CompetitorMappingTabProps
           products (name, sku)
         `)
         .eq('competitor_id', competitorId)
-        .order('ai_similarity_score', { ascending: false });
+        .order('ai_similarity_score', { ascending: false, nullsFirst: false });
 
       if (error) throw error;
       setMappings(data || []);
     } catch (error: any) {
       toast({
-        title: "Error loading mappings",
+        title: "Kļūda ielādējot savienojumus",
         description: error.message,
         variant: "destructive",
       });
@@ -59,29 +69,32 @@ export function CompetitorMappingTab({ competitorId }: CompetitorMappingTabProps
     }
   };
 
-  const handleBatchMatch = async (source: 'catalog' | 'promotions') => {
-    setBatching(true);
+  const handleAIMatch = async () => {
+    setMatching(true);
     try {
-      const { data, error } = await supabase.functions.invoke('match-products-batch', {
-        body: { competitor_id: competitorId, source },
+      const { data, error } = await supabase.functions.invoke('ai-match-products', {
+        body: { 
+          mode: 'auto',
+          competitor_id: competitorId 
+        },
       });
 
       if (error) throw error;
 
       toast({
-        title: "Success",
-        description: `Created ${data.mappings_created} mappings (${data.auto_matched} auto-matched, ${data.pending_review} pending review)`,
+        title: "AI Matching Pabeigts",
+        description: data.message || `Savienoti ${data.matched_mappings || 0} produkti`,
       });
 
       loadMappings();
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message || "Failed to batch match products",
+        title: "Kļūda",
+        description: error.message || "AI matching neizdevās",
         variant: "destructive",
       });
     } finally {
-      setBatching(false);
+      setMatching(false);
     }
   };
 
@@ -89,20 +102,20 @@ export function CompetitorMappingTab({ competitorId }: CompetitorMappingTabProps
     try {
       const { error } = await supabase
         .from('competitor_product_mapping')
-        .update({ mapping_status: 'user_approved' })
+        .update({ mapping_status: 'approved' })
         .eq('id', mappingId);
 
       if (error) throw error;
 
       toast({
-        title: "Success",
-        description: "Mapping approved",
+        title: "Apstiprināts",
+        description: "Savienojums apstiprināts",
       });
 
       loadMappings();
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: "Kļūda",
         description: error.message,
         variant: "destructive",
       });
@@ -119,14 +132,14 @@ export function CompetitorMappingTab({ competitorId }: CompetitorMappingTabProps
       if (error) throw error;
 
       toast({
-        title: "Success",
-        description: "Mapping rejected",
+        title: "Noraidīts",
+        description: "Savienojums noraidīts",
       });
 
       loadMappings();
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: "Kļūda",
         description: error.message,
         variant: "destructive",
       });
@@ -136,135 +149,226 @@ export function CompetitorMappingTab({ competitorId }: CompetitorMappingTabProps
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'auto_matched':
-        return <Badge className="bg-blue-500">Auto Matched</Badge>;
+        return <Badge className="bg-blue-500/10 text-blue-700 border-blue-500/20">AI Savienots</Badge>;
+      case 'approved':
       case 'user_approved':
-        return <Badge className="bg-green-500">Approved</Badge>;
+        return <Badge className="bg-green-500/10 text-green-700 border-green-500/20">Apstiprināts</Badge>;
       case 'rejected':
-        return <Badge variant="destructive">Rejected</Badge>;
+        return <Badge variant="destructive">Noraidīts</Badge>;
       case 'pending':
-        return <Badge variant="secondary">Pending Review</Badge>;
+        return <Badge variant="secondary">Gaida Pārskatu</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
   };
 
-  const getScoreColor = (score: number) => {
+  const getScoreColor = (score: number | null) => {
+    if (!score) return "text-muted-foreground";
     if (score >= 0.85) return "text-green-600 font-semibold";
     if (score >= 0.70) return "text-blue-600 font-semibold";
     if (score >= 0.60) return "text-yellow-600";
-    return "text-gray-600";
+    return "text-muted-foreground";
   };
 
+  const filteredMappings = mappings.filter(m => {
+    const matchesSearch = !searchQuery || 
+      m.competitor_product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.products?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || m.mapping_status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  const stats = {
+    total: mappings.length,
+    matched: mappings.filter(m => m.mapping_status === 'auto_matched' || m.mapping_status === 'approved').length,
+    pending: mappings.filter(m => m.mapping_status === 'pending').length,
+    rejected: mappings.filter(m => m.mapping_status === 'rejected').length,
+  };
+
+  if (!competitorId) {
+    return (
+      <Card className="p-8 text-center">
+        <h3 className="font-semibold mb-2">Izvēlieties Konkurentu</h3>
+        <p className="text-sm text-muted-foreground">
+          Noklikšķiniet uz konkurenta pārskata cilnē, lai skatītu produktu savienojumus
+        </p>
+      </Card>
+    );
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Product Mappings</h3>
-        <div className="flex gap-2">
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>Produktu Savienojumi</CardTitle>
+            <CardDescription>
+              AI automātiski savieno konkurentu produktus ar jūsu katalogu pēc nosaukuma, zīmola un tilpuma līdzības
+            </CardDescription>
+          </div>
           <Button
-            onClick={() => handleBatchMatch('catalog')}
-            disabled={batching}
-            variant="outline"
+            onClick={handleAIMatch}
+            disabled={matching}
           >
-            {batching ? (
+            {matching ? (
               <Loader2 className="w-4 h-4 animate-spin mr-2" />
             ) : (
-              <LinkIcon className="w-4 h-4 mr-2" />
+              <Brain className="w-4 h-4 mr-2" />
             )}
-            Match from Catalog
-          </Button>
-          <Button
-            onClick={() => handleBatchMatch('promotions')}
-            disabled={batching}
-          >
-            {batching ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : (
-              <LinkIcon className="w-4 h-4 mr-2" />
-            )}
-            Match from Promotions
+            Palaist AI Savienošanu
           </Button>
         </div>
-      </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-4">
+          <div className="text-center p-3 rounded-lg bg-muted/50">
+            <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="text-xs text-muted-foreground">Kopā</div>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-green-500/10">
+            <div className="text-2xl font-bold text-green-600">{stats.matched}</div>
+            <div className="text-xs text-muted-foreground">Savienoti</div>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-yellow-500/10">
+            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+            <div className="text-xs text-muted-foreground">Gaida</div>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-red-500/10">
+            <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
+            <div className="text-xs text-muted-foreground">Noraidīti</div>
+          </div>
+        </div>
 
-      {loading ? (
-        <Card className="p-8 text-center">
-          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">Loading mappings...</p>
-        </Card>
-      ) : mappings.length === 0 ? (
-        <Card className="p-8 text-center">
-          <LinkIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="font-semibold mb-2">No mappings yet</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Run batch matching to automatically link competitor products to your catalog
-          </p>
-        </Card>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Our Product</TableHead>
-              <TableHead>Competitor Product</TableHead>
-              <TableHead>Similarity</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {mappings.map((mapping) => (
-              <TableRow key={mapping.id}>
-                <TableCell>
-                  <div>
-                    <div className="font-medium">{mapping.products.name}</div>
-                    <div className="text-sm text-muted-foreground">{mapping.products.sku}</div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="font-medium">{mapping.competitor_product_name}</div>
-                  {mapping.competitor_product_url && (
-                    <a
-                      href={mapping.competitor_product_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      View
-                    </a>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <span className={getScoreColor(mapping.ai_similarity_score)}>
-                    {(mapping.ai_similarity_score * 100).toFixed(0)}%
-                  </span>
-                </TableCell>
-                <TableCell>{getStatusBadge(mapping.mapping_status)}</TableCell>
-                <TableCell>
-                  {mapping.mapping_status === 'pending' && (
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleApprove(mapping.id)}
-                      >
-                        <CheckCircle className="w-4 h-4 mr-1" />
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleReject(mapping.id)}
-                      >
-                        <XCircle className="w-4 h-4 mr-1" />
-                        Reject
-                      </Button>
-                    </div>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </div>
+        {/* Filters */}
+        <div className="flex gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Meklēt produktus..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Visi statusi" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Visi statusi</SelectItem>
+              <SelectItem value="auto_matched">AI Savienoti</SelectItem>
+              <SelectItem value="pending">Gaida pārskatu</SelectItem>
+              <SelectItem value="approved">Apstiprināti</SelectItem>
+              <SelectItem value="rejected">Noraidīti</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="icon" onClick={loadMappings}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {loading ? (
+          <div className="p-8 text-center">
+            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">Ielādē savienojumus...</p>
+          </div>
+        ) : filteredMappings.length === 0 ? (
+          <div className="p-8 text-center">
+            <LinkIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="font-semibold mb-2">Nav savienojumu</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Palaidiet AI savienošanu, lai automātiski savienotu konkurentu produktus ar jūsu katalogu
+            </p>
+            <Button onClick={handleAIMatch} disabled={matching}>
+              <Brain className="w-4 h-4 mr-2" />
+              Palaist AI Savienošanu
+            </Button>
+          </div>
+        ) : (
+          <div className="border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mūsu Produkts</TableHead>
+                  <TableHead>Konkurenta Produkts</TableHead>
+                  <TableHead className="text-center">Līdzība</TableHead>
+                  <TableHead className="text-center">Statuss</TableHead>
+                  <TableHead className="text-right">Darbības</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredMappings.map((mapping) => (
+                  <TableRow key={mapping.id}>
+                    <TableCell>
+                      {mapping.products ? (
+                        <div>
+                          <div className="font-medium">{mapping.products.name}</div>
+                          <div className="text-xs text-muted-foreground">{mapping.products.sku}</div>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground italic">Nav savienots</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{mapping.competitor_product_name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {[mapping.competitor_brand, mapping.competitor_size].filter(Boolean).join(' • ')}
+                      </div>
+                      {mapping.competitor_product_url && (
+                        <a
+                          href={mapping.competitor_product_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Skatīt
+                        </a>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {mapping.ai_similarity_score ? (
+                        <span className={getScoreColor(mapping.ai_similarity_score)}>
+                          {(mapping.ai_similarity_score * 100).toFixed(0)}%
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {getStatusBadge(mapping.mapping_status)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {(mapping.mapping_status === 'pending' || mapping.mapping_status === 'auto_matched') && (
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleApprove(mapping.id)}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Apstiprināt
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive"
+                            onClick={() => handleReject(mapping.id)}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
