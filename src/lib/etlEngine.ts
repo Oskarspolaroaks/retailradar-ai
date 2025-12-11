@@ -447,17 +447,20 @@ function detectFileType(data: Record<string, any>[], contextYear?: number): Dete
 // ============================================================
 
 function transformProducts(data: Record<string, any>[]): { rows: ProductRow[]; skipped: SkipReason } {
-  const productMap = new Map<string, ProductRow>(); // Deduplicate by SKU
+  // Track aggregated data per SKU for multi-row products (e.g., Oskars format with multiple purchase batches)
+  const productAggregates = new Map<string, {
+    rows: any[];
+    productName: string;
+  }>();
   const skipped: SkipReason = {};
   
   console.log('[ETL] Transforming products, input rows:', data.length);
   
+  // First pass: group rows by SKU
   for (const row of data) {
-    // Get SKU and Product_Name (required)
     const sku = cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.SKU));
     const productName = cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Product_Name));
     
-    // Skip if mandatory fields are missing
     if (!sku && !productName) {
       skipped['Missing SKU and Product_Name'] = (skipped['Missing SKU and Product_Name'] || 0) + 1;
       continue;
@@ -473,66 +476,114 @@ function transformProducts(data: Record<string, any>[]): { rows: ProductRow[]; s
       continue;
     }
     
-    // Extract volume from product name if not provided directly
-    let volume = parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Volume));
-    let volumeUnit = cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Volume_Unit));
+    const existing = productAggregates.get(sku);
+    if (existing) {
+      existing.rows.push(row);
+    } else {
+      productAggregates.set(sku, { rows: [row], productName });
+    }
+  }
+  
+  console.log('[ETL] Unique SKUs found:', productAggregates.size);
+  
+  // Second pass: aggregate data per SKU
+  const productMap = new Map<string, ProductRow>();
+  
+  for (const [sku, aggregate] of productAggregates.entries()) {
+    const rows = aggregate.rows;
+    const productName = aggregate.productName;
     
-    if (volume === null && productName) {
+    // For multi-row products (e.g., multiple purchase batches), calculate weighted average cost
+    // and use the retail price from the most recent or consistent entry
+    let totalStock = 0;
+    let weightedCostSum = 0;
+    let latestRetailPrice: number | null = null;
+    let latestDate: Date | null = null;
+    
+    for (const row of rows) {
+      const stock = parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Status)) || 0; // Atlikums
+      const costPrice = parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Cost_Price));
+      const currentPrice = parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Current_Price));
+      
+      // Parse document date if available (for finding latest entry)
+      const docDateStr = cleanString(row['Dok-ta datums'] || row['Datums']);
+      let docDate: Date | null = null;
+      if (docDateStr) {
+        const parsed = parseDate(docDateStr);
+        if (parsed) docDate = new Date(parsed);
+      }
+      
+      // Weighted average cost by stock quantity
+      if (costPrice !== null && stock > 0) {
+        weightedCostSum += costPrice * stock;
+        totalStock += stock;
+      } else if (costPrice !== null && rows.length === 1) {
+        // Single row without stock info - just use the cost
+        weightedCostSum = costPrice;
+        totalStock = 1;
+      }
+      
+      // Use retail price from latest entry or first valid one
+      if (currentPrice !== null) {
+        if (latestDate === null || (docDate && docDate > latestDate)) {
+          latestRetailPrice = currentPrice;
+          latestDate = docDate;
+        } else if (latestRetailPrice === null) {
+          latestRetailPrice = currentPrice;
+        }
+      }
+    }
+    
+    // Calculate final prices
+    const avgCostPrice = totalStock > 0 ? weightedCostSum / totalStock : (weightedCostSum || null);
+    const finalRetailPrice = latestRetailPrice;
+    
+    // Extract volume from product name
+    let volume: number | null = null;
+    let volumeUnit: string | null = null;
+    if (productName) {
       const extracted = extractVolume(productName);
       volume = extracted.volume;
-      volumeUnit = volumeUnit || extracted.unit;
+      volumeUnit = extracted.unit;
     }
     
-    // Parse status - check for stock (Atlikums) to determine if active
-    const stockValue = parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Status));
-    let status = 'Active';
-    if (stockValue !== null && stockValue === 0) {
-      status = 'Inactive';
-    }
+    // Determine status based on total stock
+    const status = totalStock > 0 ? 'Active' : 'Inactive';
     
-    const costPrice = parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Cost_Price));
-    const currentPrice = parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.Current_Price));
+    // Use first row for other attributes
+    const firstRow = rows[0];
     
     const productRow: ProductRow = {
       SKU: sku,
       Product_Name: productName,
-      EAN: parseEAN(findColumnValue(row, PRODUCT_COLUMN_MAP.EAN)),
-      Brand: cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Brand)),
-      Category: cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Category)),
-      Subcategory: cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Subcategory)),
-      Country: cleanString(findColumnValue(row, PRODUCT_COLUMN_MAP.Country)),
+      EAN: parseEAN(findColumnValue(firstRow, PRODUCT_COLUMN_MAP.EAN)),
+      Brand: cleanString(findColumnValue(firstRow, PRODUCT_COLUMN_MAP.Brand)),
+      Category: cleanString(findColumnValue(firstRow, PRODUCT_COLUMN_MAP.Category)),
+      Subcategory: cleanString(findColumnValue(firstRow, PRODUCT_COLUMN_MAP.Subcategory)),
+      Country: cleanString(findColumnValue(firstRow, PRODUCT_COLUMN_MAP.Country)),
       Volume: volume,
       Volume_Unit: volumeUnit,
-      ABV: parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.ABV)),
-      Cost_Price: costPrice,
-      Current_Price: currentPrice,
-      VAT_Rate: parseNumber(findColumnValue(row, PRODUCT_COLUMN_MAP.VAT_Rate)),
-      Private_Label: parseBoolean(findColumnValue(row, PRODUCT_COLUMN_MAP.Private_Label)),
+      ABV: parseNumber(findColumnValue(firstRow, PRODUCT_COLUMN_MAP.ABV)),
+      Cost_Price: avgCostPrice,
+      Current_Price: finalRetailPrice,
+      VAT_Rate: parseNumber(findColumnValue(firstRow, PRODUCT_COLUMN_MAP.VAT_Rate)),
+      Private_Label: parseBoolean(findColumnValue(firstRow, PRODUCT_COLUMN_MAP.Private_Label)),
       Status: status
     };
     
-    // Deduplicate by SKU - keep the one with valid prices or update if current has better data
-    const existing = productMap.get(sku);
-    if (!existing) {
-      productMap.set(sku, productRow);
-    } else {
-      // If existing has no prices but this one does, update
-      if ((existing.Cost_Price === null && costPrice !== null) ||
-          (existing.Current_Price === null && currentPrice !== null)) {
-        productMap.set(sku, {
-          ...existing,
-          Cost_Price: costPrice ?? existing.Cost_Price,
-          Current_Price: currentPrice ?? existing.Current_Price
-        });
-      }
-      skipped['Duplicate SKU (merged)'] = (skipped['Duplicate SKU (merged)'] || 0) + 1;
+    productMap.set(sku, productRow);
+    
+    if (rows.length > 1) {
+      skipped['Merged multiple batches'] = (skipped['Merged multiple batches'] || 0) + (rows.length - 1);
     }
   }
   
-  const rows = Array.from(productMap.values());
+  const finalRows = Array.from(productMap.values());
   
-  console.log('[ETL] Products transformed:', rows.length, 'unique,', Object.values(skipped).reduce((a, b) => a + b, 0), 'skipped/merged');
-  return { rows, skipped };
+  console.log('[ETL] Products transformed:', finalRows.length, 'unique products');
+  console.log('[ETL] Aggregation summary:', skipped);
+  
+  return { rows: finalRows, skipped };
 }
 
 // ============================================================
