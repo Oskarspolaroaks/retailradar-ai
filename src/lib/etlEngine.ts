@@ -102,20 +102,20 @@ const PRODUCT_COLUMN_MAP: Record<keyof ProductRow, string[]> = {
 };
 
 const SALES_COLUMN_MAP: Record<string, string[]> = {
-  SKU: ['sku', 'code', 'product code', 'artikuls', 'brio cod'],
-  Product_Name: ['nosaukums', 'product name', 'produkta nosaukums', 'name'],
-  Week_End_Date: ['week_end_date', 'week end', 'date', 'datums', 'nedēļas datums', 'week_end'],
-  Store_Code: ['store', 'store_code', 'branch', 'veikals', 'filiāle'],
-  Supplier: ['supplier', 'item.supplier_name', 'piegādātājs'],
-  Units_Sold: ['units sold', 'units_sold', 'quantity sold', 'qty', 'skaits', 'sum of skaits', 'daudzums'],
-  Net_Revenue: ['net revenue', 'net_revenue', 'revenue', 'sales', 'apgrozījums', 'ieņēmumi', 'summa (ar pvn)', 'summa'],
-  Gross_Margin: ['gross margin', 'gross_margin', 'gm', 'bruto marža', 'sum of gm', 'marža'],
-  Gross_Margin_Percent: ['gm %', 'gm%', 'gross margin %', 'marža %'],
-  Regular_Price: ['regular price', 'regular_price', 'price', 'cena'],
-  Promo_Price: ['promo price', 'promo_price', 'akcijas cena', 'atlaide'],
-  Promo_Flag: ['promotion', 'promo', 'promo_flag', 'akcija', 'ir akcija'],
-  Promo_Name: ['promo name', 'promo_name', 'campaign', 'akcija nosaukums', 'kampaņa'],
-  Stock_End: ['stock end', 'stock_end', 'stock', 'atlikums', 'atlikumi', 'krājumi']
+  SKU: ['sku', 'code', 'product code', 'artikuls', 'brio cod', 'brio_cod', 'preces kods'],
+  Product_Name: ['nosaukums', 'product name', 'produkta nosaukums', 'name', 'prece'],
+  Week_End_Date: ['week_end_date', 'week end', 'date', 'datums', 'nedēļas datums', 'week_end', 'periods'],
+  Store_Code: ['store', 'store_code', 'branch', 'veikals', 'filiāle', 'shop'],
+  Supplier: ['supplier', 'item.supplier_name', 'piegādātājs', 'supplier_name'],
+  Units_Sold: ['units sold', 'units_sold', 'quantity sold', 'qty', 'skaits', 'sum of skaits', 'daudzums', 'quantity'],
+  Net_Revenue: ['net revenue', 'net_revenue', 'revenue', 'sales', 'apgrozījums', 'ieņēmumi', 'summa (ar pvn)', 'summa', 'summa ar pvn', 'total'],
+  Gross_Margin: ['gross margin', 'gross_margin', 'gm', 'bruto marža', 'sum of gm', 'marža', 'margin'],
+  Gross_Margin_Percent: ['gm %', 'gm%', 'gross margin %', 'marža %', 'margin %', 'margin%'],
+  Regular_Price: ['regular price', 'regular_price', 'price', 'cena', 'unit price'],
+  Promo_Price: ['promo price', 'promo_price', 'akcijas cena', 'atlaide', 'sale price'],
+  Promo_Flag: ['promotion', 'promo', 'promo_flag', 'akcija', 'ir akcija', 'on_sale'],
+  Promo_Name: ['promo name', 'promo_name', 'campaign', 'akcija nosaukums', 'kampaņa', 'campaign_name'],
+  Stock_End: ['stock end', 'stock_end', 'stock', 'atlikums', 'atlikumi', 'krājumi', 'inventory']
 };
 
 // ============================================================
