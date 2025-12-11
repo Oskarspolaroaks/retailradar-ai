@@ -142,20 +142,52 @@ serve(async (req) => {
 
     console.log(`AI Scraping: ${url}`);
 
-    // Fetch the webpage
-    const response = await fetch(url, {
-      headers: {
+    // Fetch the webpage with multiple retry strategies
+    let html = '';
+    
+    const headerSets: Record<string, string>[] = [
+      {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'lv,en;q=0.9',
+        'Cache-Control': 'no-cache',
       },
-    });
+      {
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        'Accept': 'text/html',
+      },
+    ];
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
+    for (const headerSet of headerSets) {
+      try {
+        const response = await fetch(url, { headers: headerSet });
+        if (response.ok) {
+          html = await response.text();
+          break;
+        }
+        console.log(`Fetch returned ${response.status} ${response.statusText}`);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        console.log(`Fetch attempt failed: ${errorMsg}`);
+      }
     }
 
-    const html = await response.text();
+    // If all attempts failed, return helpful message
+    if (!html) {
+      console.log(`All fetch attempts blocked for: ${url}`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          products: [],
+          error: 'Mājaslapa bloķē automātisku piekļuvi. Lūdzu izmantojiet manuālu produktu importu vai Excel/CSV augšupielādi.',
+          blocked: true,
+          url,
+          suggestion: 'Izmantojiet "Importēt Konkurentu Produktus" pogu lai augšupielādētu produktu sarakstu manuāli.',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log(`Fetched ${html.length} bytes`);
 
     // Extract products
