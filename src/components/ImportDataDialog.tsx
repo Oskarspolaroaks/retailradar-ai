@@ -156,8 +156,8 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
     return data?.length || products.length;
   };
 
-  const importSalesFromETL = async (rows: SalesRow[]) => {
-    console.log('[Sales Import ETL] Starting import, total rows:', rows.length);
+  const importSalesFromETL = async (rows: SalesRow[], format?: string) => {
+    console.log('[Sales Import ETL] Starting import, total rows:', rows.length, 'format:', format);
     
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) throw new Error('Jums jābūt autorizētam');
@@ -172,14 +172,13 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
     const tenantId = userTenant.tenant_id;
     console.log('[Sales Import ETL] Tenant ID:', tenantId);
 
-    const { data: existingStore } = await supabase.from('stores').select('id').eq('tenant_id', tenantId).limit(1).maybeSingle();
-    let storeId = existingStore?.id;
-    if (!storeId) {
-      const { data: newStore } = await supabase.from('stores').insert({ tenant_id: tenantId, name: 'Noklusējuma veikals', code: 'DEFAULT', is_active: true }).select('id').single();
-      storeId = newStore?.id;
-    }
-    console.log('[Sales Import ETL] Store ID:', storeId);
+    // Check if any row has Partner (Latvian format) - use weekly_sales table
+    const hasPartner = rows.some(r => r.Partner);
+    const useWeeklySales = hasPartner || format === 'latvianSales';
+    
+    console.log('[Sales Import ETL] Using weekly_sales table:', useWeeklySales);
 
+    // Get products for matching
     const { data: products } = await supabase.from('products').select('id, sku, name').eq('tenant_id', tenantId);
     console.log('[Sales Import ETL] Available products for matching:', products?.length || 0);
     
@@ -188,35 +187,99 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
 
     let matchedCount = 0;
     let unmatchedCount = 0;
-    
-    // Process ALL rows - don't filter out unmatched ones
-    const sales = rows.map((row) => {
-      let productId = row.SKU ? skuToId.get(row.SKU.toLowerCase()) : null;
-      if (!productId && row.Product_Name) productId = nameToId.get(row.Product_Name.toLowerCase());
+
+    if (useWeeklySales) {
+      // Import to weekly_sales table (allows NULL product_id)
+      const weeklySales = rows.map((row) => {
+        let productId = row.SKU ? skuToId.get(row.SKU.toLowerCase()) : null;
+        if (!productId && row.Product_Name) productId = nameToId.get(row.Product_Name.toLowerCase());
+        
+        if (productId) {
+          matchedCount++;
+        } else {
+          unmatchedCount++;
+        }
+        
+        return {
+          tenant_id: tenantId,
+          product_id: productId || null,
+          product_name: row.Product_Name || row.SKU || 'Nezināms',
+          partner: row.Partner || 'Oskars',
+          period_type: 'LW',
+          week_end: row.Week_End_Date,
+          units_sold: row.Units_Sold || 0,
+          gross_margin: row.Gross_Margin || 0,
+          stock_end: row.Stock_End,
+          mapped: !!productId
+        };
+      });
+
+      console.log('[Sales Import ETL] Weekly sales matched:', matchedCount, 'Unmatched:', unmatchedCount);
+
+      const batchSize = 500;
+      let insertedCount = 0;
+      let failedBatches = 0;
       
-      if (productId) {
-        matchedCount++;
-      } else {
-        unmatchedCount++;
+      for (let i = 0; i < weeklySales.length; i += batchSize) {
+        const batch = weeklySales.slice(i, i + batchSize);
+        console.log(`[Sales Import ETL] Inserting weekly_sales batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(weeklySales.length / batchSize)}`);
+        
+        const { data, error } = await supabase.from('weekly_sales').insert(batch).select('id');
+        if (error) {
+          console.error('[Sales Import ETL] Weekly sales batch error:', error);
+          failedBatches++;
+        } else {
+          insertedCount += data?.length || batch.length;
+        }
       }
       
-      return {
-        tenant_id: tenantId,
-        store_id: storeId,
-        product_id: productId || null,
-        date: row.Week_End_Date,
-        units_sold: row.Units_Sold || 0,
-        revenue: row.Net_Revenue || 0,
-        regular_price: row.Regular_Price,
-        promo_flag: row.Promo_Flag || false,
-        promotion_id: null
-      };
-    });
-    
-    console.log('[Sales Import ETL] Matched:', matchedCount, 'Unmatched:', unmatchedCount, 'Total:', sales.length);
+      let warning: string | undefined;
+      if (failedBatches > 0) {
+        warning = `Importēti ${insertedCount}/${rows.length} ieraksti. ${failedBatches} partijas neizdevās.`;
+      } else if (unmatchedCount > 0) {
+        warning = `Importēti ${insertedCount} ieraksti. ${matchedCount} ar produktu sasaisti, ${unmatchedCount} bez sasaistes.`;
+      }
+      
+      return { count: insertedCount, warning };
+    }
+
+    // Fallback to sales_daily (requires product_id match)
+    const { data: existingStore } = await supabase.from('stores').select('id').eq('tenant_id', tenantId).limit(1).maybeSingle();
+    let storeId = existingStore?.id;
+    if (!storeId) {
+      const { data: newStore } = await supabase.from('stores').insert({ tenant_id: tenantId, name: 'Noklusējuma veikals', code: 'DEFAULT', is_active: true }).select('id').single();
+      storeId = newStore?.id;
+    }
+
+    const sales = rows
+      .map((row) => {
+        let productId = row.SKU ? skuToId.get(row.SKU.toLowerCase()) : null;
+        if (!productId && row.Product_Name) productId = nameToId.get(row.Product_Name.toLowerCase());
+        
+        if (productId) {
+          matchedCount++;
+          return {
+            tenant_id: tenantId,
+            store_id: storeId,
+            product_id: productId,
+            date: row.Week_End_Date,
+            units_sold: row.Units_Sold || 0,
+            revenue: row.Net_Revenue || 0,
+            regular_price: row.Regular_Price,
+            promo_flag: row.Promo_Flag || false,
+            promotion_id: null
+          };
+        } else {
+          unmatchedCount++;
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    console.log('[Sales Import ETL] Daily sales matched:', matchedCount, 'Unmatched:', unmatchedCount);
 
     if (sales.length === 0) {
-      throw new Error('Nav derīgu pārdošanas ierakstu importēšanai');
+      throw new Error('Nav atrasti produktu atbilstības. Vispirms importējiet produktus.');
     }
 
     const batchSize = 500;
@@ -225,8 +288,6 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
     
     for (let i = 0; i < sales.length; i += batchSize) {
       const batch = sales.slice(i, i + batchSize);
-      console.log(`[Sales Import ETL] Inserting batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(sales.length / batchSize)}, records: ${batch.length}`);
-      
       const { data, error } = await supabase.from('sales_daily').insert(batch as any).select('id');
       if (error) {
         console.error('[Sales Import ETL] Batch error:', error);
@@ -236,13 +297,11 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
       }
     }
     
-    console.log('[Sales Import ETL] Complete. Inserted:', insertedCount, 'Failed batches:', failedBatches);
-    
     let warning: string | undefined;
     if (failedBatches > 0) {
       warning = `Importēti ${insertedCount}/${rows.length} ieraksti. ${failedBatches} partijas neizdevās.`;
     } else if (unmatchedCount > 0) {
-      warning = `Importēti ${insertedCount} ieraksti. ${matchedCount} ar produktu sasaisti, ${unmatchedCount} bez sasaistes.`;
+      warning = `Importēti ${insertedCount} ieraksti. ${unmatchedCount} nav sasaistīti (izlaisti).`;
     }
     
     return { count: insertedCount, warning };
@@ -611,7 +670,8 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
           }
         } else if (etlResult.type === 'sales' && importType === 'sales') {
           console.log('[Import] Using ETL processed sales');
-          const salesResult = await importSalesFromETL(etlResult.rows);
+          const salesSummary = etlResult.summary as { detected_format?: string };
+          const salesResult = await importSalesFromETL(etlResult.rows, salesSummary.detected_format);
           count = salesResult.count;
           warning = salesResult.warning;
         } else {
