@@ -609,6 +609,25 @@ function transformProducts(data: Record<string, any>[]): { rows: ProductRow[]; s
 // SALES TRANSFORMATION (GENERIC / LATVIAN SALES)
 // ============================================================
 
+/**
+ * Check if a value represents a summary/total row
+ */
+function isSummaryRow(value: string | null): boolean {
+  if (!value) return false;
+  const normalized = normalize(value);
+  return (
+    normalized.includes('total') ||
+    normalized.includes('kopā') ||
+    normalized.includes('summa') ||
+    normalized === '-' ||
+    normalized === '(blank)' ||
+    normalized === 'blank' ||
+    normalized === 'grand total' ||
+    normalized.startsWith('итого') ||
+    normalized === ''
+  );
+}
+
 function transformGenericSales(data: Record<string, any>[], format?: string): { rows: SalesRow[]; skipped: SkipReason } {
   const rows: SalesRow[] = [];
   const skipped: SkipReason = {};
@@ -631,12 +650,8 @@ function transformGenericSales(data: Record<string, any>[], format?: string): { 
     const grossMargin = parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Gross_Margin));
     const stockEnd = parseNumber(findColumnValue(row, SALES_COLUMN_MAP.Stock_End));
     
-    // Skip total rows and empty rows
-    if (productName && (
-        normalize(productName).includes('total') ||
-        normalize(productName) === '-' ||
-        normalize(productName) === '(blank)'
-    )) {
+    // Skip total/summary rows - check both SKU and product name
+    if (isSummaryRow(sku) || isSummaryRow(productName)) {
       skipped['Total/Summary row'] = (skipped['Total/Summary row'] || 0) + 1;
       continue;
     }
@@ -724,13 +739,10 @@ function transformSpiritsWineSales(data: Record<string, any>[], config: SpiritsW
   for (const row of data) {
     const productName = cleanString(row[config.nosaukumsCol]);
     
-    // Skip invalid rows
+    // Skip invalid/summary rows using centralized check
     if (!productName || 
         normalize(productName) === 'false' || 
-        productName === '(blank)' ||
-        normalize(productName).includes('grand total') ||
-        normalize(productName).includes('total') ||
-        normalize(productName) === '(blank)') {
+        isSummaryRow(productName)) {
       skipped['Invalid product name'] = (skipped['Invalid product name'] || 0) + 1;
       continue;
     }
