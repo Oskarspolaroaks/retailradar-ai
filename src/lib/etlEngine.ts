@@ -84,8 +84,8 @@ export type ETLResult = ProductETLResult | SalesETLResult | UnknownETLResult;
 // ============================================================
 
 const PRODUCT_COLUMN_MAP: Record<keyof ProductRow, string[]> = {
-  SKU: ['sku', 'product code', 'code', 'artikuls', 'preces kods', 'preču kods'],
-  Product_Name: ['name', 'product_name', 'product name', 'nosaukums', 'produkta nosaukums', 'preču nosaukums'],
+  SKU: ['preču kods', 'preces kods', 'sku', 'product code', 'code', 'artikuls'],
+  Product_Name: ['preču nosaukums', 'produkta nosaukums', 'nosaukums', 'name', 'product_name', 'product name'],
   EAN: ['ean', 'barcode', 'svītrkods', 'barkods', 'gtin'],
   Brand: ['brand', 'zīmols', 'ražotājs'],
   Category: ['category', 'kategorija'],
@@ -94,28 +94,28 @@ const PRODUCT_COLUMN_MAP: Record<keyof ProductRow, string[]> = {
   Volume: ['volume', 'tilpums', 'apjoms'],
   Volume_Unit: ['volume_unit', 'volume unit', 'tilpuma mērv.', 'mērvienība'],
   ABV: ['abv', 'alcohol', 'alc.%', 'alc', 'alkohols', 'alk.%'],
-  Cost_Price: ['cost price', 'cost_price', 'iepirkuma cena', 'cost', 'pašizmaksa', 'iep. cena'],
-  Current_Price: ['current price', 'current_price', 'regular price', 'regular_price', 'cena', 'shelf price', 'pārdošanas cena', 'maz. cena'],
+  Cost_Price: ['iep. cena', 'iepirkuma cena', 'cost_price', 'cost price', 'pašizmaksa'],
+  Current_Price: ['maz. cena', 'mazumtirdzniecības cena', 'pārdošanas cena', 'current_price', 'current price', 'regular_price', 'regular price', 'shelf price'],
   VAT_Rate: ['vat', 'vat_rate', 'vat rate', 'pvn', 'pvn %'],
   Private_Label: ['private label', 'private_label', 'private', 'privātā marka', 'pl'],
-  Status: ['status', 'active', 'stāvoklis', 'statuss', 'atlikums']
+  Status: ['atlikums', 'status', 'active', 'stāvoklis', 'statuss']
 };
 
 const SALES_COLUMN_MAP: Record<string, string[]> = {
-  SKU: ['sku', 'code', 'product code', 'artikuls', 'brio cod', 'brio_cod', 'preces kods'],
+  SKU: ['brio cod', 'brio_cod', 'sku', 'code', 'product code', 'artikuls', 'preces kods'],
   Product_Name: ['nosaukums', 'product name', 'produkta nosaukums', 'name', 'prece'],
   Week_End_Date: ['week_end_date', 'week end', 'date', 'datums', 'nedēļas datums', 'week_end', 'periods'],
-  Store_Code: ['store', 'store_code', 'branch', 'veikals', 'filiāle', 'shop'],
-  Supplier: ['supplier', 'item.supplier_name', 'piegādātājs', 'supplier_name'],
-  Units_Sold: ['units sold', 'units_sold', 'quantity sold', 'qty', 'skaits', 'sum of skaits', 'daudzums', 'quantity'],
-  Net_Revenue: ['net revenue', 'net_revenue', 'revenue', 'sales', 'apgrozījums', 'ieņēmumi', 'summa (ar pvn)', 'summa', 'summa ar pvn', 'total'],
-  Gross_Margin: ['gross margin', 'gross_margin', 'gm', 'bruto marža', 'sum of gm', 'marža', 'margin'],
+  Store_Code: ['veikals', 'store', 'store_code', 'branch', 'filiāle', 'shop'],
+  Supplier: ['item.supplier_name', 'supplier', 'piegādātājs', 'supplier_name'],
+  Units_Sold: ['skaits', 'units sold', 'units_sold', 'quantity sold', 'qty', 'sum of skaits', 'daudzums', 'quantity'],
+  Net_Revenue: ['summa (ar pvn)', 'summa ar pvn', 'summa', 'net revenue', 'net_revenue', 'revenue', 'sales', 'apgrozījums', 'ieņēmumi'],
+  Gross_Margin: ['gm', 'gross margin', 'gross_margin', 'bruto marža', 'sum of gm', 'marža', 'margin'],
   Gross_Margin_Percent: ['gm %', 'gm%', 'gross margin %', 'marža %', 'margin %', 'margin%'],
-  Regular_Price: ['regular price', 'regular_price', 'price', 'cena', 'unit price'],
+  Regular_Price: ['regular price', 'regular_price', 'price', 'unit price'],
   Promo_Price: ['promo price', 'promo_price', 'akcijas cena', 'atlaide', 'sale price'],
   Promo_Flag: ['promotion', 'promo', 'promo_flag', 'akcija', 'ir akcija', 'on_sale'],
   Promo_Name: ['promo name', 'promo_name', 'campaign', 'akcija nosaukums', 'kampaņa', 'campaign_name'],
-  Stock_End: ['stock end', 'stock_end', 'stock', 'atlikums', 'atlikumi', 'krājumi', 'inventory']
+  Stock_End: ['atlikumi', 'atlikums', 'stock end', 'stock_end', 'stock', 'krājumi', 'inventory']
 };
 
 // ============================================================
@@ -277,14 +277,33 @@ function extractVolume(productName: string): { volume: number | null; unit: stri
 
 /**
  * Find column in row by matching patterns
+ * Prioritizes exact matches over partial matches
  */
 function findColumnValue(row: Record<string, any>, patterns: string[]): any {
   const rowKeys = Object.keys(row);
   
-  for (const key of rowKeys) {
-    const normalizedKey = normalize(key);
-    for (const pattern of patterns) {
-      if (normalizedKey === normalize(pattern) || normalizedKey.includes(normalize(pattern))) {
+  // First pass: exact matches only
+  for (const pattern of patterns) {
+    const normalizedPattern = normalize(pattern);
+    for (const key of rowKeys) {
+      const normalizedKey = normalize(key);
+      if (normalizedKey === normalizedPattern) {
+        return row[key];
+      }
+    }
+  }
+  
+  // Second pass: includes matches (but skip generic patterns to avoid false matches)
+  const genericPatterns = ['cena', 'price', 'cost', 'summa', 'skaits', 'name', 'code'];
+  
+  for (const pattern of patterns) {
+    const normalizedPattern = normalize(pattern);
+    // Skip generic patterns for includes matching
+    if (genericPatterns.includes(normalizedPattern)) continue;
+    
+    for (const key of rowKeys) {
+      const normalizedKey = normalize(key);
+      if (normalizedKey.includes(normalizedPattern)) {
         return row[key];
       }
     }
