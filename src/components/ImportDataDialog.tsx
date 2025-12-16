@@ -184,6 +184,51 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
     
     const skuToId = new Map(products?.map(p => [p.sku?.toLowerCase(), p.id]) || []);
     const nameToId = new Map(products?.map(p => [p.name?.toLowerCase(), p.id]) || []);
+    
+    // Helper for fuzzy matching - normalize strings for comparison
+    const normalizeForMatch = (str: string): string => {
+      return str.toLowerCase()
+        .replace(/[^a-z0-9āčēģīķļņšūž]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+    
+    // Fuzzy product matching function
+    const findProductMatch = (sku: string | null, productName: string | undefined): string | null => {
+      // 1. Exact SKU match
+      if (sku) {
+        const exactSku = skuToId.get(sku.toLowerCase());
+        if (exactSku) return exactSku;
+      }
+      
+      // 2. Exact name match
+      if (productName) {
+        const exactName = nameToId.get(productName.toLowerCase());
+        if (exactName) return exactName;
+      }
+      
+      // 3. Partial name matching (for cases like "Viskijs Proper Twelve 0.7L" vs "Proper Twelve 0.7L")
+      if (productName && products) {
+        const normalizedImport = normalizeForMatch(productName);
+        const importTokens = normalizedImport.split(' ').filter(t => t.length > 2);
+        
+        for (const product of products) {
+          const normalizedProduct = normalizeForMatch(product.name);
+          const productTokens = normalizedProduct.split(' ').filter(t => t.length > 2);
+          
+          // Check if most tokens match (at least 60%)
+          const matchingTokens = importTokens.filter(t => productTokens.some(pt => pt.includes(t) || t.includes(pt)));
+          const matchRatio = matchingTokens.length / Math.max(importTokens.length, 1);
+          
+          if (matchRatio >= 0.6) {
+            console.log(`[Match] Fuzzy matched "${productName}" -> "${product.name}" (${Math.round(matchRatio * 100)}%)`);
+            return product.id;
+          }
+        }
+      }
+      
+      return null;
+    };
 
     let matchedCount = 0;
     let unmatchedCount = 0;
@@ -191,8 +236,7 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
     if (useWeeklySales) {
       // Import to weekly_sales table (allows NULL product_id)
       const weeklySales = rows.map((row) => {
-        let productId = row.SKU ? skuToId.get(row.SKU.toLowerCase()) : null;
-        if (!productId && row.Product_Name) productId = nameToId.get(row.Product_Name.toLowerCase());
+        const productId = findProductMatch(row.SKU, row.Product_Name);
         
         if (productId) {
           matchedCount++;
@@ -253,8 +297,7 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
 
     const sales = rows
       .map((row) => {
-        let productId = row.SKU ? skuToId.get(row.SKU.toLowerCase()) : null;
-        if (!productId && row.Product_Name) productId = nameToId.get(row.Product_Name.toLowerCase());
+        const productId = findProductMatch(row.SKU, row.Product_Name);
         
         if (productId) {
           matchedCount++;
