@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,8 @@ import {
   BarChart3,
   Target,
   RefreshCw,
-  Zap
+  Zap,
+  ExternalLink
 } from "lucide-react";
 import { 
   BarChart, 
@@ -357,17 +359,25 @@ const Dashboard = () => {
           </p>
         </div>
 
-        {/* AI Search Bar */}
-        <div className="flex gap-2 max-w-md w-full">
-          <Input
-            placeholder="Ask AI about your data..."
-            value={aiQuery}
-            onChange={(e) => setAiQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAISearch()}
-          />
-          <Button onClick={handleAISearch} disabled={searching}>
-            {searching ? <Sparkles className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          </Button>
+        <div className="flex items-center gap-3">
+          {/* AI Search Bar */}
+          <div className="flex gap-2 max-w-md w-full">
+            <Input
+              placeholder="Ask AI about your data..."
+              value={aiQuery}
+              onChange={(e) => setAiQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAISearch()}
+            />
+            <Button onClick={handleAISearch} disabled={searching}>
+              {searching ? <Sparkles className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </Button>
+          </div>
+          <Link to="/">
+            <Button variant="outline" className="gap-2">
+              <ExternalLink className="h-4 w-4" />
+              Mājaslapa
+            </Button>
+          </Link>
         </div>
       </div>
 
