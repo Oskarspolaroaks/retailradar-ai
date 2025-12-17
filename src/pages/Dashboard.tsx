@@ -32,8 +32,10 @@ import {
   Pie, 
   Cell, 
   Legend,
-  LineChart,
-  Line
+  LineChart as RechartsLineChart,
+  Line,
+  Area,
+  AreaChart
 } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -349,85 +351,94 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Comprehensive retail pricing intelligence
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* AI Search Bar */}
-          <div className="flex gap-2 max-w-md w-full">
-            <Input
-              placeholder="Ask AI about your data..."
-              value={aiQuery}
-              onChange={(e) => setAiQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAISearch()}
-            />
-            <Button onClick={handleAISearch} disabled={searching}>
-              {searching ? <Sparkles className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            </Button>
+    <div className="space-y-8 pb-8">
+      {/* Modern Header */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-background to-accent/20 p-8">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(var(--primary)/0.1),transparent_50%)]" />
+        <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+              Dashboard
+            </h1>
+            <p className="text-muted-foreground mt-2 text-lg">
+              Retail pricing intelligence at a glance
+            </p>
           </div>
-          <Link to="/">
-            <Button variant="outline" className="gap-2">
-              <ExternalLink className="h-4 w-4" />
-              Mājaslapa
-            </Button>
-          </Link>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* AI Search Bar */}
+            <div className="flex gap-2 bg-background/80 backdrop-blur-sm rounded-xl p-1 border shadow-sm">
+              <Input
+                placeholder="Ask AI about your data..."
+                value={aiQuery}
+                onChange={(e) => setAiQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAISearch()}
+                className="border-0 bg-transparent focus-visible:ring-0 min-w-[200px]"
+              />
+              <Button onClick={handleAISearch} disabled={searching} size="sm" className="rounded-lg">
+                {searching ? <Sparkles className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              </Button>
+            </div>
+            <Link to="/">
+              <Button variant="outline" className="gap-2 rounded-xl bg-background/80 backdrop-blur-sm hover:bg-background">
+                <ExternalLink className="h-4 w-4" />
+                Mājaslapa
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 
       {/* AI Answer */}
       {aiAnswer && (
-        <Card className="bg-primary/5 border-primary/20">
+        <Card className="bg-gradient-to-br from-primary/5 to-accent/10 border-primary/20 rounded-2xl animate-fade-in">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5" />
+              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Sparkles className="h-4 w-4 text-primary" />
+              </div>
               AI Insights
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="whitespace-pre-wrap">{aiAnswer}</p>
+            <p className="whitespace-pre-wrap leading-relaxed">{aiAnswer}</p>
           </CardContent>
         </Card>
       )}
 
       {/* Admin Actions */}
       {isAdmin && (
-        <Card className="border-primary/30">
+        <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-transparent rounded-2xl">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Zap className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-3 text-lg">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Zap className="h-5 w-5 text-primary" />
+              </div>
               Administratora Darbības
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="ml-13">
               Ģenerēt simulācijas datus un pārrēķināt ABC kategorijas
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <Button
                 onClick={seedDemoData}
                 disabled={loading}
-                variant="default"
-                className="gap-2"
+                className="gap-2 rounded-xl"
               >
                 {loading ? (
                   <RefreshCw className="h-4 w-4 animate-spin" />
                 ) : (
                   <Zap className="h-4 w-4" />
                 )}
-                Izveidot Demo Datus (20 produkti, pārdošana, konkurenti)
+                Izveidot Demo Datus
               </Button>
               <Button
                 onClick={recalculateABC}
                 disabled={loading}
                 variant="outline"
-                className="gap-2"
+                className="gap-2 rounded-xl"
               >
                 {loading ? (
                   <RefreshCw className="h-4 w-4 animate-spin" />
@@ -437,165 +448,169 @@ const Dashboard = () => {
                 Pārrēķināt ABC
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              <strong>Brīdinājums:</strong> Simulācijas datu izveide dzēsīs esošos datus un izveidot jaunus testa datus.
-            </p>
           </CardContent>
         </Card>
       )}
 
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Date Range</label>
-              <Select value={dateRange} onValueChange={setDateRange}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="30">Last 30 days</SelectItem>
-                  <SelectItem value="90">Last 90 days</SelectItem>
-                  <SelectItem value="365">Last 365 days</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      {/* Filters - Compact Modern Design */}
+      <div className="flex flex-wrap gap-3 items-center p-4 rounded-2xl bg-muted/30 border">
+        <span className="text-sm font-medium text-muted-foreground">Filtri:</span>
+        <Select value={dateRange} onValueChange={setDateRange}>
+          <SelectTrigger className="w-[140px] rounded-xl bg-background">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="30">30 dienas</SelectItem>
+            <SelectItem value="90">90 dienas</SelectItem>
+            <SelectItem value="365">365 dienas</SelectItem>
+          </SelectContent>
+        </Select>
 
-            <div>
-              <label className="text-sm font-medium mb-2 block">ABC Category</label>
-              <Select value={abcFilter} onValueChange={setAbcFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="a">A Products</SelectItem>
-                  <SelectItem value="b">B Products</SelectItem>
-                  <SelectItem value="c">C Products</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        <Select value={abcFilter} onValueChange={setAbcFilter}>
+          <SelectTrigger className="w-[140px] rounded-xl bg-background">
+            <SelectValue placeholder="ABC" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Visi ABC</SelectItem>
+            <SelectItem value="a">A klase</SelectItem>
+            <SelectItem value="b">B klase</SelectItem>
+            <SelectItem value="c">C klase</SelectItem>
+          </SelectContent>
+        </Select>
 
-            <div>
-              <label className="text-sm font-medium mb-2 block">Private Label</label>
-              <Select value={privateLabelFilter} onValueChange={setPrivateLabelFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Products</SelectItem>
-                  <SelectItem value="true">Private Label Only</SelectItem>
-                  <SelectItem value="false">Non-Private Label</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        <Select value={privateLabelFilter} onValueChange={setPrivateLabelFilter}>
+          <SelectTrigger className="w-[150px] rounded-xl bg-background">
+            <SelectValue placeholder="Private Label" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Visi produkti</SelectItem>
+            <SelectItem value="true">Private Label</SelectItem>
+            <SelectItem value="false">Ne-PL</SelectItem>
+          </SelectContent>
+        </Select>
 
-            <div>
-              <label className="text-sm font-medium mb-2 block">Category</label>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map(cat => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-[160px] rounded-xl bg-background">
+            <SelectValue placeholder="Kategorija" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Visas kategorijas</SelectItem>
+            {categories.map(cat => (
+              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+      {/* Modern KPI Cards */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="group relative overflow-hidden rounded-2xl border-0 bg-gradient-to-br from-blue-500/10 to-blue-600/5 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
-            <Package className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Kopā Produkti</CardTitle>
+            <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+              <Package className="h-5 w-5 text-blue-500" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{stats.totalProducts}</div>
-            <p className="text-xs text-muted-foreground mt-1">Active SKUs monitored</p>
+            <div className="text-4xl font-bold tracking-tight">{stats.totalProducts}</div>
+            <p className="text-sm text-muted-foreground mt-2">Aktīvie SKU</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="group relative overflow-hidden rounded-2xl border-0 bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-300">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Kopējie Ieņēmumi</CardTitle>
+            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+              <DollarSign className="h-5 w-5 text-emerald-500" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">
-              ${stats.totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            <div className="text-4xl font-bold tracking-tight">
+              €{stats.totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </div>
-            <div className="flex items-center gap-1 mt-1">
+            <div className="flex items-center gap-2 mt-2">
               {stats.revenueChange > 0 ? (
-                <TrendingUp className="h-3 w-3 text-success" />
+                <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 border-0">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  +{stats.revenueChange.toFixed(1)}%
+                </Badge>
               ) : (
-                <TrendingDown className="h-3 w-3 text-destructive" />
+                <Badge variant="secondary" className="bg-destructive/10 text-destructive border-0">
+                  <TrendingDown className="h-3 w-3 mr-1" />
+                  {stats.revenueChange.toFixed(1)}%
+                </Badge>
               )}
-              <p className="text-xs text-muted-foreground">
-                {stats.revenueChange > 0 ? '+' : ''}{stats.revenueChange.toFixed(1)}% vs previous period
-              </p>
+              <span className="text-xs text-muted-foreground">vs iepr. periods</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="group relative overflow-hidden rounded-2xl border-0 bg-gradient-to-br from-violet-500/10 to-violet-600/5 hover:shadow-lg hover:shadow-violet-500/10 transition-all duration-300">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Margin</CardTitle>
-            <Target className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Vidējā Marža</CardTitle>
+            <div className="h-10 w-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
+              <Target className="h-5 w-5 text-violet-500" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{stats.avgMargin.toFixed(1)}%</div>
-            <div className="flex items-center gap-1 mt-1">
+            <div className="text-4xl font-bold tracking-tight">{stats.avgMargin.toFixed(1)}%</div>
+            <div className="flex items-center gap-2 mt-2">
               {stats.marginChange > 0 ? (
-                <TrendingUp className="h-3 w-3 text-success" />
+                <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 border-0">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  +{stats.marginChange.toFixed(1)}%
+                </Badge>
               ) : (
-                <TrendingDown className="h-3 w-3 text-destructive" />
+                <Badge variant="secondary" className="bg-destructive/10 text-destructive border-0">
+                  <TrendingDown className="h-3 w-3 mr-1" />
+                  {stats.marginChange.toFixed(1)}%
+                </Badge>
               )}
-              <p className="text-xs text-muted-foreground">
-                {stats.marginChange > 0 ? '+' : ''}{stats.marginChange.toFixed(1)}% vs previous period
-              </p>
+              <span className="text-xs text-muted-foreground">vs iepr. periods</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="group relative overflow-hidden rounded-2xl border-0 bg-gradient-to-br from-amber-500/10 to-amber-600/5 hover:shadow-lg hover:shadow-amber-500/10 transition-all duration-300">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Risky Pricing</CardTitle>
-            <AlertCircle className="h-5 w-5 text-warning" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Riska Cenas</CardTitle>
+            <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+              <AlertCircle className="h-5 w-5 text-amber-500" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-warning">{stats.riskyProducts}</div>
-            <p className="text-xs text-muted-foreground mt-1">Products need attention</p>
+            <div className="text-4xl font-bold tracking-tight text-amber-600">{stats.riskyProducts}</div>
+            <p className="text-sm text-muted-foreground mt-2">Nepieciešama uzmanība</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Charts Row */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
         {/* ABC Segmentation */}
-        <Card>
+        <Card className="rounded-2xl border-0 shadow-sm bg-card">
           <CardHeader>
-            <CardTitle>ABC Segmentation</CardTitle>
-            <CardDescription>Product and revenue distribution</CardDescription>
+            <CardTitle className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <PieChart className="h-4 w-4 text-primary" />
+              </div>
+              ABC Segmentācija
+            </CardTitle>
+            <CardDescription>Produktu un ieņēmumu sadalījums</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="products">
-              <TabsList className="mb-4">
-                <TabsTrigger value="products">By Count</TabsTrigger>
-                <TabsTrigger value="revenue">By Revenue</TabsTrigger>
+              <TabsList className="mb-4 rounded-xl bg-muted/50">
+                <TabsTrigger value="products" className="rounded-lg">Pēc Skaita</TabsTrigger>
+                <TabsTrigger value="revenue" className="rounded-lg">Pēc Ieņēmumiem</TabsTrigger>
               </TabsList>
               
               <TabsContent value="products">
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
                     <Pie
                       data={abcData}
@@ -603,27 +618,42 @@ const Dashboard = () => {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      outerRadius={80}
-                      label
+                      outerRadius={90}
+                      innerRadius={50}
+                      paddingAngle={4}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     >
                       {abcData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                        <Cell key={`cell-${index}`} fill={entry.fill} className="drop-shadow-sm" />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                      contentStyle={{ 
+                        borderRadius: '12px', 
+                        border: 'none', 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)' 
+                      }} 
+                    />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
               </TabsContent>
 
               <TabsContent value="revenue">
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={abcData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => `$${Number(value).toLocaleString()}`} />
-                    <Bar dataKey="revenue" fill="hsl(var(--primary))" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
+                    <YAxis stroke="hsl(var(--muted-foreground))" />
+                    <Tooltip 
+                      formatter={(value) => `€${Number(value).toLocaleString()}`} 
+                      contentStyle={{ 
+                        borderRadius: '12px', 
+                        border: 'none', 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)' 
+                      }}
+                    />
+                    <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </TabsContent>
@@ -632,79 +662,118 @@ const Dashboard = () => {
         </Card>
 
         {/* Revenue Trend */}
-        <Card>
+        <Card className="rounded-2xl border-0 shadow-sm bg-card">
           <CardHeader>
-            <CardTitle>Revenue Trend</CardTitle>
-            <CardDescription>Monthly revenue over time</CardDescription>
+            <CardTitle className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-emerald-500" />
+              </div>
+              Ieņēmumu Tendence
+            </CardTitle>
+            <CardDescription>Mēneša ieņēmumi laika gaitā</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value) => `$${Number(value).toLocaleString()}`} />
+            <ResponsiveContainer width="100%" height={280}>
+              <RechartsLineChart data={revenueData}>
+                <defs>
+                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
+                <YAxis stroke="hsl(var(--muted-foreground))" />
+                <Tooltip 
+                  formatter={(value) => `€${Number(value).toLocaleString()}`}
+                  contentStyle={{ 
+                    borderRadius: '12px', 
+                    border: 'none', 
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)' 
+                  }}
+                />
                 <Line 
                   type="monotone" 
                   dataKey="revenue" 
                   stroke="hsl(var(--primary))" 
-                  strokeWidth={2}
-                  dot={{ fill: 'hsl(var(--primary))' }}
+                  strokeWidth={3}
+                  dot={{ fill: 'hsl(var(--primary))', strokeWidth: 0, r: 4 }}
+                  activeDot={{ r: 6, strokeWidth: 0 }}
+                  fill="url(#revenueGradient)"
                 />
-              </LineChart>
+              </RechartsLineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
       {/* Risky Products & Competitor Promotions */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
         {/* Risky Products */}
-        <Card>
+        <Card className="rounded-2xl border-0 shadow-sm bg-card">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-warning" />
-              Risky Pricing Products
+            <CardTitle className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <AlertCircle className="h-4 w-4 text-amber-500" />
+              </div>
+              Riska Produkti
             </CardTitle>
-            <CardDescription>Products with low margins requiring attention</CardDescription>
+            <CardDescription>Produkti ar zemām maržām</CardDescription>
           </CardHeader>
           <CardContent>
             {topRiskyProducts.length > 0 ? (
               <div className="space-y-3">
-                {topRiskyProducts.map((product) => {
+                {topRiskyProducts.map((product, index) => {
                   const margin = ((Number(product.current_price) - Number(product.cost_price)) / Number(product.current_price)) * 100;
                   return (
-                    <div key={product.id} className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                    <div 
+                      key={product.id} 
+                      className="flex justify-between items-center p-4 bg-gradient-to-r from-muted/50 to-transparent rounded-xl hover:from-muted transition-all duration-200"
+                      style={{ animationDelay: `${index * 50}ms` }}
+                    >
                       <div>
                         <p className="font-medium">{product.name}</p>
                         <p className="text-sm text-muted-foreground">{product.sku}</p>
                       </div>
-                      <Badge variant="destructive">{margin.toFixed(1)}%</Badge>
+                      <Badge variant="destructive" className="rounded-lg">
+                        {margin.toFixed(1)}%
+                      </Badge>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-muted-foreground text-center py-8">No risky products found</p>
+              <div className="text-center py-12">
+                <div className="h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
+                  <Package className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="text-muted-foreground">Nav riska produktu</p>
+              </div>
             )}
           </CardContent>
         </Card>
 
         {/* Competitor Promotions */}
-        <Card>
+        <Card className="rounded-2xl border-0 shadow-sm bg-card">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Competitor Promotions</CardTitle>
-                <CardDescription>Active and recent competitor offers</CardDescription>
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>Konkurentu Akcijas</CardTitle>
+                  <CardDescription>Aktīvās un nesenās akcijas</CardDescription>
+                </div>
               </div>
               <Button 
                 onClick={analyzePromotions} 
                 disabled={analyzingPromos || selectedPromotions.length === 0}
                 size="sm"
+                className="rounded-xl"
               >
-                {analyzingPromos ? <Sparkles className="h-4 w-4 animate-spin" /> : <BarChart3 className="h-4 w-4" />}
-                Analyze
+                {analyzingPromos ? <Sparkles className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                Analizēt
               </Button>
             </div>
           </CardHeader>
@@ -714,8 +783,10 @@ const Dashboard = () => {
                 {promotions.map((promo: any) => (
                   <div 
                     key={promo.id} 
-                    className={`p-3 bg-muted rounded-lg cursor-pointer transition-colors ${
-                      selectedPromotions.includes(promo.id) ? 'ring-2 ring-primary' : ''
+                    className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${
+                      selectedPromotions.includes(promo.id) 
+                        ? 'bg-primary/10 ring-2 ring-primary' 
+                        : 'bg-muted/50 hover:bg-muted'
                     }`}
                     onClick={() => {
                       setSelectedPromotions(prev => 
@@ -731,17 +802,22 @@ const Dashboard = () => {
                         <p className="text-sm text-muted-foreground">{promo.competitors?.name}</p>
                       </div>
                       {promo.discount_percent && (
-                        <Badge>{promo.discount_percent}% OFF</Badge>
+                        <Badge className="rounded-lg">{promo.discount_percent}% OFF</Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(promo.start_date).toLocaleDateString()} - {promo.end_date ? new Date(promo.end_date).toLocaleDateString() : 'Ongoing'}
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {new Date(promo.start_date).toLocaleDateString()} - {promo.end_date ? new Date(promo.end_date).toLocaleDateString() : 'Aktīva'}
                     </p>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-muted-foreground text-center py-8">No active promotions</p>
+              <div className="text-center py-12">
+                <div className="h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
+                  <BarChart3 className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="text-muted-foreground">Nav aktīvo akciju</p>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -749,19 +825,19 @@ const Dashboard = () => {
 
       {/* Promo Analysis */}
       {promoAnalysis && (
-        <Card>
+        <Card className="rounded-2xl border-0 shadow-sm animate-fade-in">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5" />
-              Competitor Promotion Analysis
+            <CardTitle className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Sparkles className="h-4 w-4 text-primary" />
+              </div>
+              Konkurentu Akciju Analīze
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Textarea 
-              value={promoAnalysis} 
-              readOnly 
-              className="min-h-[200px] font-mono text-sm"
-            />
+            <div className="p-4 bg-muted/30 rounded-xl">
+              <p className="whitespace-pre-wrap leading-relaxed">{promoAnalysis}</p>
+            </div>
           </CardContent>
         </Card>
       )}
