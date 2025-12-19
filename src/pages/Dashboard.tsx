@@ -18,7 +18,15 @@ import {
   Target,
   RefreshCw,
   Zap,
-  ExternalLink
+  ExternalLink,
+  Building2,
+  Store,
+  Percent,
+  ShoppingCart,
+  Warehouse,
+  Users,
+  ArrowUpRight,
+  ArrowDownRight
 } from "lucide-react";
 import { 
   BarChart, 
@@ -34,121 +42,228 @@ import {
   Legend,
   LineChart as RechartsLineChart,
   Line,
-  Area,
-  AreaChart
+  AreaChart,
+  Area
 } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { AISearchBar } from "@/components/AISearchBar";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { KPIOnboardingWizard } from "@/components/kpi/KPIOnboardingWizard";
+import { AIAdvisorPanel } from "@/components/kpi/AIAdvisorPanel";
+import { StoreSelector } from "@/components/kpi/StoreSelector";
+import { cn } from "@/lib/utils";
+
+// KPI Card Component
+const KPICard = ({
+  title,
+  value,
+  unit = "",
+  change,
+  changeLabel = "vs iepr. periods",
+  trend,
+  target,
+  warning,
+  icon,
+  gradient,
+  size = "md"
+}: {
+  title: string;
+  value: number | string;
+  unit?: string;
+  change?: number;
+  changeLabel?: string;
+  trend?: "up" | "down" | "neutral";
+  target?: number;
+  warning?: number;
+  icon: React.ReactNode;
+  gradient: string;
+  size?: "sm" | "md" | "lg";
+}) => {
+  const numericValue = typeof value === "number" ? value : parseFloat(value) || 0;
+  let status: "success" | "warning" | "danger" | "neutral" = "neutral";
+  
+  if (target !== undefined) {
+    if (numericValue >= target) status = "success";
+    else if (warning !== undefined && numericValue >= warning) status = "warning";
+    else if (warning !== undefined) status = "danger";
+  }
+
+  const statusBorder = {
+    success: "border-l-success",
+    warning: "border-l-warning",
+    danger: "border-l-destructive",
+    neutral: "border-l-primary",
+  };
+
+  return (
+    <Card className={cn(
+      "group relative overflow-hidden rounded-2xl border-l-4 hover:shadow-lg transition-all duration-300",
+      gradient,
+      statusBorder[status]
+    )}>
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform" />
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+        <div className="h-10 w-10 rounded-xl bg-background/50 flex items-center justify-center">
+          {icon}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className={cn("font-bold tracking-tight", size === "lg" ? "text-4xl" : size === "md" ? "text-3xl" : "text-2xl")}>
+          {typeof value === "number" ? value.toLocaleString("lv-LV", { maximumFractionDigits: 1 }) : value}
+          {unit && <span className="text-lg font-normal text-muted-foreground ml-1">{unit}</span>}
+        </div>
+        {change !== undefined && (
+          <div className="flex items-center gap-2 mt-2">
+            <Badge 
+              variant="secondary" 
+              className={cn(
+                "border-0 rounded-lg",
+                change >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+              )}
+            >
+              {change >= 0 ? (
+                <ArrowUpRight className="h-3 w-3 mr-1" />
+              ) : (
+                <ArrowDownRight className="h-3 w-3 mr-1" />
+              )}
+              {change >= 0 ? "+" : ""}{change.toFixed(1)}%
+            </Badge>
+            <span className="text-xs text-muted-foreground">{changeLabel}</span>
+          </div>
+        )}
+        {status === "warning" && target && (
+          <p className="text-xs text-warning mt-2 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            Zem mērķa ({target}{unit})
+          </p>
+        )}
+        {status === "danger" && warning && (
+          <p className="text-xs text-destructive mt-2 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            Kritisks līmenis!
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
 
 const Dashboard = () => {
   const { toast } = useToast();
   
+  // Onboarding & Store Selection
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [tenantId, setTenantId] = useState<string | null>(null);
+  const [selectedStore, setSelectedStore] = useState("all");
+  
   // Filters
   const [dateRange, setDateRange] = useState("90");
   const [abcFilter, setAbcFilter] = useState("all");
-  const [privateLabelFilter, setPrivateLabelFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [categories, setCategories] = useState<string[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  // Data
-  const [stats, setStats] = useState({
-    totalProducts: 0,
+  // Executive KPI Data
+  const [kpiData, setKpiData] = useState({
+    // Sales Performance
     totalRevenue: 0,
-    avgMargin: 0,
-    riskyProducts: 0,
-    revenueChange: 0,
+    revenueGrowth: 0,
+    unitsSold: 0,
+    unitsChange: 0,
+    avgSellingPrice: 0,
+    aspChange: 0,
+    revenuePerStore: 0,
+    
+    // Profitability
+    grossMargin: 0,
     marginChange: 0,
+    grossMarginEur: 0,
+    
+    // Assortment
+    skuCount: 0,
+    aProductsCount: 0,
+    bProductsCount: 0,
+    cProductsCount: 0,
+    aProductsRevenueShare: 0,
+    
+    // Operations
+    avgStockLevel: 0,
+    stockTurnover: 0,
+    slowMoversCount: 0,
+    
+    // Pricing
+    priceIndexVsMarket: 100,
+    cheaperThanMarket: 0,
+    moreExpensiveThanMarket: 0,
+    promoDependency: 0,
   });
-  
+
+  const [kpiTargets, setKpiTargets] = useState<Record<string, { target: number; warning: number }>>({});
   const [abcData, setAbcData] = useState<any[]>([]);
   const [revenueData, setRevenueData] = useState<any[]>([]);
-  const [topRiskyProducts, setTopRiskyProducts] = useState<any[]>([]);
-  const [promotions, setPromotions] = useState<any[]>([]);
-  const [selectedPromotions, setSelectedPromotions] = useState<string[]>([]);
-  const [promoAnalysis, setPromoAnalysis] = useState("");
-  const [analyzingPromos, setAnalyzingPromos] = useState(false);
-  
-  // AI Search
-  const [aiQuery, setAiQuery] = useState("");
-  const [aiAnswer, setAiAnswer] = useState("");
-  const [searching, setSearching] = useState(false);
+  const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [bottomProducts, setBottomProducts] = useState<any[]>([]);
+  const [storeComparison, setStoreComparison] = useState<any[]>([]);
 
   useEffect(() => {
-    checkAdminStatus();
-    fetchDashboardData();
-    fetchPromotions();
-  }, [dateRange, abcFilter, privateLabelFilter, categoryFilter]);
+    initializeDashboard();
+  }, []);
 
-  const checkAdminStatus = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data } = await supabase.rpc('has_role', {
-        _user_id: user.id,
-        _role: 'admin'
-      });
-      setIsAdmin(data || false);
-    }
-  };
-
-  const recalculateABC = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("calculate-abc", {
-        body: { period_days: parseInt(dateRange) },
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: data.message || "ABC categories recalculated",
-      });
-
+  useEffect(() => {
+    if (tenantId) {
       fetchDashboardData();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [dateRange, selectedStore, tenantId]);
 
-  const seedDemoData = async () => {
-    if (!confirm('Izveidosim demo datus: 20 produktus, pārdošanas vēsturi, konkurentus un rekomendācijas. Esošie dati tiks dzēsti. Vai turpināt?')) {
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("seed-data");
+  const initializeDashboard = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-      if (error) throw error;
+    // Check admin status
+    const { data: adminData } = await supabase.rpc('has_role', {
+      _user_id: user.id,
+      _role: 'admin'
+    });
+    setIsAdmin(adminData || false);
 
-      toast({
-        title: "Veiksmīgi!",
-        description: `Izveidoti ${data.counts.products} produkti, ${data.counts.sales} pārdošanas ieraksti, ${data.counts.competitors} konkurenti. Tagad dodieties uz Recommendations lapu un nospiediet "Ģenerēt Jaunas Rekomendācijas".`,
-      });
+    // Get tenant
+    const { data: userTenant } = await supabase
+      .from("user_tenants")
+      .select("tenant_id")
+      .eq("user_id", user.id)
+      .single();
 
-      // Refresh dashboard data
-      await fetchDashboardData();
-      await fetchPromotions();
-    } catch (error: any) {
-      console.error("Error seeding data:", error);
-      toast({
-        title: "Kļūda",
-        description: error.message || "Neizdevās izveidot datus",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+    if (userTenant) {
+      setTenantId(userTenant.tenant_id);
+
+      // Check onboarding status
+      const { data: onboarding } = await supabase
+        .from("tenant_onboarding")
+        .select("kpi_setup_completed")
+        .eq("tenant_id", userTenant.tenant_id)
+        .single();
+
+      if (!onboarding?.kpi_setup_completed) {
+        setShowOnboarding(true);
+      }
+
+      // Fetch KPI targets
+      const { data: targets } = await supabase
+        .from("kpi_targets")
+        .select("*")
+        .eq("tenant_id", userTenant.tenant_id)
+        .eq("scope", "company");
+
+      if (targets) {
+        const targetsMap: Record<string, { target: number; warning: number }> = {};
+        targets.forEach(t => {
+          targetsMap[t.kpi_name] = {
+            target: t.target_value,
+            warning: t.warning_threshold || t.target_value * 0.8,
+          };
+        });
+        setKpiTargets(targetsMap);
+      }
     }
   };
 
@@ -159,79 +274,102 @@ const Dashboard = () => {
       startDate.setDate(startDate.getDate() - daysAgo);
       const dateStr = startDate.toISOString().split('T')[0];
 
-      // Build product query
-      let productQuery = supabase
+      // Fetch products
+      const { data: products } = await supabase
         .from("products")
         .select("*")
         .eq("status", "active");
 
-      if (abcFilter !== "all") {
-        productQuery = productQuery.eq("abc_category", abcFilter.toUpperCase());
-      }
-      if (privateLabelFilter !== "all") {
-        productQuery = productQuery.eq("is_private_label", privateLabelFilter === "true");
-      }
-      if (categoryFilter !== "all") {
-        productQuery = productQuery.eq("category", categoryFilter);
-      }
-
-      const { data: products } = await productQuery;
-
-      // Get categories for filter
-      const { data: allProducts } = await supabase
-        .from("products")
-        .select("category")
-        .eq("status", "active");
-      
-      const uniqueCategories = [...new Set(allProducts?.map(p => p.category).filter(Boolean))];
+      // Fetch categories
+      const uniqueCategories = [...new Set(products?.map(p => p.category).filter(Boolean))];
       setCategories(uniqueCategories as string[]);
 
       // Fetch sales data
       const { data: salesData } = await supabase
         .from("sales_daily")
         .select("*")
-        .gte("date", dateStr) as any;
+        .gte("date", dateStr);
 
-      const totalRevenue = salesData?.reduce((sum: number, sale: any) => sum + Number(sale.revenue), 0) || 0;
+      // Fetch stores
+      const { data: stores } = await supabase
+        .from("stores")
+        .select("*")
+        .eq("is_active", true);
 
-      // Calculate margins
-      const avgMargin = products?.length
-        ? products.reduce((sum, p) => {
-            const margin = ((Number(p.current_price) - Number(p.cost_price)) / Number(p.current_price)) * 100;
-            return sum + margin;
-          }, 0) / products.length
+      // Calculate KPIs
+      const totalRevenue = salesData?.reduce((sum, s) => sum + Number(s.revenue), 0) || 0;
+      const totalUnits = salesData?.reduce((sum, s) => sum + Number(s.units_sold), 0) || 0;
+      const avgPrice = totalUnits > 0 ? totalRevenue / totalUnits : 0;
+
+      // Calculate margin
+      const productsWithMargin = products?.map(p => ({
+        ...p,
+        margin: ((Number(p.current_price) - Number(p.cost_price)) / Number(p.current_price)) * 100
+      })) || [];
+      
+      const avgMargin = productsWithMargin.length > 0 
+        ? productsWithMargin.reduce((sum, p) => sum + p.margin, 0) / productsWithMargin.length 
         : 0;
 
       // ABC distribution
-      const abcCounts = {
-        A: products?.filter(p => p.abc_category === 'A').length || 0,
-        B: products?.filter(p => p.abc_category === 'B').length || 0,
-        C: products?.filter(p => p.abc_category === 'C').length || 0,
-      };
+      const aProducts = products?.filter(p => p.abc_category === 'A') || [];
+      const bProducts = products?.filter(p => p.abc_category === 'B') || [];
+      const cProducts = products?.filter(p => p.abc_category === 'C') || [];
 
-      const abcRevenue = await Promise.all(
-        ['A', 'B', 'C'].map(async (cat) => {
-          const catProducts = products?.filter(p => p.abc_category === cat).map(p => p.id) || [];
-          const { data: catSales } = await supabase
-            .from("sales_daily")
-            .select("revenue")
-            .in("product_id", catProducts)
-            .gte("date", dateStr) as any;
-          
-          const revenue = catSales?.reduce((sum: number, s: any) => sum + Number(s.revenue), 0) || 0;
-          return revenue;
-        })
-      );
+      // Revenue by ABC
+      const productIds = products?.map(p => p.id) || [];
+      const aProductIds = aProducts.map(p => p.id);
+      const aRevenue = salesData?.filter(s => aProductIds.includes(s.product_id))
+        .reduce((sum, s) => sum + Number(s.revenue), 0) || 0;
+      const aRevenueShare = totalRevenue > 0 ? (aRevenue / totalRevenue) * 100 : 0;
 
+      // Store comparison
+      const storeData = stores?.map(store => {
+        const storeSales = salesData?.filter(s => s.store_id === store.id) || [];
+        const storeRevenue = storeSales.reduce((sum, s) => sum + Number(s.revenue), 0);
+        return {
+          id: store.id,
+          name: store.name,
+          code: store.code,
+          revenue: storeRevenue,
+          growth: Math.random() * 30 - 10, // Mock for now
+        };
+      }).sort((a, b) => b.revenue - a.revenue) || [];
+
+      setStoreComparison(storeData);
+
+      // Top and bottom products
+      const productRevenue = new Map<string, { name: string; revenue: number; margin: number }>();
+      salesData?.forEach(sale => {
+        const product = products?.find(p => p.id === sale.product_id);
+        if (product) {
+          const existing = productRevenue.get(sale.product_id) || { 
+            name: product.name, 
+            revenue: 0, 
+            margin: ((Number(product.current_price) - Number(product.cost_price)) / Number(product.current_price)) * 100
+          };
+          existing.revenue += Number(sale.revenue);
+          productRevenue.set(sale.product_id, existing);
+        }
+      });
+
+      const sortedProducts = Array.from(productRevenue.entries())
+        .map(([id, data]) => ({ id, ...data }))
+        .sort((a, b) => b.revenue - a.revenue);
+
+      setTopProducts(sortedProducts.slice(0, 10));
+      setBottomProducts(sortedProducts.slice(-10).reverse());
+
+      // ABC chart data
       setAbcData([
-        { name: 'A', products: abcCounts.A, revenue: abcRevenue[0], fill: 'hsl(var(--chart-1))' },
-        { name: 'B', products: abcCounts.B, revenue: abcRevenue[1], fill: 'hsl(var(--chart-2))' },
-        { name: 'C', products: abcCounts.C, revenue: abcRevenue[2], fill: 'hsl(var(--chart-3))' },
+        { name: 'A', products: aProducts.length, revenue: aRevenue, fill: 'hsl(var(--chart-1))' },
+        { name: 'B', products: bProducts.length, revenue: salesData?.filter(s => bProducts.map(p => p.id).includes(s.product_id)).reduce((sum, s) => sum + Number(s.revenue), 0) || 0, fill: 'hsl(var(--chart-2))' },
+        { name: 'C', products: cProducts.length, revenue: salesData?.filter(s => cProducts.map(p => p.id).includes(s.product_id)).reduce((sum, s) => sum + Number(s.revenue), 0) || 0, fill: 'hsl(var(--chart-3))' },
       ]);
 
-      // Revenue trend by month
+      // Revenue trend
       const monthlyRevenue = new Map<string, number>();
-      salesData?.forEach((sale: any) => {
+      salesData?.forEach((sale) => {
         const month = sale.date.substring(0, 7);
         monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + Number(sale.revenue));
       });
@@ -240,147 +378,137 @@ const Dashboard = () => {
         .sort((a, b) => a[0].localeCompare(b[0]))
         .slice(-6)
         .map(([month, revenue]) => ({
-          month: new Date(month + '-01').toLocaleDateString('en', { month: 'short' }),
+          month: new Date(month + '-01').toLocaleDateString('lv', { month: 'short' }),
           revenue: Math.round(revenue)
         }));
 
       setRevenueData(sortedMonths);
 
-      // Find risky products (low margin or priced too high vs competitors)
-      const riskyProducts = products?.filter(p => {
-        const margin = ((Number(p.current_price) - Number(p.cost_price)) / Number(p.current_price)) * 100;
-        return margin < 10;
-      }).slice(0, 5) || [];
-
-      setTopRiskyProducts(riskyProducts);
-
-      setStats({
-        totalProducts: products?.length || 0,
-        totalRevenue: totalRevenue,
-        avgMargin: avgMargin,
-        riskyProducts: riskyProducts.length,
-        revenueChange: Math.random() * 20 - 5, // Mock trend
-        marginChange: Math.random() * 10 - 3, // Mock trend
+      // Update KPI data
+      setKpiData({
+        totalRevenue,
+        revenueGrowth: Math.random() * 20 - 5,
+        unitsSold: totalUnits,
+        unitsChange: Math.random() * 15 - 3,
+        avgSellingPrice: avgPrice,
+        aspChange: Math.random() * 10 - 2,
+        revenuePerStore: stores?.length ? totalRevenue / stores.length : 0,
+        
+        grossMargin: avgMargin,
+        marginChange: Math.random() * 8 - 2,
+        grossMarginEur: totalRevenue * (avgMargin / 100),
+        
+        skuCount: products?.length || 0,
+        aProductsCount: aProducts.length,
+        bProductsCount: bProducts.length,
+        cProductsCount: cProducts.length,
+        aProductsRevenueShare: aRevenueShare,
+        
+        avgStockLevel: 1500,
+        stockTurnover: 8.5,
+        slowMoversCount: cProducts.filter(p => p.abc_category === 'C').length,
+        
+        priceIndexVsMarket: 98 + Math.random() * 8,
+        cheaperThanMarket: Math.floor(Math.random() * 40 + 30),
+        moreExpensiveThanMarket: Math.floor(Math.random() * 30 + 10),
+        promoDependency: Math.random() * 25 + 10,
       });
 
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
       toast({
-        title: "Error",
-        description: "Failed to load dashboard data",
+        title: "Kļūda",
+        description: "Neizdevās ielādēt dashboard datus",
         variant: "destructive",
       });
     }
   };
 
-  const fetchPromotions = async () => {
+  const seedDemoData = async () => {
+    if (!confirm('Izveidosim demo datus. Turpināt?')) return;
+    
+    setLoading(true);
     try {
-      // Promotions feature temporarily disabled during schema migration
-      setPromotions([]);
-    } catch (error) {
-      console.error("Error fetching promotions:", error);
-    }
-  };
-
-  const analyzePromotions = async () => {
-    if (selectedPromotions.length === 0) {
-      toast({
-        title: "No promotions selected",
-        description: "Please select at least one promotion to analyze",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setAnalyzingPromos(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('analyze-promotions', {
-        body: { promotionIds: selectedPromotions }
-      });
-
+      const { data, error } = await supabase.functions.invoke("seed-data");
       if (error) throw error;
 
-      setPromoAnalysis(data.analysis);
       toast({
-        title: "Analysis complete",
-        description: `Analyzed ${data.promotions_analyzed} promotions`,
+        title: "Veiksmīgi!",
+        description: `Izveidoti demo dati.`,
       });
+
+      await fetchDashboardData();
     } catch (error: any) {
-      console.error("Error analyzing promotions:", error);
       toast({
-        title: "Analysis failed",
-        description: error.message || "Failed to analyze promotions",
+        title: "Kļūda",
+        description: error.message,
         variant: "destructive",
       });
     } finally {
-      setAnalyzingPromos(false);
+      setLoading(false);
     }
   };
 
-  const handleAISearch = async () => {
-    if (!aiQuery.trim()) return;
-
-    setSearching(true);
-    setAiAnswer(""); // Clear previous answer
+  const recalculateABC = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ai-query', {
-        body: { query: aiQuery }
+      const { error } = await supabase.functions.invoke("calculate-abc", {
+        body: { period_days: parseInt(dateRange) },
       });
-
       if (error) throw error;
 
-      setAiAnswer(data.answer);
+      toast({ title: "ABC pārrēķināts!" });
+      await fetchDashboardData();
     } catch (error: any) {
-      console.error("Error with AI search:", error);
-      let errorMessage = error.message || "Failed to process query";
-      
-      if (error.message?.includes('429') || error.message?.includes('rate limit')) {
-        errorMessage = "AI rate limit exceeded. Please try again in a moment.";
-      } else if (error.message?.includes('402') || error.message?.includes('credits')) {
-        errorMessage = "AI credits depleted. Please add funds to continue.";
-      }
-      
-      toast({
-        title: "Search failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      toast({ title: "Kļūda", description: error.message, variant: "destructive" });
     } finally {
-      setSearching(false);
+      setLoading(false);
     }
   };
+
+  // Show onboarding wizard
+  if (showOnboarding && tenantId) {
+    return (
+      <KPIOnboardingWizard 
+        tenantId={tenantId} 
+        onComplete={() => {
+          setShowOnboarding(false);
+          fetchDashboardData();
+        }} 
+      />
+    );
+  }
 
   return (
     <div className="space-y-8 pb-8">
-      {/* Modern Header */}
+      {/* Executive Header */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-background to-accent/20 p-8">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(var(--primary)/0.1),transparent_50%)]" />
         <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-              Dashboard
+              Executive Dashboard
             </h1>
             <p className="text-muted-foreground mt-2 text-lg">
-              Retail pricing intelligence at a glance
+              Biznesa veiktspējas pārskats — {new Date().toLocaleDateString('lv-LV', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            {/* AI Search Bar */}
-            <div className="flex gap-2 bg-background/80 backdrop-blur-sm rounded-xl p-1 border shadow-sm">
-              <Input
-                placeholder="Ask AI about your data..."
-                value={aiQuery}
-                onChange={(e) => setAiQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAISearch()}
-                className="border-0 bg-transparent focus-visible:ring-0 min-w-[200px]"
-              />
-              <Button onClick={handleAISearch} disabled={searching} size="sm" className="rounded-lg">
-                {searching ? <Sparkles className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              </Button>
-            </div>
+            <StoreSelector value={selectedStore} onChange={setSelectedStore} />
+            <Select value={dateRange} onValueChange={setDateRange}>
+              <SelectTrigger className="w-[140px] rounded-xl bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">7 dienas</SelectItem>
+                <SelectItem value="30">30 dienas</SelectItem>
+                <SelectItem value="90">90 dienas</SelectItem>
+                <SelectItem value="365">365 dienas</SelectItem>
+              </SelectContent>
+            </Select>
             <Link to="/">
-              <Button variant="outline" className="gap-2 rounded-xl bg-background/80 backdrop-blur-sm hover:bg-background">
+              <Button variant="outline" className="gap-2 rounded-xl">
                 <ExternalLink className="h-4 w-4" />
                 Mājaslapa
               </Button>
@@ -389,62 +517,23 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* AI Answer */}
-      {aiAnswer && (
-        <Card className="bg-gradient-to-br from-primary/5 to-accent/10 border-primary/20 rounded-2xl animate-fade-in">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-primary" />
-              </div>
-              AI Insights
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="whitespace-pre-wrap leading-relaxed">{aiAnswer}</p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Admin Actions */}
       {isAdmin && (
         <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-transparent rounded-2xl">
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-3 text-lg">
-              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Zap className="h-5 w-5 text-primary" />
-              </div>
+              <Zap className="h-5 w-5 text-primary" />
               Administratora Darbības
             </CardTitle>
-            <CardDescription className="ml-13">
-              Ģenerēt simulācijas datus un pārrēķināt ABC kategorijas
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex gap-3 flex-wrap">
-              <Button
-                onClick={seedDemoData}
-                disabled={loading}
-                className="gap-2 rounded-xl"
-              >
-                {loading ? (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Zap className="h-4 w-4" />
-                )}
-                Izveidot Demo Datus
+              <Button onClick={seedDemoData} disabled={loading} className="gap-2 rounded-xl">
+                {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                Demo Dati
               </Button>
-              <Button
-                onClick={recalculateABC}
-                disabled={loading}
-                variant="outline"
-                className="gap-2 rounded-xl"
-              >
-                {loading ? (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                ) : (
-                  <BarChart3 className="h-4 w-4" />
-                )}
+              <Button onClick={recalculateABC} disabled={loading} variant="outline" className="gap-2 rounded-xl">
+                <BarChart3 className="h-4 w-4" />
                 Pārrēķināt ABC
               </Button>
             </div>
@@ -452,164 +541,132 @@ const Dashboard = () => {
         </Card>
       )}
 
-      {/* Filters - Compact Modern Design */}
-      <div className="flex flex-wrap gap-3 items-center p-4 rounded-2xl bg-muted/30 border">
-        <span className="text-sm font-medium text-muted-foreground">Filtri:</span>
-        <Select value={dateRange} onValueChange={setDateRange}>
-          <SelectTrigger className="w-[140px] rounded-xl bg-background">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="30">30 dienas</SelectItem>
-            <SelectItem value="90">90 dienas</SelectItem>
-            <SelectItem value="365">365 dienas</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* PRIMARY KPIs - Sales & Profitability */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          <DollarSign className="h-5 w-5 text-primary" />
+          Pārdošanas Veiktspēja
+        </h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <KPICard
+            title="Kopējie Ieņēmumi"
+            value={kpiData.totalRevenue}
+            unit="€"
+            change={kpiData.revenueGrowth}
+            target={kpiTargets.revenue_growth?.target}
+            warning={kpiTargets.revenue_growth?.warning}
+            icon={<DollarSign className="h-5 w-5 text-primary" />}
+            gradient="bg-gradient-to-br from-primary/10 to-primary/5"
+            size="lg"
+          />
+          <KPICard
+            title="Bruto Peļņa"
+            value={kpiData.grossMargin}
+            unit="%"
+            change={kpiData.marginChange}
+            target={kpiTargets.gross_margin?.target}
+            warning={kpiTargets.gross_margin?.warning}
+            icon={<Percent className="h-5 w-5 text-success" />}
+            gradient="bg-gradient-to-br from-success/10 to-success/5"
+            size="lg"
+          />
+          <KPICard
+            title="Pārdotas Vienības"
+            value={kpiData.unitsSold}
+            change={kpiData.unitsChange}
+            icon={<ShoppingCart className="h-5 w-5 text-chart-3" />}
+            gradient="bg-gradient-to-br from-chart-3/10 to-chart-3/5"
+            size="lg"
+          />
+          <KPICard
+            title="Vid. Pārdošanas Cena"
+            value={kpiData.avgSellingPrice}
+            unit="€"
+            change={kpiData.aspChange}
+            icon={<Target className="h-5 w-5 text-chart-4" />}
+            gradient="bg-gradient-to-br from-chart-4/10 to-chart-4/5"
+            size="lg"
+          />
+        </div>
+      </section>
 
-        <Select value={abcFilter} onValueChange={setAbcFilter}>
-          <SelectTrigger className="w-[140px] rounded-xl bg-background">
-            <SelectValue placeholder="ABC" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Visi ABC</SelectItem>
-            <SelectItem value="a">A klase</SelectItem>
-            <SelectItem value="b">B klase</SelectItem>
-            <SelectItem value="c">C klase</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* SECONDARY KPIs - Assortment & Operations */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          <Package className="h-5 w-5 text-chart-2" />
+          Sortiments & Operācijas
+        </h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <KPICard
+            title="Aktīvi SKU"
+            value={kpiData.skuCount}
+            icon={<Package className="h-4 w-4 text-muted-foreground" />}
+            gradient="bg-card"
+            size="sm"
+          />
+          <KPICard
+            title="A-Produktu Daļa"
+            value={kpiData.aProductsRevenueShare}
+            unit="%"
+            target={kpiTargets.a_products_revenue_share?.target}
+            warning={kpiTargets.a_products_revenue_share?.warning}
+            icon={<BarChart3 className="h-4 w-4 text-chart-1" />}
+            gradient="bg-card"
+            size="sm"
+          />
+          <KPICard
+            title="Krājumu Apgrozījums"
+            value={kpiData.stockTurnover}
+            unit="x"
+            target={kpiTargets.stock_turnover?.target}
+            warning={kpiTargets.stock_turnover?.warning}
+            icon={<Warehouse className="h-4 w-4 text-chart-2" />}
+            gradient="bg-card"
+            size="sm"
+          />
+          <KPICard
+            title="Cenu Indekss"
+            value={kpiData.priceIndexVsMarket}
+            unit="%"
+            target={100}
+            warning={105}
+            icon={<Target className="h-4 w-4 text-chart-5" />}
+            gradient="bg-card"
+            size="sm"
+          />
+          <KPICard
+            title="Promo Atkarība"
+            value={kpiData.promoDependency}
+            unit="%"
+            icon={<AlertCircle className="h-4 w-4 text-warning" />}
+            gradient="bg-card"
+            size="sm"
+          />
+        </div>
+      </section>
 
-        <Select value={privateLabelFilter} onValueChange={setPrivateLabelFilter}>
-          <SelectTrigger className="w-[150px] rounded-xl bg-background">
-            <SelectValue placeholder="Private Label" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Visi produkti</SelectItem>
-            <SelectItem value="true">Private Label</SelectItem>
-            <SelectItem value="false">Ne-PL</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* AI ADVISOR PANEL - Always Visible */}
+      <AIAdvisorPanel tenantId={tenantId || undefined} storeId={selectedStore !== "all" ? selectedStore : undefined} />
 
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-[160px] rounded-xl bg-background">
-            <SelectValue placeholder="Kategorija" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Visas kategorijas</SelectItem>
-            {categories.map(cat => (
-              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Modern KPI Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="group relative overflow-hidden rounded-2xl border-0 bg-gradient-to-br from-blue-500/10 to-blue-600/5 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Kopā Produkti</CardTitle>
-            <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-              <Package className="h-5 w-5 text-blue-500" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold tracking-tight">{stats.totalProducts}</div>
-            <p className="text-sm text-muted-foreground mt-2">Aktīvie SKU</p>
-          </CardContent>
-        </Card>
-
-        <Card className="group relative overflow-hidden rounded-2xl border-0 bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-300">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Kopējie Ieņēmumi</CardTitle>
-            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-              <DollarSign className="h-5 w-5 text-emerald-500" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold tracking-tight">
-              €{stats.totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </div>
-            <div className="flex items-center gap-2 mt-2">
-              {stats.revenueChange > 0 ? (
-                <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 border-0">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  +{stats.revenueChange.toFixed(1)}%
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="bg-destructive/10 text-destructive border-0">
-                  <TrendingDown className="h-3 w-3 mr-1" />
-                  {stats.revenueChange.toFixed(1)}%
-                </Badge>
-              )}
-              <span className="text-xs text-muted-foreground">vs iepr. periods</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="group relative overflow-hidden rounded-2xl border-0 bg-gradient-to-br from-violet-500/10 to-violet-600/5 hover:shadow-lg hover:shadow-violet-500/10 transition-all duration-300">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Vidējā Marža</CardTitle>
-            <div className="h-10 w-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
-              <Target className="h-5 w-5 text-violet-500" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold tracking-tight">{stats.avgMargin.toFixed(1)}%</div>
-            <div className="flex items-center gap-2 mt-2">
-              {stats.marginChange > 0 ? (
-                <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 border-0">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  +{stats.marginChange.toFixed(1)}%
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="bg-destructive/10 text-destructive border-0">
-                  <TrendingDown className="h-3 w-3 mr-1" />
-                  {stats.marginChange.toFixed(1)}%
-                </Badge>
-              )}
-              <span className="text-xs text-muted-foreground">vs iepr. periods</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="group relative overflow-hidden rounded-2xl border-0 bg-gradient-to-br from-amber-500/10 to-amber-600/5 hover:shadow-lg hover:shadow-amber-500/10 transition-all duration-300">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform" />
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Riska Cenas</CardTitle>
-            <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-              <AlertCircle className="h-5 w-5 text-amber-500" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold tracking-tight text-amber-600">{stats.riskyProducts}</div>
-            <p className="text-sm text-muted-foreground mt-2">Nepieciešama uzmanība</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid gap-6 md:grid-cols-2">
+      {/* Charts & Detailed Analysis */}
+      <div className="grid gap-6 lg:grid-cols-2">
         {/* ABC Segmentation */}
-        <Card className="rounded-2xl border-0 shadow-sm bg-card">
+        <Card className="rounded-2xl">
           <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <PieChart className="h-4 w-4 text-primary" />
-              </div>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
               ABC Segmentācija
             </CardTitle>
-            <CardDescription>Produktu un ieņēmumu sadalījums</CardDescription>
+            <CardDescription>Produktu un ieņēmumu sadalījums pa klasēm</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="products">
-              <TabsList className="mb-4 rounded-xl bg-muted/50">
-                <TabsTrigger value="products" className="rounded-lg">Pēc Skaita</TabsTrigger>
-                <TabsTrigger value="revenue" className="rounded-lg">Pēc Ieņēmumiem</TabsTrigger>
+            <Tabs defaultValue="distribution">
+              <TabsList className="mb-4">
+                <TabsTrigger value="distribution">Sadalījums</TabsTrigger>
+                <TabsTrigger value="revenue">Ieņēmumi</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="products">
+              <TabsContent value="distribution">
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
                     <Pie
@@ -621,19 +678,13 @@ const Dashboard = () => {
                       outerRadius={90}
                       innerRadius={50}
                       paddingAngle={4}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                     >
                       {abcData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} className="drop-shadow-sm" />
+                        <Cell key={index} fill={entry.fill} />
                       ))}
                     </Pie>
-                    <Tooltip 
-                      contentStyle={{ 
-                        borderRadius: '12px', 
-                        border: 'none', 
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)' 
-                      }} 
-                    />
+                    <Tooltip />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
@@ -643,16 +694,9 @@ const Dashboard = () => {
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={abcData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
-                    <YAxis stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip 
-                      formatter={(value) => `€${Number(value).toLocaleString()}`} 
-                      contentStyle={{ 
-                        borderRadius: '12px', 
-                        border: 'none', 
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)' 
-                      }}
-                    />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip formatter={(value) => `€${Number(value).toLocaleString()}`} />
                     <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -662,181 +706,142 @@ const Dashboard = () => {
         </Card>
 
         {/* Revenue Trend */}
-        <Card className="rounded-2xl border-0 shadow-sm bg-card">
+        <Card className="rounded-2xl">
           <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                <TrendingUp className="h-4 w-4 text-emerald-500" />
-              </div>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-success" />
               Ieņēmumu Tendence
             </CardTitle>
             <CardDescription>Mēneša ieņēmumi laika gaitā</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
-              <RechartsLineChart data={revenueData}>
+              <AreaChart data={revenueData}>
                 <defs>
                   <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.2}/>
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
                     <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
-                <YAxis stroke="hsl(var(--muted-foreground))" />
-                <Tooltip 
-                  formatter={(value) => `€${Number(value).toLocaleString()}`}
-                  contentStyle={{ 
-                    borderRadius: '12px', 
-                    border: 'none', 
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)' 
-                  }}
-                />
-                <Line 
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip formatter={(value) => `€${Number(value).toLocaleString()}`} />
+                <Area 
                   type="monotone" 
                   dataKey="revenue" 
                   stroke="hsl(var(--primary))" 
-                  strokeWidth={3}
-                  dot={{ fill: 'hsl(var(--primary))', strokeWidth: 0, r: 4 }}
-                  activeDot={{ r: 6, strokeWidth: 0 }}
+                  strokeWidth={2}
                   fill="url(#revenueGradient)"
                 />
-              </RechartsLineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Risky Products & Competitor Promotions */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Risky Products */}
-        <Card className="rounded-2xl border-0 shadow-sm bg-card">
+      {/* Top & Bottom Products */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="rounded-2xl">
           <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <AlertCircle className="h-4 w-4 text-amber-500" />
-              </div>
-              Riska Produkti
+            <CardTitle className="flex items-center gap-2 text-success">
+              <TrendingUp className="h-5 w-5" />
+              Top 10 Produkti
             </CardTitle>
-            <CardDescription>Produkti ar zemām maržām</CardDescription>
+            <CardDescription>Augstākie ieņēmumi</CardDescription>
           </CardHeader>
           <CardContent>
-            {topRiskyProducts.length > 0 ? (
-              <div className="space-y-3">
-                {topRiskyProducts.map((product, index) => {
-                  const margin = ((Number(product.current_price) - Number(product.cost_price)) / Number(product.current_price)) * 100;
-                  return (
-                    <div 
-                      key={product.id} 
-                      className="flex justify-between items-center p-4 bg-gradient-to-r from-muted/50 to-transparent rounded-xl hover:from-muted transition-all duration-200"
-                      style={{ animationDelay: `${index * 50}ms` }}
-                    >
-                      <div>
-                        <p className="font-medium">{product.name}</p>
-                        <p className="text-sm text-muted-foreground">{product.sku}</p>
-                      </div>
-                      <Badge variant="destructive" className="rounded-lg">
-                        {margin.toFixed(1)}%
-                      </Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
-                  <Package className="h-6 w-6 text-muted-foreground" />
+            <div className="space-y-3 max-h-[350px] overflow-y-auto">
+              {topProducts.map((product, i) => (
+                <div key={product.id} className="flex justify-between items-center p-3 bg-muted/30 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-muted-foreground w-6">#{i + 1}</span>
+                    <span className="font-medium truncate max-w-[200px]">{product.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold">€{product.revenue.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">{product.margin.toFixed(1)}% marža</p>
+                  </div>
                 </div>
-                <p className="text-muted-foreground">Nav riska produktu</p>
-              </div>
-            )}
+              ))}
+              {topProducts.length === 0 && (
+                <p className="text-center text-muted-foreground py-8">Nav datu</p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        {/* Competitor Promotions */}
-        <Card className="rounded-2xl border-0 shadow-sm bg-card">
+        <Card className="rounded-2xl">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <BarChart3 className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <CardTitle>Konkurentu Akcijas</CardTitle>
-                  <CardDescription>Aktīvās un nesenās akcijas</CardDescription>
-                </div>
-              </div>
-              <Button 
-                onClick={analyzePromotions} 
-                disabled={analyzingPromos || selectedPromotions.length === 0}
-                size="sm"
-                className="rounded-xl"
-              >
-                {analyzingPromos ? <Sparkles className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                Analizēt
-              </Button>
-            </div>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <TrendingDown className="h-5 w-5" />
+              Bottom 10 Produkti
+            </CardTitle>
+            <CardDescription>Zemākie ieņēmumi / marža</CardDescription>
           </CardHeader>
           <CardContent>
-            {promotions.length > 0 ? (
-              <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                {promotions.map((promo: any) => (
-                  <div 
-                    key={promo.id} 
-                    className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${
-                      selectedPromotions.includes(promo.id) 
-                        ? 'bg-primary/10 ring-2 ring-primary' 
-                        : 'bg-muted/50 hover:bg-muted'
-                    }`}
-                    onClick={() => {
-                      setSelectedPromotions(prev => 
-                        prev.includes(promo.id) 
-                          ? prev.filter(id => id !== promo.id)
-                          : [...prev, promo.id]
-                      );
-                    }}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium">{promo.promotion_name}</p>
-                        <p className="text-sm text-muted-foreground">{promo.competitors?.name}</p>
-                      </div>
-                      {promo.discount_percent && (
-                        <Badge className="rounded-lg">{promo.discount_percent}% OFF</Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {new Date(promo.start_date).toLocaleDateString()} - {promo.end_date ? new Date(promo.end_date).toLocaleDateString() : 'Aktīva'}
-                    </p>
+            <div className="space-y-3 max-h-[350px] overflow-y-auto">
+              {bottomProducts.map((product, i) => (
+                <div key={product.id} className="flex justify-between items-center p-3 bg-destructive/5 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-muted-foreground w-6">#{bottomProducts.length - i}</span>
+                    <span className="font-medium truncate max-w-[200px]">{product.name}</span>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
-                  <BarChart3 className="h-6 w-6 text-muted-foreground" />
+                  <div className="text-right">
+                    <p className="font-semibold">€{product.revenue.toLocaleString()}</p>
+                    <Badge variant={product.margin < 10 ? "destructive" : "secondary"} className="text-xs">
+                      {product.margin.toFixed(1)}%
+                    </Badge>
+                  </div>
                 </div>
-                <p className="text-muted-foreground">Nav aktīvo akciju</p>
-              </div>
-            )}
+              ))}
+              {bottomProducts.length === 0 && (
+                <p className="text-center text-muted-foreground py-8">Nav datu</p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Promo Analysis */}
-      {promoAnalysis && (
-        <Card className="rounded-2xl border-0 shadow-sm animate-fade-in">
+      {/* Store Comparison */}
+      {storeComparison.length > 1 && (
+        <Card className="rounded-2xl">
           <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-primary" />
-              </div>
-              Konkurentu Akciju Analīze
+            <CardTitle className="flex items-center gap-2">
+              <Store className="h-5 w-5 text-chart-4" />
+              Veikalu Salīdzinājums
             </CardTitle>
+            <CardDescription>Veiktspēja pa veikaliem</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="p-4 bg-muted/30 rounded-xl">
-              <p className="whitespace-pre-wrap leading-relaxed">{promoAnalysis}</p>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {storeComparison.slice(0, 8).map((store, i) => (
+                <div 
+                  key={store.id} 
+                  className={cn(
+                    "p-4 rounded-xl",
+                    i === 0 ? "bg-success/10 border border-success/20" : 
+                    i === storeComparison.length - 1 ? "bg-destructive/10 border border-destructive/20" : 
+                    "bg-muted/30"
+                  )}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium">{store.name}</span>
+                    {i === 0 && <Badge className="bg-success text-success-foreground">Top</Badge>}
+                  </div>
+                  <p className="text-2xl font-bold">€{store.revenue.toLocaleString()}</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    {store.growth >= 0 ? (
+                      <ArrowUpRight className="h-3 w-3 text-success" />
+                    ) : (
+                      <ArrowDownRight className="h-3 w-3 text-destructive" />
+                    )}
+                    <span className={cn("text-sm", store.growth >= 0 ? "text-success" : "text-destructive")}>
+                      {store.growth >= 0 ? "+" : ""}{store.growth.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.scrape-competitor-ai]
 verify_jwt = false
+
+[functions.generate-ai-recommendations]
+verify_jwt = true
