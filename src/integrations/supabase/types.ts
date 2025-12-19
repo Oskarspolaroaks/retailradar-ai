@@ -47,6 +47,66 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_recommendations: {
+        Row: {
+          created_at: string | null
+          expected_impact: string | null
+          expires_at: string | null
+          id: string
+          impact_category: string | null
+          insight: string
+          is_dismissed: boolean | null
+          recommendation: string
+          severity: string
+          store_id: string | null
+          tenant_id: string
+          title: string
+        }
+        Insert: {
+          created_at?: string | null
+          expected_impact?: string | null
+          expires_at?: string | null
+          id?: string
+          impact_category?: string | null
+          insight: string
+          is_dismissed?: boolean | null
+          recommendation: string
+          severity: string
+          store_id?: string | null
+          tenant_id: string
+          title: string
+        }
+        Update: {
+          created_at?: string | null
+          expected_impact?: string | null
+          expires_at?: string | null
+          id?: string
+          impact_category?: string | null
+          insight?: string
+          is_dismissed?: boolean | null
+          recommendation?: string
+          severity?: string
+          store_id?: string | null
+          tenant_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_recommendations_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_recommendations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string
@@ -594,6 +654,66 @@ export type Database = {
           },
           {
             foreignKeyName: "insights_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kpi_targets: {
+        Row: {
+          created_at: string | null
+          critical_threshold: number | null
+          id: string
+          kpi_category: string
+          kpi_name: string
+          scope: string
+          store_id: string | null
+          target_value: number
+          tenant_id: string
+          unit: string | null
+          updated_at: string | null
+          warning_threshold: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          critical_threshold?: number | null
+          id?: string
+          kpi_category: string
+          kpi_name: string
+          scope: string
+          store_id?: string | null
+          target_value: number
+          tenant_id: string
+          unit?: string | null
+          updated_at?: string | null
+          warning_threshold?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          critical_threshold?: number | null
+          id?: string
+          kpi_category?: string
+          kpi_name?: string
+          scope?: string
+          store_id?: string | null
+          target_value?: number
+          tenant_id?: string
+          unit?: string | null
+          updated_at?: string | null
+          warning_threshold?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpi_targets_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kpi_targets_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -1477,6 +1597,38 @@ export type Database = {
             foreignKeyName: "stores_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_onboarding: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          kpi_setup_completed: boolean | null
+          tenant_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          kpi_setup_completed?: boolean | null
+          tenant_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          kpi_setup_completed?: boolean | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_onboarding_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
