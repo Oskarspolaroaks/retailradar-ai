@@ -50,6 +50,7 @@ import { Badge } from "@/components/ui/badge";
 import { KPIOnboardingWizard } from "@/components/kpi/KPIOnboardingWizard";
 import { AIAdvisorPanel } from "@/components/kpi/AIAdvisorPanel";
 import { StoreSelector } from "@/components/kpi/StoreSelector";
+import { KPIExportButton } from "@/components/kpi/KPIExportButton";
 import { cn } from "@/lib/utils";
 
 // KPI Card Component
@@ -513,6 +514,13 @@ const Dashboard = () => {
                 Mājaslapa
               </Button>
             </Link>
+            <KPIExportButton
+              kpiData={kpiData}
+              topProducts={topProducts}
+              bottomProducts={bottomProducts}
+              storeComparison={storeComparison}
+              dateRange={dateRange}
+            />
           </div>
         </div>
       </div>
