@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { RefreshCw, Zap } from "lucide-react";
 import { ImportDataDialog } from "@/components/ImportDataDialog";
+import { KPISettingsSection } from "@/components/kpi/KPISettingsSection";
 
 interface ABCSettings {
   id: string;
@@ -129,6 +130,8 @@ const Settings = () => {
         </div>
         <ImportDataDialog />
       </div>
+
+      <KPISettingsSection />
 
       <Card>
         <CardHeader>
