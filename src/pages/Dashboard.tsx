@@ -657,7 +657,7 @@ const Dashboard = () => {
       <AIAdvisorPanel tenantId={tenantId || undefined} storeId={selectedStore !== "all" ? selectedStore : undefined} />
 
       {/* Charts & Detailed Analysis */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div id="dashboard-charts" className="grid gap-6 lg:grid-cols-2">
         {/* ABC Segmentation */}
         <Card className="rounded-2xl">
           <CardHeader>
