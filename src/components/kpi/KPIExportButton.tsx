@@ -17,8 +17,9 @@ interface KPIData {
   revenueGrowth: number;
   unitsSold: number;
   unitsChange: number;
-  avgSellingPrice: number;
-  aspChange: number;
+  avgTicket: number;
+  avgTicketChange: number;
+  transactionCount: number;
   revenuePerStore: number;
   grossMargin: number;
   marginChange: number;
@@ -49,6 +50,7 @@ interface StoreData {
   name: string;
   code: string;
   revenue: number;
+  avgTicket?: number;
   growth: number;
 }
 
@@ -90,7 +92,8 @@ export const KPIExportButton = ({
     summary += `• Kopējie ieņēmumi: €${kpiData.totalRevenue.toLocaleString("lv-LV", { maximumFractionDigits: 0 })}\n`;
     summary += `• Ieņēmumu izmaiņa: ${kpiData.revenueGrowth >= 0 ? "+" : ""}${kpiData.revenueGrowth.toFixed(1)}%\n`;
     summary += `• Pārdotās vienības: ${kpiData.unitsSold.toLocaleString("lv-LV")}\n`;
-    summary += `• Vidējā pārdošanas cena: €${kpiData.avgSellingPrice.toFixed(2)}\n`;
+    summary += `• Vidējais čeks: €${kpiData.avgTicket.toFixed(2)}\n`;
+    summary += `• Transakciju skaits: ${kpiData.transactionCount.toLocaleString("lv-LV")}\n`;
     summary += `• Ieņēmumi uz veikalu: €${kpiData.revenuePerStore.toLocaleString("lv-LV", { maximumFractionDigits: 0 })}\n\n`;
 
     // Profitability
@@ -148,7 +151,7 @@ export const KPIExportButton = ({
       summary += `VEIKALU SALĪDZINĀJUMS\n`;
       summary += `─────────────────────────────────────\n`;
       storeComparison.slice(0, 5).forEach((s, i) => {
-        summary += `${i + 1}. ${s.name} (${s.code}) — €${s.revenue.toLocaleString("lv-LV", { maximumFractionDigits: 0 })} (${s.growth >= 0 ? "+" : ""}${s.growth.toFixed(1)}%)\n`;
+        summary += `${i + 1}. ${s.name} (${s.code}) — €${s.revenue.toLocaleString("lv-LV", { maximumFractionDigits: 0 })} | Čeks: €${s.avgTicket?.toFixed(2) || 'N/A'} (${s.growth >= 0 ? "+" : ""}${s.growth.toFixed(1)}%)\n`;
       });
       summary += `\n`;
     }
@@ -166,7 +169,8 @@ export const KPIExportButton = ({
     // Sales
     csv += `Pārdošana,Kopējie ieņēmumi,${kpiData.totalRevenue.toFixed(2)},EUR,${kpiData.revenueGrowth.toFixed(1)}%\n`;
     csv += `Pārdošana,Pārdotās vienības,${kpiData.unitsSold},gab,${kpiData.unitsChange.toFixed(1)}%\n`;
-    csv += `Pārdošana,Vidējā cena,${kpiData.avgSellingPrice.toFixed(2)},EUR,${kpiData.aspChange.toFixed(1)}%\n`;
+    csv += `Pārdošana,Vidējais čeks,${kpiData.avgTicket.toFixed(2)},EUR,${kpiData.avgTicketChange.toFixed(1)}%\n`;
+    csv += `Pārdošana,Transakciju skaits,${kpiData.transactionCount},gab,\n`;
     csv += `Pārdošana,Ieņēmumi uz veikalu,${kpiData.revenuePerStore.toFixed(2)},EUR,\n`;
 
     // Profitability
@@ -201,9 +205,9 @@ export const KPIExportButton = ({
     // Store Comparison
     if (storeComparison.length > 0) {
       csv += `\n\nVEIKALU SALĪDZINĀJUMS\n`;
-      csv += `Vieta,Veikals,Kods,Ieņēmumi,Izmaiņa\n`;
+      csv += `Vieta,Veikals,Kods,Ieņēmumi,Vidējais Čeks,Izmaiņa\n`;
       storeComparison.forEach((s, i) => {
-        csv += `${i + 1},"${s.name}",${s.code},${s.revenue.toFixed(2)},${s.growth.toFixed(1)}%\n`;
+        csv += `${i + 1},"${s.name}",${s.code},${s.revenue.toFixed(2)},${s.avgTicket?.toFixed(2) || ''},${s.growth.toFixed(1)}%\n`;
       });
     }
 
@@ -256,7 +260,7 @@ export const KPIExportButton = ({
         { label: "Kopējie Ieņēmumi", value: `€${kpiData.totalRevenue.toLocaleString("lv-LV", { maximumFractionDigits: 0 })}`, change: kpiData.revenueGrowth },
         { label: "Bruto Marža", value: `${kpiData.grossMargin.toFixed(1)}%`, change: kpiData.marginChange },
         { label: "Pārdotās Vienības", value: kpiData.unitsSold.toLocaleString("lv-LV"), change: kpiData.unitsChange },
-        { label: "Vidējā Cena", value: `€${kpiData.avgSellingPrice.toFixed(2)}`, change: kpiData.aspChange },
+        { label: "Vidējais Čeks", value: `€${kpiData.avgTicket.toFixed(2)}`, change: kpiData.avgTicketChange },
       ];
 
       const boxWidth = (pageWidth - margin * 2 - 15) / 2;
