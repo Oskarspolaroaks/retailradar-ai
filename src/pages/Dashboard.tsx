@@ -97,51 +97,53 @@ const KPICard = ({
 
   return (
     <Card className={cn(
-      "group relative overflow-hidden rounded-2xl border-l-4 hover:shadow-lg transition-all duration-300",
+      "group relative overflow-hidden rounded-xl sm:rounded-2xl border-l-4 hover:shadow-lg transition-all duration-300",
       gradient,
       statusBorder[status]
     )}>
-      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform" />
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <div className="h-10 w-10 rounded-xl bg-background/50 flex items-center justify-center">
+      <div className="absolute top-0 right-0 w-24 sm:w-32 h-24 sm:h-32 bg-gradient-to-br from-white/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform" />
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+        <CardTitle className="text-[11px] sm:text-sm font-medium text-muted-foreground leading-tight">{title}</CardTitle>
+        <div className="h-7 w-7 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl bg-background/50 flex items-center justify-center flex-shrink-0">
           {icon}
         </div>
       </CardHeader>
-      <CardContent>
-        <div className={cn("font-bold tracking-tight", size === "lg" ? "text-4xl" : size === "md" ? "text-3xl" : "text-2xl")}>
+      <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
+        <div className={cn("font-bold tracking-tight", size === "lg" ? "text-xl sm:text-4xl" : size === "md" ? "text-lg sm:text-3xl" : "text-base sm:text-2xl")}>
           {typeof value === "number" ? value.toLocaleString("lv-LV", { maximumFractionDigits: 1 }) : value}
-          {unit && <span className="text-lg font-normal text-muted-foreground ml-1">{unit}</span>}
+          {unit && <span className="text-xs sm:text-lg font-normal text-muted-foreground ml-0.5 sm:ml-1">{unit}</span>}
         </div>
         {change !== undefined && (
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-1 sm:gap-2 mt-1 sm:mt-2 flex-wrap">
             <Badge 
               variant="secondary" 
               className={cn(
-                "border-0 rounded-lg",
+                "border-0 rounded-md sm:rounded-lg text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5",
                 change >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
               )}
             >
               {change >= 0 ? (
-                <ArrowUpRight className="h-3 w-3 mr-1" />
+                <ArrowUpRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5" />
               ) : (
-                <ArrowDownRight className="h-3 w-3 mr-1" />
+                <ArrowDownRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5" />
               )}
               {change >= 0 ? "+" : ""}{change.toFixed(1)}%
             </Badge>
-            <span className="text-xs text-muted-foreground">{changeLabel}</span>
+            <span className="text-[10px] sm:text-xs text-muted-foreground hidden sm:inline">{changeLabel}</span>
           </div>
         )}
         {status === "warning" && target && (
-          <p className="text-xs text-warning mt-2 flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />
-            Zem mērķa ({target}{unit})
+          <p className="text-[10px] sm:text-xs text-warning mt-1 sm:mt-2 flex items-center gap-1">
+            <AlertCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+            <span className="hidden sm:inline">Zem mērķa ({target}{unit})</span>
+            <span className="sm:hidden">Zem mērķa</span>
           </p>
         )}
         {status === "danger" && warning && (
-          <p className="text-xs text-destructive mt-2 flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />
-            Kritisks līmenis!
+          <p className="text-[10px] sm:text-xs text-destructive mt-1 sm:mt-2 flex items-center gap-1">
+            <AlertCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+            <span className="hidden sm:inline">Kritisks līmenis!</span>
+            <span className="sm:hidden">Kritisks!</span>
           </p>
         )}
       </CardContent>
@@ -508,46 +510,52 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="space-y-8 pb-8">
+    <div className="space-y-6 md:space-y-8 pb-8 px-2 sm:px-0">
       {/* Executive Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-background to-accent/20 p-8">
+      <div className="relative overflow-hidden rounded-xl md:rounded-2xl bg-gradient-to-br from-primary/10 via-background to-accent/20 p-4 sm:p-6 md:p-8">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(var(--primary)/0.1),transparent_50%)]" />
-        <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+        <div className="relative z-10 flex flex-col gap-4 md:gap-6">
           <div>
-            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
               Executive Dashboard
             </h1>
-            <p className="text-muted-foreground mt-2 text-lg">
-              Biznesa veiktspējas pārskats — {new Date().toLocaleDateString('lv-LV', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            <p className="text-muted-foreground mt-1 md:mt-2 text-sm md:text-lg">
+              {new Date().toLocaleDateString('lv-LV', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
             </p>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <StoreSelector value={selectedStore} onChange={setSelectedStore} />
-            <Select value={dateRange} onValueChange={setDateRange}>
-              <SelectTrigger className="w-[140px] rounded-xl bg-background">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7">7 dienas</SelectItem>
-                <SelectItem value="30">30 dienas</SelectItem>
-                <SelectItem value="90">90 dienas</SelectItem>
-                <SelectItem value="365">365 dienas</SelectItem>
-              </SelectContent>
-            </Select>
-            <Link to="/">
-              <Button variant="outline" className="gap-2 rounded-xl">
-                <ExternalLink className="h-4 w-4" />
-                Mājaslapa
-              </Button>
-            </Link>
-            <KPIExportButton
-              kpiData={kpiData}
-              topProducts={topProducts}
-              bottomProducts={bottomProducts}
-              storeComparison={storeComparison}
-              dateRange={dateRange}
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 flex-wrap">
+            <div className="flex gap-2 flex-1 min-w-0">
+              <div className="flex-1 min-w-0">
+                <StoreSelector value={selectedStore} onChange={setSelectedStore} />
+              </div>
+              <Select value={dateRange} onValueChange={setDateRange}>
+                <SelectTrigger className="w-[100px] sm:w-[140px] rounded-xl bg-background text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-background">
+                  <SelectItem value="7">7 d.</SelectItem>
+                  <SelectItem value="30">30 d.</SelectItem>
+                  <SelectItem value="90">90 d.</SelectItem>
+                  <SelectItem value="365">365 d.</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Link to="/" className="flex-1 sm:flex-none">
+                <Button variant="outline" className="gap-2 rounded-xl w-full sm:w-auto text-sm">
+                  <ExternalLink className="h-4 w-4" />
+                  <span className="hidden sm:inline">Mājaslapa</span>
+                </Button>
+              </Link>
+              <KPIExportButton
+                kpiData={kpiData}
+                topProducts={topProducts}
+                bottomProducts={bottomProducts}
+                storeComparison={storeComparison}
+                dateRange={dateRange}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -578,11 +586,11 @@ const Dashboard = () => {
 
       {/* PRIMARY KPIs - Sales & Profitability */}
       <section>
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <DollarSign className="h-5 w-5 text-primary" />
+        <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 flex items-center gap-2">
+          <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           Pārdošanas Veiktspēja
         </h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
           <KPICard
             title="Kopējie Ieņēmumi"
             value={kpiData.totalRevenue}
@@ -590,7 +598,7 @@ const Dashboard = () => {
             change={kpiData.revenueGrowth}
             target={kpiTargets.revenue_growth?.target}
             warning={kpiTargets.revenue_growth?.warning}
-            icon={<DollarSign className="h-5 w-5 text-primary" />}
+            icon={<DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />}
             gradient="bg-gradient-to-br from-primary/10 to-primary/5"
             size="lg"
           />
@@ -601,45 +609,43 @@ const Dashboard = () => {
             change={kpiData.marginChange}
             target={kpiTargets.gross_margin?.target}
             warning={kpiTargets.gross_margin?.warning}
-            icon={<Percent className="h-5 w-5 text-success" />}
+            icon={<Percent className="h-4 w-4 sm:h-5 sm:w-5 text-success" />}
             gradient="bg-gradient-to-br from-success/10 to-success/5"
             size="lg"
           />
           <KPICard
-            title="Pārdotas Vienības"
+            title="Pārdotas Vien."
             value={kpiData.unitsSold}
             change={kpiData.unitsChange}
-            icon={<ShoppingCart className="h-5 w-5 text-chart-3" />}
+            icon={<ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-chart-3" />}
             gradient="bg-gradient-to-br from-chart-3/10 to-chart-3/5"
             size="lg"
           />
           <KPICard
-            title="Vidējais Čeks"
+            title="Vid. Čeks"
             value={kpiData.avgTicket}
             unit="€"
             change={kpiData.avgTicketChange}
-            icon={<ShoppingCart className="h-5 w-5 text-chart-4" />}
+            icon={<ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-chart-4" />}
             gradient="bg-gradient-to-br from-chart-4/10 to-chart-4/5"
             size="lg"
           />
         </div>
         
-        {/* Average Ticket by Store */}
+        {/* Average Ticket by Store - Scrollable on mobile */}
         {storeComparison.length > 1 && (
           <div className="mt-4">
-            <h3 className="text-sm font-medium text-muted-foreground mb-3">Vidējais Čeks pa Veikaliem</h3>
-            <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+            <h3 className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 sm:mb-3">Vid. Čeks pa Veikaliem</h3>
+            <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 sm:grid sm:gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 scrollbar-thin">
               {storeComparison.map((store) => (
-                <Card key={store.id} className="p-3 rounded-xl bg-muted/30">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Store className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">{store.code || store.name}</span>
-                    </div>
+                <Card key={store.id} className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-muted/30 flex-shrink-0 w-[120px] sm:w-auto">
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <Store className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium truncate">{store.code || store.name}</span>
                   </div>
-                  <div className="mt-2">
-                    <span className="text-xl font-bold">{store.avgTicket?.toFixed(2) || '0.00'}</span>
-                    <span className="text-sm text-muted-foreground ml-1">€</span>
+                  <div className="mt-1 sm:mt-2">
+                    <span className="text-base sm:text-xl font-bold">{store.avgTicket?.toFixed(2) || '0.00'}</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground ml-1">€</span>
                   </div>
                 </Card>
               ))}
@@ -650,35 +656,35 @@ const Dashboard = () => {
 
       {/* SECONDARY KPIs - Assortment & Operations */}
       <section>
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <Package className="h-5 w-5 text-chart-2" />
+        <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 flex items-center gap-2">
+          <Package className="h-4 w-4 sm:h-5 sm:w-5 text-chart-2" />
           Sortiments & Operācijas
         </h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-2 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
           <KPICard
             title="Aktīvi SKU"
             value={kpiData.skuCount}
-            icon={<Package className="h-4 w-4 text-muted-foreground" />}
+            icon={<Package className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />}
             gradient="bg-card"
             size="sm"
           />
           <KPICard
-            title="A-Produktu Daļa"
+            title="A-Prod. Daļa"
             value={kpiData.aProductsRevenueShare}
             unit="%"
             target={kpiTargets.a_products_revenue_share?.target}
             warning={kpiTargets.a_products_revenue_share?.warning}
-            icon={<BarChart3 className="h-4 w-4 text-chart-1" />}
+            icon={<BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 text-chart-1" />}
             gradient="bg-card"
             size="sm"
           />
           <KPICard
-            title="Krājumu Apgrozījums"
+            title="Apgrozījums"
             value={kpiData.stockTurnover}
             unit="x"
             target={kpiTargets.stock_turnover?.target}
             warning={kpiTargets.stock_turnover?.warning}
-            icon={<Warehouse className="h-4 w-4 text-chart-2" />}
+            icon={<Warehouse className="h-3 w-3 sm:h-4 sm:w-4 text-chart-2" />}
             gradient="bg-card"
             size="sm"
           />
@@ -688,15 +694,15 @@ const Dashboard = () => {
             unit="%"
             target={100}
             warning={105}
-            icon={<Target className="h-4 w-4 text-chart-5" />}
+            icon={<Target className="h-3 w-3 sm:h-4 sm:w-4 text-chart-5" />}
             gradient="bg-card"
             size="sm"
           />
           <KPICard
-            title="Promo Atkarība"
+            title="Promo Atk."
             value={kpiData.promoDependency}
             unit="%"
-            icon={<AlertCircle className="h-4 w-4 text-warning" />}
+            icon={<AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 text-warning" />}
             gradient="bg-card"
             size="sm"
           />
@@ -707,25 +713,25 @@ const Dashboard = () => {
       <AIAdvisorPanel tenantId={tenantId || undefined} storeId={selectedStore !== "all" ? selectedStore : undefined} />
 
       {/* Charts & Detailed Analysis */}
-      <div id="dashboard-charts" className="grid gap-6 lg:grid-cols-2">
+      <div id="dashboard-charts" className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
         {/* ABC Segmentation */}
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-primary" />
+        <Card className="rounded-xl sm:rounded-2xl">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               ABC Segmentācija
             </CardTitle>
-            <CardDescription>Produktu un ieņēmumu sadalījums pa klasēm</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Produktu un ieņēmumu sadalījums</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <Tabs defaultValue="distribution">
-              <TabsList className="mb-4">
-                <TabsTrigger value="distribution">Sadalījums</TabsTrigger>
-                <TabsTrigger value="revenue">Ieņēmumi</TabsTrigger>
+              <TabsList className="mb-3 sm:mb-4 w-full sm:w-auto">
+                <TabsTrigger value="distribution" className="flex-1 sm:flex-none text-xs sm:text-sm">Sadalījums</TabsTrigger>
+                <TabsTrigger value="revenue" className="flex-1 sm:flex-none text-xs sm:text-sm">Ieņēmumi</TabsTrigger>
               </TabsList>
               
               <TabsContent value="distribution">
-                <ResponsiveContainer width="100%" height={280}>
+                <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
                     <Pie
                       data={abcData}
@@ -733,8 +739,8 @@ const Dashboard = () => {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      outerRadius={90}
-                      innerRadius={50}
+                      outerRadius={70}
+                      innerRadius={40}
                       paddingAngle={4}
                       label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                     >
@@ -743,17 +749,17 @@ const Dashboard = () => {
                       ))}
                     </Pie>
                     <Tooltip />
-                    <Legend />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} />
                   </PieChart>
                 </ResponsiveContainer>
               </TabsContent>
 
               <TabsContent value="revenue">
-                <ResponsiveContainer width="100%" height={280}>
+                <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={abcData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip formatter={(value) => `€${Number(value).toLocaleString()}`} />
                     <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
                   </BarChart>
@@ -764,16 +770,16 @@ const Dashboard = () => {
         </Card>
 
         {/* Revenue Trend */}
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-success" />
+        <Card className="rounded-xl sm:rounded-2xl">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-success" />
               Ieņēmumu Tendence
             </CardTitle>
-            <CardDescription>Mēneša ieņēmumi laika gaitā</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Mēneša ieņēmumi laika gaitā</CardDescription>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+            <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={revenueData}>
                 <defs>
                   <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
@@ -782,8 +788,8 @@ const Dashboard = () => {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="month" />
-                <YAxis />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(value) => `€${Number(value).toLocaleString()}`} />
                 <Area 
                   type="monotone" 
@@ -799,62 +805,62 @@ const Dashboard = () => {
       </div>
 
       {/* Top & Bottom Products */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-success">
-              <TrendingUp className="h-5 w-5" />
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
+        <Card className="rounded-xl sm:rounded-2xl">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-success text-base sm:text-lg">
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
               Top 10 Produkti
             </CardTitle>
-            <CardDescription>Augstākie ieņēmumi</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Augstākie ieņēmumi</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[350px] overflow-y-auto">
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+            <div className="space-y-2 sm:space-y-3 max-h-[280px] sm:max-h-[350px] overflow-y-auto">
               {topProducts.map((product, i) => (
-                <div key={product.id} className="flex justify-between items-center p-3 bg-muted/30 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-muted-foreground w-6">#{i + 1}</span>
-                    <span className="font-medium truncate max-w-[200px]">{product.name}</span>
+                <div key={product.id} className="flex justify-between items-center p-2 sm:p-3 bg-muted/30 rounded-lg sm:rounded-xl">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                    <span className="text-xs sm:text-sm font-bold text-muted-foreground w-5 sm:w-6 flex-shrink-0">#{i + 1}</span>
+                    <span className="font-medium truncate text-sm sm:text-base">{product.name}</span>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold">€{product.revenue.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">{product.margin.toFixed(1)}% marža</p>
+                  <div className="text-right flex-shrink-0 ml-2">
+                    <p className="font-semibold text-sm sm:text-base">€{product.revenue.toLocaleString()}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">{product.margin.toFixed(1)}% marža</p>
                   </div>
                 </div>
               ))}
               {topProducts.length === 0 && (
-                <p className="text-center text-muted-foreground py-8">Nav datu</p>
+                <p className="text-center text-muted-foreground py-6 sm:py-8 text-sm">Nav datu</p>
               )}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-destructive">
-              <TrendingDown className="h-5 w-5" />
+        <Card className="rounded-xl sm:rounded-2xl">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-destructive text-base sm:text-lg">
+              <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5" />
               Bottom 10 Produkti
             </CardTitle>
-            <CardDescription>Zemākie ieņēmumi / marža</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Zemākie ieņēmumi / marža</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[350px] overflow-y-auto">
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+            <div className="space-y-2 sm:space-y-3 max-h-[280px] sm:max-h-[350px] overflow-y-auto">
               {bottomProducts.map((product, i) => (
-                <div key={product.id} className="flex justify-between items-center p-3 bg-destructive/5 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-muted-foreground w-6">#{bottomProducts.length - i}</span>
-                    <span className="font-medium truncate max-w-[200px]">{product.name}</span>
+                <div key={product.id} className="flex justify-between items-center p-2 sm:p-3 bg-destructive/5 rounded-lg sm:rounded-xl">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                    <span className="text-xs sm:text-sm font-bold text-muted-foreground w-5 sm:w-6 flex-shrink-0">#{bottomProducts.length - i}</span>
+                    <span className="font-medium truncate text-sm sm:text-base">{product.name}</span>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold">€{product.revenue.toLocaleString()}</p>
-                    <Badge variant={product.margin < 10 ? "destructive" : "secondary"} className="text-xs">
+                  <div className="text-right flex-shrink-0 ml-2">
+                    <p className="font-semibold text-sm sm:text-base">€{product.revenue.toLocaleString()}</p>
+                    <Badge variant={product.margin < 10 ? "destructive" : "secondary"} className="text-[10px] sm:text-xs">
                       {product.margin.toFixed(1)}%
                     </Badge>
                   </div>
                 </div>
               ))}
               {bottomProducts.length === 0 && (
-                <p className="text-center text-muted-foreground py-8">Nav datu</p>
+                <p className="text-center text-muted-foreground py-6 sm:py-8 text-sm">Nav datu</p>
               )}
             </div>
           </CardContent>
@@ -863,38 +869,38 @@ const Dashboard = () => {
 
       {/* Store Comparison */}
       {storeComparison.length > 1 && (
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Store className="h-5 w-5 text-chart-4" />
+        <Card className="rounded-xl sm:rounded-2xl">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Store className="h-4 w-4 sm:h-5 sm:w-5 text-chart-4" />
               Veikalu Salīdzinājums
             </CardTitle>
-            <CardDescription>Veiktspēja pa veikaliem</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Veiktspēja pa veikaliem</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+            <div className="grid gap-2 sm:gap-4 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
               {storeComparison.slice(0, 8).map((store, i) => (
                 <div 
                   key={store.id} 
                   className={cn(
-                    "p-4 rounded-xl",
+                    "p-3 sm:p-4 rounded-lg sm:rounded-xl",
                     i === 0 ? "bg-success/10 border border-success/20" : 
                     i === storeComparison.length - 1 ? "bg-destructive/10 border border-destructive/20" : 
                     "bg-muted/30"
                   )}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium">{store.name}</span>
-                    {i === 0 && <Badge className="bg-success text-success-foreground">Top</Badge>}
+                  <div className="flex items-center justify-between mb-1 sm:mb-2">
+                    <span className="font-medium text-sm sm:text-base truncate">{store.name}</span>
+                    {i === 0 && <Badge className="bg-success text-success-foreground text-[10px] sm:text-xs">Top</Badge>}
                   </div>
-                  <p className="text-2xl font-bold">€{store.revenue.toLocaleString()}</p>
+                  <p className="text-lg sm:text-2xl font-bold">€{store.revenue.toLocaleString()}</p>
                   <div className="flex items-center gap-1 mt-1">
                     {store.growth >= 0 ? (
                       <ArrowUpRight className="h-3 w-3 text-success" />
                     ) : (
                       <ArrowDownRight className="h-3 w-3 text-destructive" />
                     )}
-                    <span className={cn("text-sm", store.growth >= 0 ? "text-success" : "text-destructive")}>
+                    <span className={cn("text-xs sm:text-sm", store.growth >= 0 ? "text-success" : "text-destructive")}>
                       {store.growth >= 0 ? "+" : ""}{store.growth.toFixed(1)}%
                     </span>
                   </div>
