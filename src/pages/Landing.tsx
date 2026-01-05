@@ -20,8 +20,9 @@ import {
   X
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AnimatedSection } from "@/hooks/useScrollAnimation";
 import {
   Accordion,
   AccordionContent,
@@ -30,6 +31,13 @@ import {
 } from "@/components/ui/accordion";
 
 const Landing = () => {
+  // Smooth scroll for anchor links
+  useEffect(() => {
+    document.documentElement.style.scrollBehavior = 'smooth';
+    return () => {
+      document.documentElement.style.scrollBehavior = 'auto';
+    };
+  }, []);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const features = [
@@ -312,14 +320,14 @@ const Landing = () => {
       {/* Overview Section with Tabs - Microsoft style */}
       <section className="py-16 md:py-24 bg-secondary/30">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="text-center mb-8 md:mb-12">
+          <AnimatedSection className="text-center mb-8 md:mb-12">
             <h2 className="text-2xl md:text-4xl font-bold mb-3">
               RetailRadar var mainīt visu
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
               Pilns rīku komplekts Baltijas mazumtirgotājiem
             </p>
-          </div>
+          </AnimatedSection>
 
           <Tabs defaultValue="overview" className="max-w-5xl mx-auto">
             <TabsList className="grid w-full grid-cols-3 mb-8">
@@ -419,12 +427,12 @@ const Landing = () => {
         <div className="container mx-auto px-4 md:px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
             {metrics.map((metric, index) => (
-              <div key={index} className="text-center">
+              <AnimatedSection key={index} delay={index * 100} className="text-center">
                 <div className="text-3xl md:text-4xl font-bold text-primary mb-1">
                   {metric.value}
                 </div>
                 <div className="text-sm text-muted-foreground">{metric.label}</div>
-              </div>
+              </AnimatedSection>
             ))}
           </div>
         </div>
@@ -433,42 +441,44 @@ const Landing = () => {
       {/* Testimonials Section */}
       <section className="py-16 md:py-24">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="text-center mb-8 md:mb-12">
+          <AnimatedSection className="text-center mb-8 md:mb-12">
             <h2 className="text-2xl md:text-4xl font-bold mb-3">
               Ko saka mūsu klienti
             </h2>
             <p className="text-muted-foreground">
               Reāli rezultāti no Baltijas uzņēmumiem
             </p>
-          </div>
+          </AnimatedSection>
 
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {testimonials.map((testimonial, index) => (
-              <Card key={index} className="hover:shadow-lg transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-1 mb-4">
-                    {[...Array(testimonial.rating)].map((_, i) => (
-                      <Star key={i} className="h-4 w-4 fill-primary text-primary" />
-                    ))}
-                  </div>
-                  <p className="text-sm mb-6 leading-relaxed">
-                    "{testimonial.quote}"
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <img 
-                      src={testimonial.image} 
-                      alt={testimonial.name}
-                      className="h-10 w-10 rounded-full object-cover"
-                    />
-                    <div>
-                      <div className="font-medium text-sm">{testimonial.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {testimonial.role}, {testimonial.company}
+              <AnimatedSection key={index} delay={index * 150}>
+                <Card className="hover:shadow-lg transition-shadow h-full">
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-1 mb-4">
+                      {[...Array(testimonial.rating)].map((_, i) => (
+                        <Star key={i} className="h-4 w-4 fill-primary text-primary" />
+                      ))}
+                    </div>
+                    <p className="text-sm mb-6 leading-relaxed">
+                      "{testimonial.quote}"
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src={testimonial.image} 
+                        alt={testimonial.name}
+                        className="h-10 w-10 rounded-full object-cover"
+                      />
+                      <div>
+                        <div className="font-medium text-sm">{testimonial.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {testimonial.role}, {testimonial.company}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </AnimatedSection>
             ))}
           </div>
         </div>
@@ -477,51 +487,57 @@ const Landing = () => {
       {/* Target Audience Section */}
       <section className="py-16 md:py-24 bg-secondary/30">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="text-center mb-8 md:mb-12">
+          <AnimatedSection className="text-center mb-8 md:mb-12">
             <h2 className="text-2xl md:text-4xl font-bold mb-3">
               Kam paredzēts RetailRadar AI?
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
               Mūsu risinājums ir izstrādāts Baltijas mazumtirdzniecības profesionāļiem
             </p>
-          </div>
+          </AnimatedSection>
 
           <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-            <Card className="text-center hover:shadow-lg transition-shadow">
-              <CardContent className="p-6 md:p-8">
-                <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <Users className="h-7 w-7 text-primary" />
-                </div>
-                <h3 className="font-semibold mb-2">Kategoriju vadītāji</h3>
-                <p className="text-sm text-muted-foreground">
-                  Optimizējiet sortimentu un cenas ar datu balstītiem lēmumiem.
-                </p>
-              </CardContent>
-            </Card>
+            <AnimatedSection delay={0}>
+              <Card className="text-center hover:shadow-lg transition-shadow h-full">
+                <CardContent className="p-6 md:p-8">
+                  <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <Users className="h-7 w-7 text-primary" />
+                  </div>
+                  <h3 className="font-semibold mb-2">Kategoriju vadītāji</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Optimizējiet sortimentu un cenas ar datu balstītiem lēmumiem.
+                  </p>
+                </CardContent>
+              </Card>
+            </AnimatedSection>
             
-            <Card className="text-center hover:shadow-lg transition-shadow">
-              <CardContent className="p-6 md:p-8">
-                <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <TrendingUp className="h-7 w-7 text-primary" />
-                </div>
-                <h3 className="font-semibold mb-2">Cenu analītiķi</h3>
-                <p className="text-sm text-muted-foreground">
-                  Automatizējiet konkurentu monitoringu un cenu analīzi.
-                </p>
-              </CardContent>
-            </Card>
+            <AnimatedSection delay={150}>
+              <Card className="text-center hover:shadow-lg transition-shadow h-full">
+                <CardContent className="p-6 md:p-8">
+                  <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <TrendingUp className="h-7 w-7 text-primary" />
+                  </div>
+                  <h3 className="font-semibold mb-2">Cenu analītiķi</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Automatizējiet konkurentu monitoringu un cenu analīzi.
+                  </p>
+                </CardContent>
+              </Card>
+            </AnimatedSection>
             
-            <Card className="text-center hover:shadow-lg transition-shadow">
-              <CardContent className="p-6 md:p-8">
-                <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <Shield className="h-7 w-7 text-primary" />
-                </div>
-                <h3 className="font-semibold mb-2">Vadības komanda</h3>
-                <p className="text-sm text-muted-foreground">
-                  Saņemiet pilnu pārskatu par maržu un konkurētspēju.
-                </p>
-              </CardContent>
-            </Card>
+            <AnimatedSection delay={300}>
+              <Card className="text-center hover:shadow-lg transition-shadow h-full">
+                <CardContent className="p-6 md:p-8">
+                  <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <Shield className="h-7 w-7 text-primary" />
+                  </div>
+                  <h3 className="font-semibold mb-2">Vadības komanda</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Saņemiet pilnu pārskatu par maržu un konkurētspēju.
+                  </p>
+                </CardContent>
+              </Card>
+            </AnimatedSection>
           </div>
         </div>
       </section>
@@ -530,11 +546,11 @@ const Landing = () => {
       <section className="py-16 md:py-24">
         <div className="container mx-auto px-4 md:px-6">
           <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-8 md:mb-12">
+            <AnimatedSection className="text-center mb-8 md:mb-12">
               <h2 className="text-2xl md:text-4xl font-bold mb-3">
                 Bieži uzdotie jautājumi
               </h2>
-            </div>
+            </AnimatedSection>
 
             <Accordion type="single" collapsible className="space-y-3">
               {faqItems.map((item, index) => (
@@ -555,7 +571,7 @@ const Landing = () => {
       {/* CTA Section */}
       <section className="py-16 md:py-24 bg-primary/5">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="max-w-3xl mx-auto text-center">
+          <AnimatedSection className="max-w-3xl mx-auto text-center">
             <h2 className="text-2xl md:text-4xl font-bold mb-4">
               Gatavi sākt?
             </h2>
@@ -581,7 +597,7 @@ const Landing = () => {
             <p className="text-xs text-muted-foreground mt-6">
               14 dienu bezmaksas izmēģinājums • Nav nepieciešama kredītkarte • GDPR atbilstība
             </p>
-          </div>
+          </AnimatedSection>
         </div>
       </section>
 
