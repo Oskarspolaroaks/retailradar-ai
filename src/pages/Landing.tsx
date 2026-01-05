@@ -1,176 +1,415 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { 
-  BarChart3, 
-  TrendingUp, 
-  Target, 
-  Zap, 
-  Shield, 
-  Users,
   ArrowRight,
-  CheckCircle,
-  LineChart,
-  PieChart,
-  Brain,
-  Store,
-  Star,
-  ChevronRight,
-  ChevronDown,
   Menu,
-  X
+  X,
+  Sparkles
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AnimatedSection } from "@/hooks/useScrollAnimation";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+
+// Import images
+import heroTeamImg from "@/assets/hero-team.jpg";
+import pricemindAiImg from "@/assets/pricemind-ai.jpg";
+import analyticsWorkImg from "@/assets/analytics-work.jpg";
+import retailManagerImg from "@/assets/retail-manager.jpg";
+import smartPricingImg from "@/assets/smart-pricing.jpg";
 
 const Landing = () => {
-  // Smooth scroll for anchor links
-  useEffect(() => {
-    document.documentElement.style.scrollBehavior = 'smooth';
-    return () => {
-      document.documentElement.style.scrollBehavior = 'auto';
-    };
-  }, []);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
-  const features = [
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const services = [
     {
-      icon: BarChart3,
-      title: "ABC Segmentācija",
-      description: "Automātiska produktu klasifikācija pēc ienesīguma ar konfigurējamiem sliekšņiem.",
-      image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=400&fit=crop"
+      number: "01",
+      title: "CENU ANALĪTIKA",
+      description: "Reāllaika konkurentu cenu monitorings un automatizēta analīze visām jūsu produktu kategorijām.",
+      image: analyticsWorkImg
     },
     {
-      icon: TrendingUp,
-      title: "Cenu Elastība",
-      description: "Pieprasījuma jutīguma analīze optimālai cenu noteikšanai.",
-      image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&h=400&fit=crop"
+      number: "02", 
+      title: "PRICEMIND COPILOT",
+      description: "Jūsu neredzamais cenu stratēģis. AI asistents, kas saprot jūsu biznesu un sniedz konkrētus ieteikumus dabiskā valodā.",
+      image: pricemindAiImg
     },
     {
-      icon: Target,
-      title: "Smart Price",
-      description: "Automātiskas cenu rekomendācijas, kas aizsargā peļņas maržu.",
-      image: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=600&h=400&fit=crop"
+      number: "03",
+      title: "SMART PRICING",
+      description: "Automātiskas cenu rekomendācijas, kas balstās uz pārdošanas datiem, konkurentu cenām un maržas mērķiem.",
+      image: smartPricingImg
     },
     {
-      icon: Brain,
-      title: "PriceMind Copilot",
-      description: "AI asistents ar konkrētām cenu rekomendācijām dabiskā valodā.",
-      image: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&h=400&fit=crop"
-    },
-    {
-      icon: Store,
-      title: "Konkurentu Monitorings",
-      description: "Automātiska konkurentu cenu un akciju izsekošana reāllaikā.",
-      image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop"
-    },
-    {
-      icon: PieChart,
-      title: "Symphony Analītika",
-      description: "Dziļa kategoriju analīze ar produktu lomu noteikšanu.",
-      image: "https://images.unsplash.com/photo-1543286386-713bdd548da4?w=600&h=400&fit=crop"
+      number: "04",
+      title: "VEIKALU PĀRVALDĪBA",
+      description: "Pilns pārskats par katru veikalu — no ABC analīzes līdz pārdošanas trendiem un krājumu optimizācijai.",
+      image: retailManagerImg
     }
   ];
 
-  const overviewFeatures = [
-    {
-      title: "Viss vienkopus",
-      description: "Vienā skatā aplūkojiet visu, kas nepieciešams jūsu biznesam — pārdošanas dati, konkurentu cenas, maržu analīze un AI ieteikumi.",
-      image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop"
-    },
-    {
-      title: "Datu savienošana",
-      description: "Piekļūstiet visiem jūsu datu avotiem vienuviet — ERP sistēmas, Excel faili, konkurentu vietnes un partneru atskaites.",
-      image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=600&fit=crop"
-    },
-    {
-      title: "Viedas rekomendācijas",
-      description: "AI analizē jūsu datus un sniedz konkrētas, izpildāmas rekomendācijas cenu un sortimenta optimizācijai.",
-      image: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&h=600&fit=crop"
-    },
-    {
-      title: "Droša platforma",
-      description: "Uzņēmuma līmeņa drošība ar GDPR atbilstību. Jūsu dati ir aizsargāti ar šifrēšanu un regulārām drošības pārbaudēm.",
-      image: "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800&h=600&fit=crop"
-    }
-  ];
-
-  const testimonials = [
-    {
-      name: "Mārtiņš Liepiņš",
-      role: "Kategoriju vadītājs",
-      company: "Baltic Foods",
-      image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face",
-      quote: "RetailRadar AI palīdzēja mums palielināt A kategorijas produktu maržu par 12% tikai 3 mēnešu laikā.",
-      rating: 5
-    },
-    {
-      name: "Ilze Ozola",
-      role: "Cenu analītiķe",
-      company: "MaxiMart",
-      image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face",
-      quote: "Pirms RetailRadar pavadīju 15 stundas nedēļā manuāli analizējot konkurentu cenas. Tagad tas notiek automātiski.",
-      rating: 5
-    },
-    {
-      name: "Andris Kalniņš",
-      role: "Komercdirektors",
-      company: "SmartRetail",
-      image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face",
-      quote: "AI rekomendācijas ir precīzas un viegli izpildāmas. Mūsu komanda tagad var fokusēties uz stratēģiju.",
-      rating: 5
-    }
-  ];
-
-  const metrics = [
-    { value: "100+", label: "Aktīvi lietotāji" },
-    { value: "8%", label: "Vidējā maržas uzlabošana" },
-    { value: "24/7", label: "Monitorings" },
-    { value: "1M+", label: "Analizēti produkti" }
-  ];
-
-  const faqItems = [
-    {
-      question: "Cik ilgi aizņem ieviešana?",
-      answer: "Pamata ieviešana notiek 1-2 nedēļu laikā. Mūsu komanda palīdz ar datu importu un sistēmas konfigurāciju."
-    },
-    {
-      question: "Vai man ir nepieciešama tehniska pieredze?",
-      answer: "Nē, platforma ir veidota lietotājam draudzīga. Visi rīki ir pieejami caur intuitīvu saskarni bez programmēšanas prasmēm."
-    },
-    {
-      question: "Kādi datu formāti tiek atbalstīti?",
-      answer: "Mēs atbalstām Excel, CSV, API integrācijas un tiešu savienojumu ar populārākajām ERP sistēmām."
-    },
-    {
-      question: "Vai ir pieejams bezmaksas izmēģinājums?",
-      answer: "Jā, piedāvājam 14 dienu bezmaksas izmēģinājumu ar pilnu funkcionalitāti bez kredītkartes."
-    }
+  const stats = [
+    { value: "Since", label: "2024" },
+    { value: "Rīga,", label: "Latvija" }
   ];
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Navigation - Microsoft style clean nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="flex items-center justify-between h-14 md:h-16">
+      {/* Navigation */}
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled ? 'bg-background/95 backdrop-blur-sm border-b border-border' : 'bg-transparent'
+      }`}>
+        <div className="container mx-auto px-6 md:px-12">
+          <div className="flex items-center justify-between h-16 md:h-20">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-                <BarChart3 className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="font-semibold text-lg">RetailRadar AI</span>
+            <Link to="/" className="text-xl font-bold tracking-tight">
+              RETAILRADAR
             </Link>
             
             {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-8">
+              <Link to="/about" className="text-sm font-medium hover:opacity-60 transition-opacity">
+                PAR MUMS
+              </Link>
+              <Link to="/pricing" className="text-sm font-medium hover:opacity-60 transition-opacity">
+                CENAS
+              </Link>
+              <Link to="/auth" className="text-sm font-medium hover:opacity-60 transition-opacity">
+                PIESLĒGTIES
+              </Link>
+              <Link to="/auth">
+                <Button className="rounded-full px-6">
+                  SĀKT TAGAD
+                </Button>
+              </Link>
+            </div>
+
+            {/* Mobile menu button */}
+            <button 
+              className="md:hidden p-2"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+          </div>
+
+          {/* Mobile Navigation */}
+          {mobileMenuOpen && (
+            <div className="md:hidden py-6 border-t border-border">
+              <div className="flex flex-col gap-4">
+                <Link 
+                  to="/about" 
+                  className="text-lg font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  PAR MUMS
+                </Link>
+                <Link 
+                  to="/pricing" 
+                  className="text-lg font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  CENAS
+                </Link>
+                <Link 
+                  to="/auth" 
+                  className="text-lg font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  PIESLĒGTIES
+                </Link>
+                <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
+                  <Button className="w-full rounded-full mt-2">SĀKT TAGAD</Button>
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+      </nav>
+
+      {/* Hero Section - Bold Typography */}
+      <section className="relative min-h-screen hero-gradient flex items-center">
+        {/* Side indicators */}
+        <div className="absolute left-6 md:left-12 top-1/2 -translate-y-1/2 hidden md:flex flex-col items-center gap-3">
+          <div className="w-px h-8 bg-foreground/20" />
+          <span className="text-xs font-medium tracking-wider -rotate-90 origin-center whitespace-nowrap">
+            {stats[0].value} {stats[0].label}
+          </span>
+        </div>
+
+        <div className="absolute right-6 md:right-12 top-1/2 -translate-y-1/2 hidden md:flex flex-col items-center gap-3">
+          <span className="text-xs font-medium tracking-wider -rotate-90 origin-center whitespace-nowrap">
+            {stats[1].value} {stats[1].label}
+          </span>
+          <div className="w-px h-8 bg-foreground/20" />
+        </div>
+
+        <div className="container mx-auto px-6 md:px-12 pt-24 md:pt-32">
+          <div className="max-w-6xl mx-auto text-center">
+            {/* Main headline */}
+            <h1 className="text-display text-[12vw] md:text-[10vw] lg:text-[8vw] leading-[0.85] mb-8">
+              <span className="block">KATRA</span>
+              <span className="block relative">
+                CENA
+                <span className="absolute -right-2 md:-right-4 top-0 text-[3vw] md:text-[2vw] font-normal">™</span>
+              </span>
+              <span className="block">IR SVARĪGA</span>
+            </h1>
+
+            {/* Description */}
+            <p className="text-base md:text-lg text-muted-foreground max-w-xl mx-auto mb-10 leading-relaxed">
+              RetailRadar AI ir cenu analītikas platforma Baltijas mazumtirgotājiem. 
+              No datu analīzes līdz stratēģiskām rekomendācijām — mēs rūpējamies par katru cenu.
+            </p>
+
+            {/* CTA */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link to="/auth">
+                <Button size="lg" className="rounded-full px-8 gap-2 text-base">
+                  SĀKT BEZ MAKSAS
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+              <Link to="/about">
+                <Button size="lg" variant="outline" className="rounded-full px-8 text-base">
+                  UZZINĀT VAIRĀK
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+          <span className="text-xs font-medium tracking-wider">SCROLL</span>
+          <div className="w-px h-12 bg-foreground/30 animate-pulse" />
+        </div>
+      </section>
+
+      {/* Hero Image Section */}
+      <AnimatedSection>
+        <section className="relative">
+          <div className="container mx-auto px-6 md:px-12">
+            <div className="relative -mt-20 md:-mt-32 z-10">
+              <img 
+                src={heroTeamImg} 
+                alt="RetailRadar komanda analizē datus"
+                className="w-full h-[50vh] md:h-[70vh] object-cover rounded-2xl shadow-2xl"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-background/20 to-transparent rounded-2xl" />
+            </div>
+          </div>
+        </section>
+      </AnimatedSection>
+
+      {/* PriceMind Section */}
+      <AnimatedSection>
+        <section className="py-24 md:py-40">
+          <div className="container mx-auto px-6 md:px-12">
+            <div className="grid md:grid-cols-2 gap-12 md:gap-20 items-center">
+              <div>
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/50 text-foreground text-sm font-medium mb-6">
+                  <Sparkles className="h-4 w-4" />
+                  AI-POWERED
+                </div>
+                <h2 className="text-display text-5xl md:text-7xl lg:text-8xl mb-6">
+                  PRICE<br/>MIND
+                </h2>
+                <p className="text-lg md:text-xl text-muted-foreground mb-8 leading-relaxed">
+                  Iepazīstieties ar PriceMind — jūsu neredzamo cenu stratēģi. 
+                  Viņš nepārtraukti analizē jūsu datus, konkurentu cenas un tirgus tendences, 
+                  lai sniegtu jums konkrētus, izpildāmus ieteikumus dabiskā valodā.
+                </p>
+                <ul className="space-y-4 mb-8">
+                  <li className="flex items-start gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full bg-foreground mt-2.5" />
+                    <span className="text-muted-foreground">Jautājiet jebko par cenām, maržām vai konkurentiem</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full bg-foreground mt-2.5" />
+                    <span className="text-muted-foreground">Saņemiet konkrētas darbības ar skaitļiem un pamatojumu</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full bg-foreground mt-2.5" />
+                    <span className="text-muted-foreground">Ietaupiet stundas, ko pavadījāt manuālā analīzē</span>
+                  </li>
+                </ul>
+                <Link to="/auth">
+                  <Button className="rounded-full px-8 gap-2">
+                    IZMĒĢINĀT PRICEMIND
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+              <div className="relative">
+                <img 
+                  src={pricemindAiImg} 
+                  alt="PriceMind AI asistents"
+                  className="w-full aspect-square object-cover rounded-2xl"
+                />
+                <div className="absolute -bottom-4 -right-4 md:-bottom-8 md:-right-8 bg-card border border-border rounded-xl p-4 md:p-6 shadow-xl max-w-xs">
+                  <p className="text-sm font-medium mb-1">PriceMind saka:</p>
+                  <p className="text-xs text-muted-foreground">
+                    "Iesaku paaugstināt Coca-Cola 2L cenu par 3% — konkurenti ir par 8% dārgāki, 
+                    un ABC-A produktam tas palielinās maržu par €2,400/mēn."
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </AnimatedSection>
+
+      {/* Services Section */}
+      <section className="py-24 md:py-40 bg-secondary/30">
+        <div className="container mx-auto px-6 md:px-12">
+          <AnimatedSection>
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-16 md:mb-24">
+              <h2 className="text-display text-4xl md:text-6xl lg:text-7xl">
+                KO MĒS<br/>DARĀM
+              </h2>
+              <p className="text-muted-foreground max-w-md text-lg">
+                Pilns cenu pārvaldības ekosistēma — no datu apkopošanas līdz stratēģisku lēmumu pieņemšanai.
+              </p>
+            </div>
+          </AnimatedSection>
+
+          <div className="space-y-0">
+            {services.map((service, index) => (
+              <AnimatedSection key={index}>
+                <div className="group border-t border-border py-8 md:py-12">
+                  <div className="grid md:grid-cols-12 gap-6 md:gap-8 items-start">
+                    <div className="md:col-span-1">
+                      <span className="text-sm font-medium text-muted-foreground">{service.number}</span>
+                    </div>
+                    <div className="md:col-span-4">
+                      <h3 className="text-2xl md:text-3xl font-bold tracking-tight mb-4 md:mb-0">
+                        {service.title}
+                      </h3>
+                    </div>
+                    <div className="md:col-span-4">
+                      <p className="text-muted-foreground leading-relaxed">
+                        {service.description}
+                      </p>
+                    </div>
+                    <div className="md:col-span-3">
+                      <div className="overflow-hidden rounded-lg">
+                        <img 
+                          src={service.image} 
+                          alt={service.title}
+                          className="w-full h-32 md:h-40 object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </AnimatedSection>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <AnimatedSection>
+        <section className="py-24 md:py-40">
+          <div className="container mx-auto px-6 md:px-12">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
+              <div className="text-center">
+                <div className="text-display text-5xl md:text-7xl mb-2">100+</div>
+                <p className="text-sm text-muted-foreground font-medium tracking-wider">AKTĪVI LIETOTĀJI</p>
+              </div>
+              <div className="text-center">
+                <div className="text-display text-5xl md:text-7xl mb-2">8%</div>
+                <p className="text-sm text-muted-foreground font-medium tracking-wider">MARŽAS PIEAUGUMS</p>
+              </div>
+              <div className="text-center">
+                <div className="text-display text-5xl md:text-7xl mb-2">24/7</div>
+                <p className="text-sm text-muted-foreground font-medium tracking-wider">MONITORINGS</p>
+              </div>
+              <div className="text-center">
+                <div className="text-display text-5xl md:text-7xl mb-2">1M+</div>
+                <p className="text-sm text-muted-foreground font-medium tracking-wider">ANALIZĒTI SKU</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </AnimatedSection>
+
+      {/* Large Image Section */}
+      <AnimatedSection>
+        <section className="py-12 md:py-24">
+          <div className="container mx-auto px-6 md:px-12">
+            <div className="relative overflow-hidden rounded-2xl">
+              <img 
+                src={retailManagerImg} 
+                alt="Mazumtirdzniecības vadītāja ar planšeti"
+                className="w-full h-[60vh] md:h-[80vh] object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-background/80 to-transparent flex items-center">
+                <div className="p-8 md:p-16 max-w-xl">
+                  <h3 className="text-display text-3xl md:text-5xl mb-4">
+                    NO DATIEM<br/>LĪDZ DARBĪBĀM
+                  </h3>
+                  <p className="text-muted-foreground mb-6 text-lg">
+                    Mēs pārvēršam jūsu pārdošanas un tirgus datus konkrētās darbībās, 
+                    kuras jūsu komanda var izpildīt šodien.
+                  </p>
+                  <Link to="/auth">
+                    <Button className="rounded-full px-8 gap-2">
+                      SĀKT TAGAD
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </AnimatedSection>
+
+      {/* CTA Section */}
+      <section className="py-24 md:py-40 bg-foreground text-background">
+        <div className="container mx-auto px-6 md:px-12 text-center">
+          <AnimatedSection>
+            <h2 className="text-display text-5xl md:text-7xl lg:text-8xl mb-6">
+              GATAVI<br/>SĀKT?
+            </h2>
+            <p className="text-background/70 max-w-xl mx-auto mb-10 text-lg">
+              Pievienojieties Baltijas mazumtirgotājiem, kuri jau izmanto RetailRadar AI, 
+              lai pieņemtu gudrākus cenu lēmumus.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link to="/auth">
+                <Button size="lg" variant="secondary" className="rounded-full px-8 gap-2 text-base">
+                  IZVEIDOT KONTU
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+              <Link to="/pricing">
+                <Button size="lg" variant="outline" className="rounded-full px-8 text-base border-background/30 text-background hover:bg-background/10">
+                  APSKATĪT CENAS
+                </Button>
+              </Link>
+            </div>
+          </AnimatedSection>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="py-12 border-t border-border">
+        <div className="container mx-auto px-6 md:px-12">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="text-sm font-medium">
+              RETAILRADAR AI © 2024
+            </div>
+            <div className="flex items-center gap-8">
               <Link to="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Par mums
               </Link>
@@ -180,478 +419,10 @@ const Landing = () => {
               <Link to="/auth" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Pieslēgties
               </Link>
-              <Link to="/auth">
-                <Button size="sm">Sākt bez maksas</Button>
-              </Link>
             </div>
-
-            {/* Mobile menu button */}
-            <button 
-              className="md:hidden p-2"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
-          </div>
-
-          {/* Mobile Navigation */}
-          {mobileMenuOpen && (
-            <div className="md:hidden py-4 border-t border-border">
-              <div className="flex flex-col gap-3">
-                <Link 
-                  to="/about" 
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Par mums
-                </Link>
-                <Link 
-                  to="/pricing" 
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Cenas
-                </Link>
-                <Link 
-                  to="/auth" 
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Pieslēgties
-                </Link>
-                <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
-                  <Button size="sm" className="w-full">Sākt bez maksas</Button>
-                </Link>
-              </div>
+            <div className="text-sm text-muted-foreground">
+              Rīga, Latvija
             </div>
-          )}
-        </div>
-      </nav>
-
-      {/* Hero Section - Microsoft style with large image */}
-      <section className="pt-16 md:pt-20">
-        <div className="relative bg-gradient-to-b from-secondary/50 to-background">
-          {/* Hero Image */}
-          <div className="container mx-auto px-4 md:px-6 pt-12 md:pt-20 pb-8 md:pb-12">
-            <div className="max-w-4xl mx-auto text-center mb-8 md:mb-12">
-              <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-4 md:mb-6">
-                Cenu analītika ikdienas biznesam
-              </h1>
-              <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-6 md:mb-8">
-                Pārvaldiet cenas, konkurentu datus un peļņas analīzi vienuviet. 
-                Pieejams datorā un mobilajā ierīcē.
-              </p>
-              
-              {/* CTA Buttons - Microsoft style */}
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8">
-                <Link to="/auth">
-                  <Button size="lg" className="w-full sm:w-auto px-8">
-                    Pieslēgties
-                  </Button>
-                </Link>
-                <Link to="/auth">
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto px-8">
-                    Izveidot bezmaksas kontu
-                  </Button>
-                </Link>
-              </div>
-            </div>
-
-            {/* Dashboard Preview Image */}
-            <div className="relative max-w-5xl mx-auto">
-              <div className="rounded-xl overflow-hidden shadow-2xl border border-border bg-card">
-                <div className="bg-card p-4 md:p-6">
-                  {/* Mock Dashboard Header */}
-                  <div className="flex items-center gap-3 mb-4 md:mb-6">
-                    <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <LineChart className="h-4 w-4 md:h-5 md:w-5 text-primary" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-sm md:text-base">Izpilddirektora panelis</div>
-                      <div className="text-xs text-muted-foreground">Reāllaika dati</div>
-                    </div>
-                    <div className="ml-auto flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                      <span className="text-xs text-muted-foreground hidden sm:inline">Tiešsaistē</span>
-                    </div>
-                  </div>
-                  
-                  {/* Mock Stats Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
-                    <div className="p-3 md:p-4 rounded-lg bg-secondary/50">
-                      <div className="text-xs text-muted-foreground mb-1">Apgrozījums</div>
-                      <div className="text-lg md:text-2xl font-bold">€124,500</div>
-                      <div className="text-xs text-green-600">+12.5%</div>
-                    </div>
-                    <div className="p-3 md:p-4 rounded-lg bg-secondary/50">
-                      <div className="text-xs text-muted-foreground mb-1">Marža</div>
-                      <div className="text-lg md:text-2xl font-bold">24.8%</div>
-                      <div className="text-xs text-green-600">+2.3%</div>
-                    </div>
-                    <div className="p-3 md:p-4 rounded-lg bg-secondary/50">
-                      <div className="text-xs text-muted-foreground mb-1">Produkti</div>
-                      <div className="text-lg md:text-2xl font-bold">1,248</div>
-                      <div className="text-xs text-muted-foreground">Aktīvi</div>
-                    </div>
-                    <div className="p-3 md:p-4 rounded-lg bg-secondary/50">
-                      <div className="text-xs text-muted-foreground mb-1">Ieteikumi</div>
-                      <div className="text-lg md:text-2xl font-bold">28</div>
-                      <div className="text-xs text-primary">Jauni</div>
-                    </div>
-                  </div>
-
-                  {/* Mock Chart */}
-                  <div className="h-24 md:h-32 bg-secondary/30 rounded-lg flex items-end justify-around p-3 md:p-4">
-                    {[40, 65, 45, 80, 55, 90, 70, 85, 60, 75, 50, 88].map((height, i) => (
-                      <div 
-                        key={i} 
-                        className="w-4 md:w-6 bg-primary/60 rounded-t"
-                        style={{ height: `${height}%` }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Overview Section with Tabs - Microsoft style */}
-      <section className="py-16 md:py-24 bg-secondary/30">
-        <div className="container mx-auto px-4 md:px-6">
-          <AnimatedSection className="text-center mb-8 md:mb-12">
-            <h2 className="text-2xl md:text-4xl font-bold mb-3">
-              RetailRadar var mainīt visu
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Pilns rīku komplekts Baltijas mazumtirgotājiem
-            </p>
-          </AnimatedSection>
-
-          <Tabs defaultValue="overview" className="max-w-5xl mx-auto">
-            <TabsList className="grid w-full grid-cols-3 mb-8">
-              <TabsTrigger value="overview">Pārskats</TabsTrigger>
-              <TabsTrigger value="features">Funkcijas</TabsTrigger>
-              <TabsTrigger value="ai">AI Copilot</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview" className="space-y-4">
-              <Accordion type="single" collapsible className="space-y-3">
-                {overviewFeatures.map((feature, index) => (
-                  <AccordionItem key={index} value={`item-${index}`} className="border rounded-xl bg-card overflow-hidden">
-                    <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-secondary/50">
-                      <span className="font-semibold text-left">{feature.title}</span>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-6 pb-4">
-                      <div className="grid md:grid-cols-2 gap-6 items-center">
-                        <p className="text-muted-foreground">{feature.description}</p>
-                        <img 
-                          src={feature.image} 
-                          alt={feature.title}
-                          className="rounded-lg w-full h-48 object-cover"
-                        />
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            </TabsContent>
-
-            <TabsContent value="features">
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {features.map((feature, index) => (
-                  <Card key={index} className="group hover:shadow-lg transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-                        <feature.icon className="h-6 w-6 text-primary" />
-                      </div>
-                      <h3 className="font-semibold mb-2">{feature.title}</h3>
-                      <p className="text-sm text-muted-foreground">{feature.description}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="ai">
-              <Card className="overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="grid md:grid-cols-2">
-                    <div className="p-6 md:p-8">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm mb-4">
-                        <Brain className="h-4 w-4" />
-                        <span>AI-Powered</span>
-                      </div>
-                      <h3 className="text-2xl font-bold mb-4">PriceMind Copilot</h3>
-                      <p className="text-muted-foreground mb-6">
-                        Jautājiet jebko par jūsu cenām, konkurentiem vai peļņu dabiskā valodā. 
-                        AI analizē jūsu datus un sniedz konkrētas atbildes ar ieteikumiem.
-                      </p>
-                      <ul className="space-y-3">
-                        <li className="flex items-center gap-3">
-                          <CheckCircle className="h-5 w-5 text-primary" />
-                          <span className="text-sm">Atbildes dabiskā valodā</span>
-                        </li>
-                        <li className="flex items-center gap-3">
-                          <CheckCircle className="h-5 w-5 text-primary" />
-                          <span className="text-sm">Konkrēti cenu ieteikumi</span>
-                        </li>
-                        <li className="flex items-center gap-3">
-                          <CheckCircle className="h-5 w-5 text-primary" />
-                          <span className="text-sm">Konkurentu analīze</span>
-                        </li>
-                      </ul>
-                    </div>
-                    <div className="bg-secondary/50 p-6 md:p-8">
-                      {/* Mock AI Chat */}
-                      <div className="space-y-4">
-                        <div className="bg-background rounded-lg p-3">
-                          <p className="text-sm">Kurus produktus vajadzētu paaugstināt cenā?</p>
-                        </div>
-                        <div className="bg-primary/10 rounded-lg p-3">
-                          <p className="text-sm">Balstoties uz ABC analīzi, ieteicu paaugstināt cenu 12 A-kategorijas produktiem ar zemu cenu indeksu. Potenciālā maržas uzlabošana: +€2,340 mēnesī.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
-      </section>
-
-      {/* Metrics Section */}
-      <section className="py-12 md:py-16 border-y border-border">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
-            {metrics.map((metric, index) => (
-              <AnimatedSection key={index} delay={index * 100} className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-primary mb-1">
-                  {metric.value}
-                </div>
-                <div className="text-sm text-muted-foreground">{metric.label}</div>
-              </AnimatedSection>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials Section */}
-      <section className="py-16 md:py-24">
-        <div className="container mx-auto px-4 md:px-6">
-          <AnimatedSection className="text-center mb-8 md:mb-12">
-            <h2 className="text-2xl md:text-4xl font-bold mb-3">
-              Ko saka mūsu klienti
-            </h2>
-            <p className="text-muted-foreground">
-              Reāli rezultāti no Baltijas uzņēmumiem
-            </p>
-          </AnimatedSection>
-
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {testimonials.map((testimonial, index) => (
-              <AnimatedSection key={index} delay={index * 150}>
-                <Card className="hover:shadow-lg transition-shadow h-full">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-1 mb-4">
-                      {[...Array(testimonial.rating)].map((_, i) => (
-                        <Star key={i} className="h-4 w-4 fill-primary text-primary" />
-                      ))}
-                    </div>
-                    <p className="text-sm mb-6 leading-relaxed">
-                      "{testimonial.quote}"
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <img 
-                        src={testimonial.image} 
-                        alt={testimonial.name}
-                        className="h-10 w-10 rounded-full object-cover"
-                      />
-                      <div>
-                        <div className="font-medium text-sm">{testimonial.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {testimonial.role}, {testimonial.company}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </AnimatedSection>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Target Audience Section */}
-      <section className="py-16 md:py-24 bg-secondary/30">
-        <div className="container mx-auto px-4 md:px-6">
-          <AnimatedSection className="text-center mb-8 md:mb-12">
-            <h2 className="text-2xl md:text-4xl font-bold mb-3">
-              Kam paredzēts RetailRadar AI?
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Mūsu risinājums ir izstrādāts Baltijas mazumtirdzniecības profesionāļiem
-            </p>
-          </AnimatedSection>
-
-          <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-            <AnimatedSection delay={0}>
-              <Card className="text-center hover:shadow-lg transition-shadow h-full">
-                <CardContent className="p-6 md:p-8">
-                  <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                    <Users className="h-7 w-7 text-primary" />
-                  </div>
-                  <h3 className="font-semibold mb-2">Kategoriju vadītāji</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Optimizējiet sortimentu un cenas ar datu balstītiem lēmumiem.
-                  </p>
-                </CardContent>
-              </Card>
-            </AnimatedSection>
-            
-            <AnimatedSection delay={150}>
-              <Card className="text-center hover:shadow-lg transition-shadow h-full">
-                <CardContent className="p-6 md:p-8">
-                  <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                    <TrendingUp className="h-7 w-7 text-primary" />
-                  </div>
-                  <h3 className="font-semibold mb-2">Cenu analītiķi</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Automatizējiet konkurentu monitoringu un cenu analīzi.
-                  </p>
-                </CardContent>
-              </Card>
-            </AnimatedSection>
-            
-            <AnimatedSection delay={300}>
-              <Card className="text-center hover:shadow-lg transition-shadow h-full">
-                <CardContent className="p-6 md:p-8">
-                  <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                    <Shield className="h-7 w-7 text-primary" />
-                  </div>
-                  <h3 className="font-semibold mb-2">Vadības komanda</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Saņemiet pilnu pārskatu par maržu un konkurētspēju.
-                  </p>
-                </CardContent>
-              </Card>
-            </AnimatedSection>
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ Section */}
-      <section className="py-16 md:py-24">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="max-w-3xl mx-auto">
-            <AnimatedSection className="text-center mb-8 md:mb-12">
-              <h2 className="text-2xl md:text-4xl font-bold mb-3">
-                Bieži uzdotie jautājumi
-              </h2>
-            </AnimatedSection>
-
-            <Accordion type="single" collapsible className="space-y-3">
-              {faqItems.map((item, index) => (
-                <AccordionItem key={index} value={`faq-${index}`} className="border rounded-xl bg-card overflow-hidden">
-                  <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-secondary/50">
-                    <span className="font-medium text-left">{item.question}</span>
-                  </AccordionTrigger>
-                  <AccordionContent className="px-6 pb-4">
-                    <p className="text-muted-foreground">{item.answer}</p>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-16 md:py-24 bg-primary/5">
-        <div className="container mx-auto px-4 md:px-6">
-          <AnimatedSection className="max-w-3xl mx-auto text-center">
-            <h2 className="text-2xl md:text-4xl font-bold mb-4">
-              Gatavi sākt?
-            </h2>
-            <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-              Pievienojieties 100+ Baltijas mazumtirgotājiem, kas jau izmanto RetailRadar AI 
-              peļņas palielināšanai.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link to="/auth">
-                <Button size="lg" className="w-full sm:w-auto px-8">
-                  Sākt bez maksas
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </Link>
-              <Link to="/pricing">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto px-8">
-                  Apskatīt cenas
-                </Button>
-              </Link>
-            </div>
-
-            <p className="text-xs text-muted-foreground mt-6">
-              14 dienu bezmaksas izmēģinājums • Nav nepieciešama kredītkarte • GDPR atbilstība
-            </p>
-          </AnimatedSection>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-border py-12 md:py-16">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8 md:mb-12">
-            <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-                  <BarChart3 className="h-5 w-5 text-primary-foreground" />
-                </div>
-                <span className="font-semibold">RetailRadar AI</span>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                AI cenu analītikas platforma Baltijas mazumtirgotājiem.
-              </p>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold mb-4 text-sm">Produkts</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link to="/about" className="hover:text-foreground transition-colors">Par mums</Link></li>
-                <li><Link to="/pricing" className="hover:text-foreground transition-colors">Cenas</Link></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Funkcijas</a></li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold mb-4 text-sm">Resursi</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground transition-colors">Dokumentācija</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">API</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Atbalsts</a></li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold mb-4 text-sm">Juridiskā info</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground transition-colors">Privātuma politika</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Lietošanas noteikumi</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">GDPR</a></li>
-              </ul>
-            </div>
-          </div>
-          
-          <div className="border-t border-border pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">
-              © 2024 RetailRadar AI. Visas tiesības aizsargātas.
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Izveidots Rīgā, Latvijā
-            </p>
           </div>
         </div>
       </footer>
