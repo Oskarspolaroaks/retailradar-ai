@@ -65,7 +65,7 @@ serve(async (req) => {
 
       const { data: salesHistory } = await supabase
         .from('sales_daily')
-        .select('date, units_sold, revenue, product_id')
+        .select('date, units_sold, selling_price, purchase_price, product_id')
         .eq('product_id', pid)
         .eq('tenant_id', tenant_id)
         .gte('date', startDate.toISOString().split('T')[0])

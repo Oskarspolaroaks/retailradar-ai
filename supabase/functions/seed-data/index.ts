@@ -236,8 +236,7 @@ serve(async (req) => {
           
           if (unitsSold > 0) {
             const promoFlag = Math.random() > 0.85;
-            const actualPrice = promoFlag ? product.current_price * 0.85 : product.current_price;
-            const revenue = actualPrice * unitsSold;
+            const sellingPrice = promoFlag ? product.current_price * 0.85 : product.current_price;
             
             salesRecords.push({
               tenant_id,
@@ -245,8 +244,8 @@ serve(async (req) => {
               store_id: storeData[Math.floor(Math.random() * storeData.length)].id,
               date: date.toISOString().split('T')[0],
               units_sold: unitsSold,
-              revenue: revenue,
-              regular_price: product.current_price,
+              selling_price: sellingPrice,
+              purchase_price: product.cost_price,
               promo_flag: promoFlag,
             });
           }

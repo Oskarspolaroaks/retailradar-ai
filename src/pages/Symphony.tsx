@@ -137,34 +137,36 @@ const Symphony = () => {
     // Get sales data
     const { data: recentSales } = await supabase
       .from("sales_daily")
-      .select("product_id, units_sold, revenue")
+      .select("product_id, units_sold, selling_price, purchase_price")
       .in("product_id", productIds)
       .gte("date", midDate.toISOString().split('T')[0]);
 
     const { data: olderSales } = await supabase
       .from("sales_daily")
-      .select("product_id, units_sold, revenue")
+      .select("product_id, units_sold, selling_price, purchase_price")
       .in("product_id", productIds)
       .gte("date", startDate.toISOString().split('T')[0])
       .lt("date", midDate.toISOString().split('T')[0]);
 
-    // Calculate sales by product
+    // Calculate sales by product (revenue = selling_price - purchase_price)
     const recentSalesByProduct = new Map();
     const olderSalesByProduct = new Map();
 
     recentSales?.forEach(s => {
+      const revenue = ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0);
       const current = recentSalesByProduct.get(s.product_id) || { units: 0, revenue: 0 };
       recentSalesByProduct.set(s.product_id, {
         units: current.units + Number(s.units_sold),
-        revenue: current.revenue + Number(s.revenue)
+        revenue: current.revenue + revenue
       });
     });
 
     olderSales?.forEach(s => {
+      const revenue = ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0);
       const current = olderSalesByProduct.get(s.product_id) || { units: 0, revenue: 0 };
       olderSalesByProduct.set(s.product_id, {
         units: current.units + Number(s.units_sold),
-        revenue: current.revenue + Number(s.revenue)
+        revenue: current.revenue + revenue
       });
     });
 

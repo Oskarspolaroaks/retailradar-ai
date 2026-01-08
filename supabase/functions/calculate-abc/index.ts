@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
     // Get sales data aggregated by product
     const { data: salesData, error: salesError } = await supabase
       .from('sales_daily')
-      .select('product_id, revenue, units_sold')
+      .select('product_id, selling_price, purchase_price, units_sold')
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0]);
 
@@ -108,12 +108,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Aggregate revenue by product
+    // Aggregate revenue by product (calculated as selling_price - purchase_price)
     const productRevenue = new Map<string, number>();
     
-    salesData?.forEach((sale) => {
+    salesData?.forEach((sale: any) => {
+      const revenue = ((Number(sale.selling_price) || 0) - (Number(sale.purchase_price) || 0)) * (Number(sale.units_sold) || 0);
       const current = productRevenue.get(sale.product_id) || 0;
-      productRevenue.set(sale.product_id, current + Number(sale.revenue));
+      productRevenue.set(sale.product_id, current + revenue);
     });
 
     // Sort products by revenue (descending)
