@@ -19,7 +19,7 @@ interface WeeklySalesImportDialogProps {
 
 type WeeklySale = {
   partner: string;
-  product_name: string;
+  product_name: string; // temporary, used for matching during import
   period_type: "LW" | "PW";
   week_end: string;
   units_sold: number;
@@ -449,32 +449,36 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
         });
       }
 
-      // Prepare weekly sales records - IMPORT ALL including skipped (unmapped)
-      const salesRecords = parsedData.map(sale => {
-        const mapping = mappings.get(sale.product_name);
-        let productId: string | null = null;
-        
-        if (mapping) {
-          if (mapping.action === 'create') {
-            productId = createdProductIds.get(sale.product_name) || null;
-          } else if (mapping.action === 'map') {
-            productId = mapping.product_id;
+      // Prepare weekly sales records - only import records that have a product_id
+      const salesRecords = parsedData
+        .map(sale => {
+          const mapping = mappings.get(sale.product_name);
+          let productId: string | null = null;
+          
+          if (mapping) {
+            if (mapping.action === 'create') {
+              productId = createdProductIds.get(sale.product_name) || null;
+            } else if (mapping.action === 'map') {
+              productId = mapping.product_id;
+            }
           }
-        }
 
-        return {
-          tenant_id: tenantId,
-          partner: sale.partner,
-          product_id: productId,
-          product_name: sale.product_name,
-          period_type: sale.period_type,
-          week_end: sale.week_end,
-          units_sold: sale.units_sold,
-          gross_margin: sale.gross_margin,
-          stock_end: sale.stock_end,
-          mapped: !!productId,
-        };
-      });
+          // Skip records without product_id (action === 'skip')
+          if (!productId) return null;
+
+          return {
+            tenant_id: tenantId,
+            partner: sale.partner,
+            product_id: productId,
+            period_type: sale.period_type,
+            week_end: sale.week_end,
+            units_sold: sale.units_sold,
+            gross_margin: sale.gross_margin,
+            stock_end: sale.stock_end,
+            mapped: true,
+          };
+        })
+        .filter((record): record is NonNullable<typeof record> => record !== null);
 
       console.log('[Import] Sales records to insert:', salesRecords.length);
       

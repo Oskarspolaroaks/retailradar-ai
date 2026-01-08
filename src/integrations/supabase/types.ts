@@ -1717,7 +1717,6 @@ export type Database = {
           partner: string
           period_type: string
           product_id: string | null
-          product_name: string
           stock_end: number | null
           tenant_id: string
           units_sold: number
@@ -1732,7 +1731,6 @@ export type Database = {
           partner: string
           period_type: string
           product_id?: string | null
-          product_name: string
           stock_end?: number | null
           tenant_id: string
           units_sold?: number
@@ -1747,7 +1745,6 @@ export type Database = {
           partner?: string
           period_type?: string
           product_id?: string | null
-          product_name?: string
           stock_end?: number | null
           tenant_id?: string
           units_sold?: number
