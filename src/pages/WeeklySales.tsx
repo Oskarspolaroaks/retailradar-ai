@@ -28,7 +28,7 @@ import {
 
 type ProductAgg = {
   product_id: string | null;
-  product_name: string;
+  product_name: string; // derived from products.name
   total_units: number;
   total_revenue: number;
 };
@@ -193,7 +193,10 @@ const WeeklySales = () => {
     const aggregateByProduct = (sales: typeof weeklySales): ProductAgg[] => {
       const map = new Map<string, ProductAgg>();
       sales.forEach(sale => {
-        const key = sale.product_id || sale.product_name;
+        // Use product_id as key, skip records without product_id
+        if (!sale.product_id) return;
+        const key = sale.product_id;
+        const productName = sale.products?.name || 'Nezināms produkts';
         const existing = map.get(key);
         if (existing) {
           existing.total_units += Number(sale.units_sold) || 0;
@@ -201,7 +204,7 @@ const WeeklySales = () => {
         } else {
           map.set(key, {
             product_id: sale.product_id,
-            product_name: sale.product_name,
+            product_name: productName,
             total_units: Number(sale.units_sold) || 0,
             total_revenue: Number(sale.gross_margin) || 0,
           });
@@ -219,19 +222,21 @@ const WeeklySales = () => {
     // Create ABC map
     const abcMap = new Map<string, { LW?: "A" | "B" | "C", PW?: "A" | "B" | "C" }>();
     lwWithABC.forEach(p => {
-      const key = p.product_id || p.product_name;
-      abcMap.set(key, { ...abcMap.get(key), LW: p.abc_category });
+      if (!p.product_id) return;
+      abcMap.set(p.product_id, { ...abcMap.get(p.product_id), LW: p.abc_category });
     });
     pwWithABC.forEach(p => {
-      const key = p.product_id || p.product_name;
-      abcMap.set(key, { ...abcMap.get(key), PW: p.abc_category });
+      if (!p.product_id) return;
+      abcMap.set(p.product_id, { ...abcMap.get(p.product_id), PW: p.abc_category });
     });
 
-    // Build comparison data
+    // Build comparison data - only include records with product_id
     const productMap = new Map<string, ComparisonRow>();
     
     lwSales.forEach(sale => {
-      const key = sale.product_id || sale.product_name;
+      if (!sale.product_id) return; // Skip unmapped records
+      const key = sale.product_id;
+      const productName = sale.products?.name || 'Nezināms produkts';
       const existing = productMap.get(key);
       const abcData = abcMap.get(key);
       
@@ -242,7 +247,7 @@ const WeeklySales = () => {
         existing.mapped = sale.mapped || existing.mapped;
       } else {
         productMap.set(key, {
-          product_name: sale.product_name,
+          product_name: productName,
           product_id: sale.product_id,
           lw_units: Number(sale.units_sold) || 0,
           pw_units: 0,
@@ -261,7 +266,9 @@ const WeeklySales = () => {
     });
 
     pwSales.forEach(sale => {
-      const key = sale.product_id || sale.product_name;
+      if (!sale.product_id) return; // Skip unmapped records
+      const key = sale.product_id;
+      const productName = sale.products?.name || 'Nezināms produkts';
       const existing = productMap.get(key);
       const abcData = abcMap.get(key);
       
@@ -271,7 +278,7 @@ const WeeklySales = () => {
         existing.abc_pw = abcData?.PW || null;
       } else {
         productMap.set(key, {
-          product_name: sale.product_name,
+          product_name: productName,
           product_id: sale.product_id,
           lw_units: 0,
           pw_units: Number(sale.units_sold) || 0,
