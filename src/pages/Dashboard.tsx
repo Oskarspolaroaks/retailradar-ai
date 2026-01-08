@@ -278,14 +278,17 @@ const Dashboard = () => {
       startDate.setDate(startDate.getDate() - daysAgo);
       const dateStr = startDate.toISOString().split('T')[0];
 
-      // Fetch products
+      // Fetch products with categories
       const { data: products } = await supabase
         .from("products")
-        .select("*")
+        .select("*, categories(name)")
         .eq("status", "active");
 
-      // Fetch categories
-      const uniqueCategories = [...new Set(products?.map(p => p.category).filter(Boolean))];
+      // Fetch categories from categories table
+      const { data: categoriesData } = await supabase
+        .from("categories")
+        .select("name");
+      const uniqueCategories = categoriesData?.map(c => c.name).filter(Boolean) || [];
       setCategories(uniqueCategories as string[]);
 
       // Fetch sales data

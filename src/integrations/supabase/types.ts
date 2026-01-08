@@ -1127,7 +1127,6 @@ export type Database = {
           barcode: string | null
           base_unit: string | null
           brand: string | null
-          category: string | null
           category_id: string | null
           category_role: string | null
           cost_price: number
@@ -1149,7 +1148,6 @@ export type Database = {
           barcode?: string | null
           base_unit?: string | null
           brand?: string | null
-          category?: string | null
           category_id?: string | null
           category_role?: string | null
           cost_price: number
@@ -1171,7 +1169,6 @@ export type Database = {
           barcode?: string | null
           base_unit?: string | null
           brand?: string | null
-          category?: string | null
           category_id?: string | null
           category_role?: string | null
           cost_price?: number

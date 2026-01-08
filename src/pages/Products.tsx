@@ -35,13 +35,13 @@ interface Product {
   sku: string;
   name: string;
   brand: string;
-  category: string;
   cost_price: number;
   current_price: number;
   currency: string;
   status: string;
   abc_category: string | null;
   is_private_label: boolean;
+  categories: { name: string } | null;
 }
 
 const Products = () => {
@@ -60,7 +60,7 @@ const Products = () => {
     try {
       const { data, error } = await supabase
         .from("products")
-        .select("*")
+        .select("*, categories(name)")
         .order("created_at", { ascending: false }) as any;
 
       if (error) throw error;
@@ -226,7 +226,7 @@ const Products = () => {
                       <TableCell className="font-mono text-sm">{product.sku}</TableCell>
                       <TableCell className="font-medium">{product.name}</TableCell>
                       <TableCell>{product.brand || "-"}</TableCell>
-                      <TableCell>{product.category || "-"}</TableCell>
+                      <TableCell>{product.categories?.name || "-"}</TableCell>
                       <TableCell>
                         {product.abc_category ? (
                           <Badge variant={

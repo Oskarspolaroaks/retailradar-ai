@@ -61,11 +61,10 @@ const SmartPrice = () => {
   const fetchCategories = async () => {
     try {
       const { data } = await supabase
-        .from("products")
-        .select("category")
-        .eq("status", "active");
+        .from("categories")
+        .select("name");
 
-      const uniqueCategories = [...new Set(data?.map(p => p.category).filter(Boolean))];
+      const uniqueCategories = data?.map(c => c.name).filter(Boolean) || [];
       setCategories(uniqueCategories as string[]);
     } catch (error: any) {
       toast({

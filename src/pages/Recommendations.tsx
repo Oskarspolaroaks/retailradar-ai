@@ -51,7 +51,7 @@ const Recommendations = () => {
         .from("pricing_recommendations")
         .select(`
           *,
-          products!inner(sku, name, cost_price, category, brand, abc_category)
+          products!inner(sku, name, cost_price, brand, abc_category, categories(name))
         `)
         .order("recommended_change_percent", { ascending: false });
 
