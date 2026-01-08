@@ -1346,8 +1346,8 @@ export type Database = {
           product_id: string
           promo_flag: boolean | null
           promotion_id: string | null
-          regular_price: number | null
-          revenue: number
+          purchase_price: number | null
+          selling_price: number | null
           store_id: string
           tenant_id: string
           units_sold: number
@@ -1359,8 +1359,8 @@ export type Database = {
           product_id: string
           promo_flag?: boolean | null
           promotion_id?: string | null
-          regular_price?: number | null
-          revenue: number
+          purchase_price?: number | null
+          selling_price?: number | null
           store_id: string
           tenant_id: string
           units_sold: number
@@ -1372,8 +1372,8 @@ export type Database = {
           product_id?: string
           promo_flag?: boolean | null
           promotion_id?: string | null
-          regular_price?: number | null
-          revenue?: number
+          purchase_price?: number | null
+          selling_price?: number | null
           store_id?: string
           tenant_id?: string
           units_sold?: number

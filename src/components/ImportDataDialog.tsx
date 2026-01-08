@@ -307,8 +307,8 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
             product_id: productId,
             date: row.Week_End_Date,
             units_sold: row.Units_Sold || 0,
-            revenue: row.Net_Revenue || 0,
-            regular_price: row.Regular_Price,
+            selling_price: row.Regular_Price || 0,
+            purchase_price: 0, // Cost price not typically in sales import
             promo_flag: row.Promo_Flag || false,
             promotion_id: null
           };

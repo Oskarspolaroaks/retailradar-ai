@@ -121,18 +121,19 @@ serve(async (req) => {
 
     const { data: salesData } = await supabase
       .from('sales_daily')
-      .select('product_id, units_sold, revenue, date')
+      .select('product_id, units_sold, selling_price, purchase_price, date')
       .eq('tenant_id', tenant_id)
       .gte('date', dateStr);
 
-    // Build sales map
+    // Build sales map (revenue calculated as selling_price - purchase_price)
     const salesMap = new Map<string, { units: number; revenue: number; trend: string }>();
     
     if (salesData) {
       salesData.forEach((sale: any) => {
+        const revenue = ((Number(sale.selling_price) || 0) - (Number(sale.purchase_price) || 0)) * (Number(sale.units_sold) || 0);
         const existing = salesMap.get(sale.product_id) || { units: 0, revenue: 0, trend: 'stable' };
         existing.units += Number(sale.units_sold);
-        existing.revenue += Number(sale.revenue);
+        existing.revenue += revenue;
         salesMap.set(sale.product_id, existing);
       });
     }

@@ -141,21 +141,21 @@ async function calculateCategoryMetrics(
     .gte('date', startDate.toISOString().split('T')[0])
     .lte('date', endDate.toISOString().split('T')[0]);
 
-  const totalRevenue = sales?.reduce((sum: number, s: any) => sum + Number(s.revenue), 0) || 0;
+  // Calculate revenue as (selling_price - purchase_price) * units_sold
+  const totalRevenue = sales?.reduce((sum: number, s: any) => {
+    const revenue = ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0);
+    return sum + revenue;
+  }, 0) || 0;
   const totalUnits = sales?.reduce((sum: number, s: any) => sum + Number(s.units_sold), 0) || 0;
 
-  // Calculate total margin
-  let totalMarginValue = 0;
-  for (const sale of sales || []) {
-    const product = products.find((p: any) => p.id === sale.product_id);
-    if (product) {
-      const margin = Number(sale.revenue) - (Number(product.cost_price) * Number(sale.units_sold));
-      totalMarginValue += margin;
-    }
-  }
+  // Total margin is the same as revenue in this model (selling_price - purchase_price)
+  const totalMarginValue = totalRevenue;
 
   // Calculate promo revenue share
-  const promoRevenue = sales?.filter((s: any) => s.promo_flag).reduce((sum: number, s: any) => sum + Number(s.revenue), 0) || 0;
+  const promoRevenue = sales?.filter((s: any) => s.promo_flag).reduce((sum: number, s: any) => {
+    const revenue = ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0);
+    return sum + revenue;
+  }, 0) || 0;
   const promoRevenueShare = totalRevenue > 0 ? (promoRevenue / totalRevenue) * 100 : 0;
 
   // Identify slow movers (products with very low sales)

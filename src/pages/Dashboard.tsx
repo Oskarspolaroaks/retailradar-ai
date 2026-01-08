@@ -300,8 +300,11 @@ const Dashboard = () => {
         .select("*")
         .eq("is_active", true);
 
-      // Calculate KPIs
-      const totalRevenue = salesData?.reduce((sum, s) => sum + Number(s.revenue), 0) || 0;
+      // Calculate KPIs (revenue = selling_price - purchase_price)
+      const totalRevenue = salesData?.reduce((sum, s) => {
+        const revenue = ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0);
+        return sum + revenue;
+      }, 0) || 0;
       const totalUnits = salesData?.reduce((sum, s) => sum + Number(s.units_sold), 0) || 0;
       const avgPrice = totalUnits > 0 ? totalRevenue / totalUnits : 0;
 
@@ -324,13 +327,19 @@ const Dashboard = () => {
       const productIds = products?.map(p => p.id) || [];
       const aProductIds = aProducts.map(p => p.id);
       const aRevenue = salesData?.filter(s => aProductIds.includes(s.product_id))
-        .reduce((sum, s) => sum + Number(s.revenue), 0) || 0;
+        .reduce((sum, s) => {
+          const revenue = ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0);
+          return sum + revenue;
+        }, 0) || 0;
       const aRevenueShare = totalRevenue > 0 ? (aRevenue / totalRevenue) * 100 : 0;
 
       // Store comparison
       const storeData = stores?.map(store => {
         const storeSales = salesData?.filter(s => s.store_id === store.id) || [];
-        const storeRevenue = storeSales.reduce((sum, s) => sum + Number(s.revenue), 0);
+        const storeRevenue = storeSales.reduce((sum, s) => {
+          const revenue = ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0);
+          return sum + revenue;
+        }, 0);
         return {
           id: store.id,
           name: store.name,
@@ -347,12 +356,13 @@ const Dashboard = () => {
       salesData?.forEach(sale => {
         const product = products?.find(p => p.id === sale.product_id);
         if (product) {
+          const saleRevenue = ((Number(sale.selling_price) || 0) - (Number(sale.purchase_price) || 0)) * (Number(sale.units_sold) || 0);
           const existing = productRevenue.get(sale.product_id) || { 
             name: product.name, 
             revenue: 0, 
             margin: ((Number(product.current_price) - Number(product.cost_price)) / Number(product.current_price)) * 100
           };
-          existing.revenue += Number(sale.revenue);
+          existing.revenue += saleRevenue;
           productRevenue.set(sale.product_id, existing);
         }
       });
@@ -365,17 +375,22 @@ const Dashboard = () => {
       setBottomProducts(sortedProducts.slice(-10).reverse());
 
       // ABC chart data
+      const bRevenue = salesData?.filter(s => bProducts.map(p => p.id).includes(s.product_id))
+        .reduce((sum, s) => sum + ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0), 0) || 0;
+      const cRevenue = salesData?.filter(s => cProducts.map(p => p.id).includes(s.product_id))
+        .reduce((sum, s) => sum + ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0), 0) || 0;
       setAbcData([
         { name: 'A', products: aProducts.length, revenue: aRevenue, fill: 'hsl(var(--chart-1))' },
-        { name: 'B', products: bProducts.length, revenue: salesData?.filter(s => bProducts.map(p => p.id).includes(s.product_id)).reduce((sum, s) => sum + Number(s.revenue), 0) || 0, fill: 'hsl(var(--chart-2))' },
-        { name: 'C', products: cProducts.length, revenue: salesData?.filter(s => cProducts.map(p => p.id).includes(s.product_id)).reduce((sum, s) => sum + Number(s.revenue), 0) || 0, fill: 'hsl(var(--chart-3))' },
+        { name: 'B', products: bProducts.length, revenue: bRevenue, fill: 'hsl(var(--chart-2))' },
+        { name: 'C', products: cProducts.length, revenue: cRevenue, fill: 'hsl(var(--chart-3))' },
       ]);
 
       // Revenue trend
       const monthlyRevenue = new Map<string, number>();
       salesData?.forEach((sale) => {
         const month = sale.date.substring(0, 7);
-        monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + Number(sale.revenue));
+        const revenue = ((Number(sale.selling_price) || 0) - (Number(sale.purchase_price) || 0)) * (Number(sale.units_sold) || 0);
+        monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + revenue);
       });
 
       const sortedMonths = Array.from(monthlyRevenue.entries())
@@ -398,7 +413,10 @@ const Dashboard = () => {
       // Calculate avg ticket per store
       const storeTickets = stores?.map(store => {
         const storeSales = salesData?.filter(s => s.store_id === store.id) || [];
-        const storeRevenue = storeSales.reduce((sum, s) => sum + Number(s.revenue), 0);
+        const storeRevenue = storeSales.reduce((sum, s) => {
+          const revenue = ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0);
+          return sum + revenue;
+        }, 0);
         const storeUniqueDays = new Set(storeSales.map(s => s.date)).size;
         const storeTransactions = storeUniqueDays * Math.floor(Math.random() * 50 + 100); // Simulated
         return {
