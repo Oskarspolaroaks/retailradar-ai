@@ -107,10 +107,10 @@ const WeeklySales = () => {
           products (
             name,
             sku,
-            category,
             brand,
             current_price,
-            cost_price
+            cost_price,
+            categories(name)
           )
         `, { count: 'exact' })
         .eq("tenant_id", userTenants.tenant_id)

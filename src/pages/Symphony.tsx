@@ -53,11 +53,10 @@ const Symphony = () => {
   const fetchCategories = async () => {
     try {
       const { data } = await supabase
-        .from("products")
-        .select("category")
-        .eq("status", "active");
+        .from("categories")
+        .select("name");
 
-      const uniqueCategories = [...new Set(data?.map(p => p.category).filter(Boolean))];
+      const uniqueCategories = data?.map(c => c.name).filter(Boolean) || [];
       setCategories(uniqueCategories as string[]);
     } catch (error: any) {
       toast({
@@ -71,11 +70,17 @@ const Symphony = () => {
   const fetchCategoryData = async () => {
     setLoading(true);
     try {
-      // Fetch products in category
+      // Fetch products in category via categories table
+      const { data: categoryData } = await supabase
+        .from("categories")
+        .select("id")
+        .eq("name", selectedCategory)
+        .single();
+      
       const { data: productsData } = await supabase
         .from("products")
         .select("*")
-        .eq("category", selectedCategory)
+        .eq("category_id", categoryData?.id || '')
         .eq("status", "active");
 
       setProducts(productsData || []);
