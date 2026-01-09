@@ -191,7 +191,6 @@ serve(async (req) => {
         sku: `LV${String(i + 1).padStart(5, '0')}`,
         name: template.name,
         brand: template.brand,
-        category: template.category,
         category_id: categoryMatch?.id,
         category_role: template.role,
         cost_price: template.cost,
