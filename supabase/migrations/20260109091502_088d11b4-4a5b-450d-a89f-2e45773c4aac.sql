@@ -1,0 +1,1 @@
+ALTER TABLE public.sales_daily DROP CONSTRAINT IF EXISTS sales_daily_tenant_id_store_id_product_id_date_key;
