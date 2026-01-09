@@ -42,7 +42,7 @@ serve(async (req) => {
     const { data: sales } = await supabase
       .from('sales_daily')
       .select('product_id, units_sold, revenue')
-      .gte('date', dateStr);
+      .gte('reg_date', dateStr);
 
     // Build sales aggregation
     const salesByProduct = new Map<string, { units: number; revenue: number }>();

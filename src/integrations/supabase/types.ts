@@ -1338,12 +1338,12 @@ export type Database = {
       sales_daily: {
         Row: {
           created_at: string
-          date: string
           id: string
           product_id: string
           promo_flag: boolean | null
           promotion_id: string | null
           purchase_price: number | null
+          reg_date: string
           selling_price: number | null
           store_id: string
           tenant_id: string
@@ -1351,12 +1351,12 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          date: string
           id?: string
           product_id: string
           promo_flag?: boolean | null
           promotion_id?: string | null
           purchase_price?: number | null
+          reg_date: string
           selling_price?: number | null
           store_id: string
           tenant_id: string
@@ -1364,12 +1364,12 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          date?: string
           id?: string
           product_id?: string
           promo_flag?: boolean | null
           promotion_id?: string | null
           purchase_price?: number | null
+          reg_date?: string
           selling_price?: number | null
           store_id?: string
           tenant_id?: string

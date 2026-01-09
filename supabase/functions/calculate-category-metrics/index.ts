@@ -138,8 +138,8 @@ async function calculateCategoryMetrics(
     .select('*')
     .in('product_id', productIds)
     .eq('tenant_id', tenant_id)
-    .gte('date', startDate.toISOString().split('T')[0])
-    .lte('date', endDate.toISOString().split('T')[0]);
+    .gte('reg_date', startDate.toISOString().split('T')[0])
+    .lte('reg_date', endDate.toISOString().split('T')[0]);
 
   // Calculate revenue as (selling_price - purchase_price) * units_sold
   const totalRevenue = sales?.reduce((sum: number, s: any) => {

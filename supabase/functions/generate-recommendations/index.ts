@@ -121,9 +121,9 @@ serve(async (req) => {
 
     const { data: salesData } = await supabase
       .from('sales_daily')
-      .select('product_id, units_sold, selling_price, purchase_price, date')
+      .select('product_id, units_sold, selling_price, purchase_price, reg_date')
       .eq('tenant_id', tenant_id)
-      .gte('date', dateStr);
+      .gte('reg_date', dateStr);
 
     // Build sales map (revenue calculated as selling_price - purchase_price)
     const salesMap = new Map<string, { units: number; revenue: number; trend: string }>();
