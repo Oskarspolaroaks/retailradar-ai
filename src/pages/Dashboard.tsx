@@ -391,7 +391,7 @@ const Dashboard = () => {
       // Revenue trend
       const monthlyRevenue = new Map<string, number>();
       salesData?.forEach((sale) => {
-        const month = sale.date.substring(0, 7);
+        const month = sale.reg_date.substring(0, 7);
         const revenue = ((Number(sale.selling_price) || 0) - (Number(sale.purchase_price) || 0)) * (Number(sale.units_sold) || 0);
         monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + revenue);
       });
@@ -407,7 +407,7 @@ const Dashboard = () => {
       setRevenueData(sortedMonths);
 
       // Calculate average ticket (simulating unique transactions per day as transaction count)
-      const uniqueDays = new Set(salesData?.map(s => s.date) || []).size;
+      const uniqueDays = new Set(salesData?.map(s => s.reg_date) || []).size;
       const storesCount = stores?.length || 1;
       // Estimate transaction count based on unique date-store combinations
       const transactionCount = uniqueDays * storesCount * Math.floor(Math.random() * 50 + 100); // Simulated
@@ -420,7 +420,7 @@ const Dashboard = () => {
           const revenue = ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0);
           return sum + revenue;
         }, 0);
-        const storeUniqueDays = new Set(storeSales.map(s => s.date)).size;
+        const storeUniqueDays = new Set(storeSales.map(s => s.reg_date)).size;
         const storeTransactions = storeUniqueDays * Math.floor(Math.random() * 50 + 100); // Simulated
         return {
           id: store.id,

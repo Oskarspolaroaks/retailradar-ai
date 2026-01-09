@@ -242,7 +242,7 @@ serve(async (req) => {
               tenant_id,
               product_id: product.id,
               store_id: storeData[Math.floor(Math.random() * storeData.length)].id,
-              date: date.toISOString().split('T')[0],
+              reg_date: date.toISOString().split('T')[0],
               units_sold: unitsSold,
               selling_price: sellingPrice,
               purchase_price: product.cost_price,

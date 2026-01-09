@@ -97,8 +97,8 @@ Deno.serve(async (req) => {
     const { data: salesData, error: salesError } = await supabase
       .from('sales_daily')
       .select('product_id, selling_price, purchase_price, units_sold')
-      .gte('date', startDate.toISOString().split('T')[0])
-      .lte('date', endDate.toISOString().split('T')[0]);
+      .gte('reg_date', startDate.toISOString().split('T')[0])
+      .lte('reg_date', endDate.toISOString().split('T')[0]);
 
     if (salesError) {
       console.error('Sales query error:', salesError);
