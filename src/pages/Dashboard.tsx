@@ -372,6 +372,12 @@ const Dashboard = () => {
         ? ((avgMargin - lastYearGrossMargin) / lastYearGrossMargin) * 100 
         : 0;
 
+      // Calculate units change YoY
+      const lastYearUnitsSold = lastYearSalesData?.reduce((sum, s) => sum + (Number(s.units_sold) || 0), 0) || 0;
+      const unitsChange = lastYearUnitsSold > 0 
+        ? ((totalUnits - lastYearUnitsSold) / lastYearUnitsSold) * 100
+        : 0;
+
       // ABC distribution
       const aProducts = products?.filter(p => p.abc_category === 'A') || [];
       const bProducts = products?.filter(p => p.abc_category === 'B') || [];
@@ -487,7 +493,7 @@ const Dashboard = () => {
         totalRevenue,
         revenueGrowth,
         unitsSold: totalUnits,
-        unitsChange: Math.random() * 15 - 3,
+        unitsChange,
         avgTicket,
         avgTicketChange: Math.random() * 10 - 2,
         transactionCount,
