@@ -278,11 +278,17 @@ const Dashboard = () => {
       startDate.setDate(startDate.getDate() - daysAgo);
       const dateStr = startDate.toISOString().split('T')[0];
 
-      // Fetch products with categories
+      // Fetch products with categories and vat_rate
       const { data: products } = await supabase
         .from("products")
         .select("*, categories(name)")
         .eq("status", "active");
+
+      // Create product VAT map for revenue calculation
+      const productVatMap = new Map<string, number>();
+      products?.forEach(p => {
+        productVatMap.set(p.id, Number(p.vat_rate) || 0);
+      });
 
       // Fetch categories from categories table
       const { data: categoriesData } = await supabase
@@ -295,7 +301,7 @@ const Dashboard = () => {
       const { data: salesData } = await supabase
         .from("sales_daily")
         .select("*")
-        .gte("date", dateStr);
+        .gte("reg_date", dateStr);
 
       // Fetch stores
       const { data: stores } = await supabase
@@ -303,9 +309,15 @@ const Dashboard = () => {
         .select("*")
         .eq("is_active", true);
 
-      // Calculate KPIs (revenue = selling_price - purchase_price)
+      // Helper function to calculate net revenue (without VAT)
+      const calculateNetRevenue = (sellingPrice: number, unitsSold: number, productId: string) => {
+        const vatRate = productVatMap.get(productId) || 0;
+        return (sellingPrice / (1 + vatRate / 100)) * unitsSold;
+      };
+
+      // Calculate KPIs (revenue = selling_price / (1 + vat_rate/100) * units_sold)
       const totalRevenue = salesData?.reduce((sum, s) => {
-        const revenue = ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0);
+        const revenue = calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id);
         return sum + revenue;
       }, 0) || 0;
       const totalUnits = salesData?.reduce((sum, s) => sum + Number(s.units_sold), 0) || 0;
@@ -331,8 +343,7 @@ const Dashboard = () => {
       const aProductIds = aProducts.map(p => p.id);
       const aRevenue = salesData?.filter(s => aProductIds.includes(s.product_id))
         .reduce((sum, s) => {
-          const revenue = ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0);
-          return sum + revenue;
+          return sum + calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id);
         }, 0) || 0;
       const aRevenueShare = totalRevenue > 0 ? (aRevenue / totalRevenue) * 100 : 0;
 
@@ -340,8 +351,7 @@ const Dashboard = () => {
       const storeData = stores?.map(store => {
         const storeSales = salesData?.filter(s => s.store_id === store.id) || [];
         const storeRevenue = storeSales.reduce((sum, s) => {
-          const revenue = ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0);
-          return sum + revenue;
+          return sum + calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id);
         }, 0);
         return {
           id: store.id,
@@ -359,7 +369,7 @@ const Dashboard = () => {
       salesData?.forEach(sale => {
         const product = products?.find(p => p.id === sale.product_id);
         if (product) {
-          const saleRevenue = ((Number(sale.selling_price) || 0) - (Number(sale.purchase_price) || 0)) * (Number(sale.units_sold) || 0);
+          const saleRevenue = calculateNetRevenue(Number(sale.selling_price) || 0, Number(sale.units_sold) || 0, sale.product_id);
           const existing = productRevenue.get(sale.product_id) || { 
             name: product.name, 
             revenue: 0, 
@@ -379,9 +389,9 @@ const Dashboard = () => {
 
       // ABC chart data
       const bRevenue = salesData?.filter(s => bProducts.map(p => p.id).includes(s.product_id))
-        .reduce((sum, s) => sum + ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0), 0) || 0;
+        .reduce((sum, s) => sum + calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id), 0) || 0;
       const cRevenue = salesData?.filter(s => cProducts.map(p => p.id).includes(s.product_id))
-        .reduce((sum, s) => sum + ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0), 0) || 0;
+        .reduce((sum, s) => sum + calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id), 0) || 0;
       setAbcData([
         { name: 'A', products: aProducts.length, revenue: aRevenue, fill: 'hsl(var(--chart-1))' },
         { name: 'B', products: bProducts.length, revenue: bRevenue, fill: 'hsl(var(--chart-2))' },
@@ -392,7 +402,7 @@ const Dashboard = () => {
       const monthlyRevenue = new Map<string, number>();
       salesData?.forEach((sale) => {
         const month = sale.reg_date.substring(0, 7);
-        const revenue = ((Number(sale.selling_price) || 0) - (Number(sale.purchase_price) || 0)) * (Number(sale.units_sold) || 0);
+        const revenue = calculateNetRevenue(Number(sale.selling_price) || 0, Number(sale.units_sold) || 0, sale.product_id);
         monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + revenue);
       });
 
@@ -417,8 +427,7 @@ const Dashboard = () => {
       const storeTickets = stores?.map(store => {
         const storeSales = salesData?.filter(s => s.store_id === store.id) || [];
         const storeRevenue = storeSales.reduce((sum, s) => {
-          const revenue = ((Number(s.selling_price) || 0) - (Number(s.purchase_price) || 0)) * (Number(s.units_sold) || 0);
-          return sum + revenue;
+          return sum + calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id);
         }, 0);
         const storeUniqueDays = new Set(storeSales.map(s => s.reg_date)).size;
         const storeTransactions = storeUniqueDays * Math.floor(Math.random() * 50 + 100); // Simulated
