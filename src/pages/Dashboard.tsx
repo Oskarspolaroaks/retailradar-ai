@@ -350,14 +350,13 @@ const Dashboard = () => {
       const totalUnits = salesData?.reduce((sum, s) => sum + Number(s.units_sold), 0) || 0;
       const avgPrice = totalUnits > 0 ? totalRevenue / totalUnits : 0;
 
-      // Calculate margin
-      const productsWithMargin = products?.map(p => ({
-        ...p,
-        margin: ((Number(p.current_price) - Number(p.cost_price)) / Number(p.current_price)) * 100
-      })) || [];
+      // Calculate margin from sales_daily: (totalRevenue - totalCosts) * 100 / totalRevenue
+      const totalCosts = salesData?.reduce((sum, s) => {
+        return sum + (Number(s.purchase_price) || 0) * (Number(s.units_sold) || 0);
+      }, 0) || 0;
       
-      const avgMargin = productsWithMargin.length > 0 
-        ? productsWithMargin.reduce((sum, p) => sum + p.margin, 0) / productsWithMargin.length 
+      const avgMargin = totalRevenue > 0 
+        ? ((totalRevenue - totalCosts) / totalRevenue) * 100 
         : 0;
 
       // ABC distribution
