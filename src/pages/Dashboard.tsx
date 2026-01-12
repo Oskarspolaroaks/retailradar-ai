@@ -359,6 +359,19 @@ const Dashboard = () => {
         ? ((totalRevenue - totalCosts) / totalRevenue) * 100 
         : 0;
 
+      // Calculate last year gross margin for marginChange
+      const lastYearTotalCosts = lastYearSalesData?.reduce((sum, s) => {
+        return sum + (Number(s.purchase_price) || 0) * (Number(s.units_sold) || 0);
+      }, 0) || 0;
+      
+      const lastYearGrossMargin = lastYearRevenue > 0 
+        ? ((lastYearRevenue - lastYearTotalCosts) / lastYearRevenue) * 100 
+        : 0;
+
+      const marginChange = lastYearGrossMargin > 0 
+        ? ((avgMargin - lastYearGrossMargin) / lastYearGrossMargin) * 100 
+        : 0;
+
       // ABC distribution
       const aProducts = products?.filter(p => p.abc_category === 'A') || [];
       const bProducts = products?.filter(p => p.abc_category === 'B') || [];
@@ -481,7 +494,7 @@ const Dashboard = () => {
         revenuePerStore: stores?.length ? totalRevenue / stores.length : 0,
         
         grossMargin: avgMargin,
-        marginChange: Math.random() * 8 - 2,
+        marginChange,
         grossMarginEur: totalRevenue * (avgMargin / 100),
         
         skuCount: products?.length || 0,
