@@ -278,6 +278,14 @@ const Dashboard = () => {
       startDate.setDate(startDate.getDate() - daysAgo);
       const dateStr = startDate.toISOString().split('T')[0];
 
+      // Calculate same period last year
+      const lastYearStartDate = new Date(startDate);
+      lastYearStartDate.setFullYear(lastYearStartDate.getFullYear() - 1);
+      const lastYearEndDate = new Date();
+      lastYearEndDate.setFullYear(lastYearEndDate.getFullYear() - 1);
+      const lastYearStartStr = lastYearStartDate.toISOString().split('T')[0];
+      const lastYearEndStr = lastYearEndDate.toISOString().split('T')[0];
+
       // Fetch products with categories and vat_rate
       const { data: products } = await supabase
         .from("products")
@@ -297,11 +305,18 @@ const Dashboard = () => {
       const uniqueCategories = categoriesData?.map(c => c.name).filter(Boolean) || [];
       setCategories(uniqueCategories as string[]);
 
-      // Fetch sales data
+      // Fetch current period sales data
       const { data: salesData } = await supabase
         .from("sales_daily")
         .select("*")
         .gte("reg_date", dateStr);
+
+      // Fetch last year same period sales data
+      const { data: lastYearSalesData } = await supabase
+        .from("sales_daily")
+        .select("*")
+        .gte("reg_date", lastYearStartStr)
+        .lte("reg_date", lastYearEndStr);
 
       // Fetch stores
       const { data: stores } = await supabase
@@ -315,11 +330,22 @@ const Dashboard = () => {
         return (sellingPrice / (1 + vatRate / 100)) * unitsSold;
       };
 
-      // Calculate KPIs (revenue = selling_price / (1 + vat_rate/100) * units_sold)
+      // Calculate current period revenue
       const totalRevenue = salesData?.reduce((sum, s) => {
         const revenue = calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id);
         return sum + revenue;
       }, 0) || 0;
+
+      // Calculate last year same period revenue
+      const lastYearRevenue = lastYearSalesData?.reduce((sum, s) => {
+        const revenue = calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id);
+        return sum + revenue;
+      }, 0) || 0;
+
+      // Calculate revenue growth YoY
+      const revenueGrowth = lastYearRevenue > 0 
+        ? ((totalRevenue - lastYearRevenue) / lastYearRevenue) * 100 
+        : 0;
       const totalUnits = salesData?.reduce((sum, s) => sum + Number(s.units_sold), 0) || 0;
       const avgPrice = totalUnits > 0 ? totalRevenue / totalUnits : 0;
 
@@ -446,7 +472,7 @@ const Dashboard = () => {
       // Update KPI data
       setKpiData({
         totalRevenue,
-        revenueGrowth: Math.random() * 20 - 5,
+        revenueGrowth,
         unitsSold: totalUnits,
         unitsChange: Math.random() * 15 - 3,
         avgTicket,
