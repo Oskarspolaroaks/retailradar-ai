@@ -278,10 +278,11 @@ const Dashboard = () => {
       startDate.setDate(startDate.getDate() - daysAgo);
       const dateStr = startDate.toISOString().split('T')[0];
 
-      // Calculate same period last year
+      // Calculate same period last year (same dateRange, but -1 year)
+      const endDate = new Date();
       const lastYearStartDate = new Date(startDate);
       lastYearStartDate.setFullYear(lastYearStartDate.getFullYear() - 1);
-      const lastYearEndDate = new Date();
+      const lastYearEndDate = new Date(endDate);
       lastYearEndDate.setFullYear(lastYearEndDate.getFullYear() - 1);
       const lastYearStartStr = lastYearStartDate.toISOString().split('T')[0];
       const lastYearEndStr = lastYearEndDate.toISOString().split('T')[0];
