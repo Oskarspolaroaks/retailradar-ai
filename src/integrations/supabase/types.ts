@@ -1339,6 +1339,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          id_receipt: string | null
           product_id: string
           promo_flag: boolean | null
           promotion_id: string | null
@@ -1352,6 +1353,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          id_receipt?: string | null
           product_id: string
           promo_flag?: boolean | null
           promotion_id?: string | null
@@ -1365,6 +1367,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          id_receipt?: string | null
           product_id?: string
           promo_flag?: boolean | null
           promotion_id?: string | null
