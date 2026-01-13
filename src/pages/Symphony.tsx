@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchSalesDailyColumnsPaginated } from "@/lib/supabasePaginate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -139,19 +140,23 @@ const Symphony = () => {
 
     const productIds = productsData.map(p => p.id);
 
-    // Get sales data
-    const { data: recentSales } = await supabase
-      .from("sales_daily")
-      .select("product_id, units_sold, selling_price, purchase_price")
-      .in("product_id", productIds)
-      .gte("date", midDate.toISOString().split('T')[0]);
+    // Get sales data with pagination
+    const recentSales = await fetchSalesDailyColumnsPaginated(
+      "product_id, units_sold, selling_price, purchase_price",
+      {
+        dateGte: midDate.toISOString().split('T')[0],
+        productIds: productIds
+      }
+    );
 
-    const { data: olderSales } = await supabase
-      .from("sales_daily")
-      .select("product_id, units_sold, selling_price, purchase_price")
-      .in("product_id", productIds)
-      .gte("date", startDate.toISOString().split('T')[0])
-      .lt("date", midDate.toISOString().split('T')[0]);
+    const olderSales = await fetchSalesDailyColumnsPaginated(
+      "product_id, units_sold, selling_price, purchase_price",
+      {
+        dateGte: startDate.toISOString().split('T')[0],
+        dateLte: midDate.toISOString().split('T')[0],
+        productIds: productIds
+      }
+    );
 
     // Calculate sales by product (revenue = selling_price - purchase_price)
     const recentSalesByProduct = new Map();
