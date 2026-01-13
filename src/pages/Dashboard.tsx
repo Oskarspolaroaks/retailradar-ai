@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchSalesDailyPaginated } from "@/lib/supabasePaginate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -308,18 +309,16 @@ const Dashboard = () => {
       const uniqueCategories = categoriesData?.map(c => c.name).filter(Boolean) || [];
       setCategories(uniqueCategories as string[]);
 
-      // Fetch current period sales data
-      const { data: salesData } = await supabase
-        .from("sales_daily")
-        .select("*")
-        .gte("reg_date", dateStr);
+      // Fetch current period sales data with pagination
+      const salesData = await fetchSalesDailyPaginated({
+        dateGte: dateStr
+      });
 
-      // Fetch last year same period sales data
-      const { data: lastYearSalesData } = await supabase
-        .from("sales_daily")
-        .select("*")
-        .gte("reg_date", lastYearStartStr)
-        .lte("reg_date", lastYearEndStr);
+      // Fetch last year same period sales data with pagination
+      const lastYearSalesData = await fetchSalesDailyPaginated({
+        dateGte: lastYearStartStr,
+        dateLte: lastYearEndStr
+      });
 
       // Fetch stores
       const { data: stores } = await supabase

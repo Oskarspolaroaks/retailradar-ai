@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchSalesDailyColumnsPaginated } from "@/lib/supabasePaginate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
@@ -28,10 +29,11 @@ export const ABCChart = () => {
 
       if (!products) return;
 
-      // Fetch sales data to calculate revenue per category
-      const { data: sales } = await supabase
-        .from("sales_daily")
-        .select("product_id, selling_price, purchase_price, units_sold") as any;
+      // Fetch sales data to calculate revenue per category with pagination
+      const sales = await fetchSalesDailyColumnsPaginated(
+        "product_id, selling_price, purchase_price, units_sold",
+        {}
+      );
 
       // Create a map of product revenue (calculated as selling_price - purchase_price)
       const revenueMap = new Map<string, number>();
