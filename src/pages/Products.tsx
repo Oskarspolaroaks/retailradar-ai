@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchProductsPaginated } from "@/lib/supabasePaginate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,12 +59,9 @@ const Products = () => {
 
   const fetchProducts = async () => {
     try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*, categories(name)")
-        .order("created_at", { ascending: false }) as any;
-
-      if (error) throw error;
+      const data = await fetchProductsPaginated("*, categories(name)");
+      // Sort by created_at descending
+      data.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setProducts(data || []);
     } catch (error: any) {
       toast({

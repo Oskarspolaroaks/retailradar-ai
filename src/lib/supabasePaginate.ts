@@ -99,3 +99,50 @@ export async function fetchSalesDailyColumnsPaginated(
   console.log(`Fetched ${allData.length} sales_daily records (columns: ${columns}) with pagination`);
   return allData;
 }
+
+/**
+ * Helper to fetch all products with filters using pagination
+ * This overcomes the default 1000 row limit per request
+ */
+export async function fetchProductsPaginated(
+  columns: string = "*",
+  filters?: {
+    status?: string;
+    categoryId?: string;
+  }
+): Promise<any[]> {
+  const allData: any[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from("products")
+      .select(columns);
+    
+    if (filters?.status) {
+      query = query.eq("status", filters.status);
+    }
+    if (filters?.categoryId) {
+      query = query.eq("category_id", filters.categoryId);
+    }
+    
+    const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
+    
+    if (error) {
+      console.error("Error fetching paginated products:", error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      allData.push(...data);
+      from += PAGE_SIZE;
+      hasMore = data.length === PAGE_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  console.log(`Fetched ${allData.length} products with pagination`);
+  return allData;
+}

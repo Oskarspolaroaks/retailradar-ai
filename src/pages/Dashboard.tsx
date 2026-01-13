@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchSalesDailyPaginated } from "@/lib/supabasePaginate";
+import { fetchSalesDailyPaginated, fetchProductsPaginated } from "@/lib/supabasePaginate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -290,11 +290,8 @@ const Dashboard = () => {
       const lastYearStartStr = lastYearStartDate.toISOString().split('T')[0];
       const lastYearEndStr = lastYearEndDate.toISOString().split('T')[0];
 
-      // Fetch products with categories and vat_rate
-      const { data: products } = await supabase
-        .from("products")
-        .select("*, categories(name)")
-        .eq("status", "active");
+      // Fetch products with categories and vat_rate using pagination
+      const products = await fetchProductsPaginated("*, categories(name)", { status: "active" });
 
       // Create product VAT map for revenue calculation
       const productVatMap = new Map<string, number>();
