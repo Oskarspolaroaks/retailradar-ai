@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchSalesDailyColumnsPaginated, fetchProductsPaginated } from "@/lib/supabasePaginate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
@@ -21,53 +20,37 @@ export const ABCChart = () => {
 
   const fetchABCData = async () => {
     try {
-      // Fetch products with their ABC categories using pagination
-      const products = await fetchProductsPaginated("id, abc_category, current_price", { status: "active" });
+      // Calculate date from 90 days ago for revenue breakdown
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 90);
+      const dateStr = startDate.toISOString().split('T')[0];
 
-      if (!products) return;
+      // Use RPC functions for aggregated data
+      const [distributionResult, revenueResult] = await Promise.all([
+        supabase.rpc('get_products_abc_distribution'),
+        supabase.rpc('get_abc_revenue_breakdown', { p_date_from: dateStr })
+      ]);
 
-      // Fetch sales data to calculate revenue per category with pagination
-      const sales = await fetchSalesDailyColumnsPaginated(
-        "product_id, selling_price, purchase_price, units_sold",
-        {}
-      );
-
-      // Create a map of product revenue (calculated as selling_price - purchase_price)
-      const revenueMap = new Map<string, number>();
-      sales?.forEach((sale: any) => {
-        const revenue = ((Number(sale.selling_price) || 0) - (Number(sale.purchase_price) || 0)) * (Number(sale.units_sold) || 0);
-        const current = revenueMap.get(sale.product_id) || 0;
-        revenueMap.set(sale.product_id, current + revenue);
-      });
-
-      // Aggregate by ABC category
-      const categoryData = { A: { count: 0, revenue: 0 }, B: { count: 0, revenue: 0 }, C: { count: 0, revenue: 0 } };
-
-      products.forEach((product) => {
-        const category = product.abc_category as 'A' | 'B' | 'C' | null;
-        if (category && categoryData[category]) {
-          categoryData[category].count++;
-          categoryData[category].revenue += revenueMap.get(product.id) || 0;
-        }
-      });
+      const distribution = distributionResult.data || [];
+      const revenue = revenueResult.data || [];
 
       const chartData: ABCData[] = [
         {
           name: "Category A",
-          value: categoryData.A.count,
-          revenue: categoryData.A.revenue,
+          value: Number(distribution.find((d: any) => d.abc_category === 'A')?.product_count || 0),
+          revenue: Number(revenue.find((d: any) => d.abc_category === 'A')?.revenue || 0),
           color: "hsl(var(--chart-1))",
         },
         {
           name: "Category B",
-          value: categoryData.B.count,
-          revenue: categoryData.B.revenue,
+          value: Number(distribution.find((d: any) => d.abc_category === 'B')?.product_count || 0),
+          revenue: Number(revenue.find((d: any) => d.abc_category === 'B')?.revenue || 0),
           color: "hsl(var(--chart-2))",
         },
         {
           name: "Category C",
-          value: categoryData.C.count,
-          revenue: categoryData.C.revenue,
+          value: Number(distribution.find((d: any) => d.abc_category === 'C')?.product_count || 0),
+          revenue: Number(revenue.find((d: any) => d.abc_category === 'C')?.revenue || 0),
           color: "hsl(var(--chart-3))",
         },
       ];
