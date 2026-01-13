@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchSalesDailyPaginated, fetchProductsPaginated } from "@/lib/supabasePaginate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -279,25 +278,15 @@ const Dashboard = () => {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - daysAgo);
       const dateStr = startDate.toISOString().split('T')[0];
-      
+      const endDateStr = new Date().toISOString().split('T')[0];
 
-      // Calculate same period last year (same dateRange, but -1 year)
-      const endDate = new Date();
+      // Calculate same period last year
       const lastYearStartDate = new Date(startDate);
       lastYearStartDate.setFullYear(lastYearStartDate.getFullYear() - 1);
-      const lastYearEndDate = new Date(endDate);
+      const lastYearEndDate = new Date();
       lastYearEndDate.setFullYear(lastYearEndDate.getFullYear() - 1);
       const lastYearStartStr = lastYearStartDate.toISOString().split('T')[0];
       const lastYearEndStr = lastYearEndDate.toISOString().split('T')[0];
-
-      // Fetch products with categories and vat_rate using pagination
-      const products = await fetchProductsPaginated("*, categories(name)", { status: "active" });
-
-      // Create product VAT map for revenue calculation
-      const productVatMap = new Map<string, number>();
-      products?.forEach(p => {
-        productVatMap.set(p.id, Number(p.vat_rate) || 0);
-      });
 
       // Fetch categories from categories table
       const { data: categoriesData } = await supabase
@@ -306,62 +295,49 @@ const Dashboard = () => {
       const uniqueCategories = categoriesData?.map(c => c.name).filter(Boolean) || [];
       setCategories(uniqueCategories as string[]);
 
-      // Fetch current period sales data with pagination
-      const salesData = await fetchSalesDailyPaginated({
-        dateGte: dateStr
-      });
-
-      // Fetch last year same period sales data with pagination
-      const lastYearSalesData = await fetchSalesDailyPaginated({
-        dateGte: lastYearStartStr,
-        dateLte: lastYearEndStr
-      });
-
       // Fetch stores
       const { data: stores } = await supabase
         .from("stores")
         .select("*")
         .eq("is_active", true);
 
-      // Helper function to calculate net revenue (without VAT)
-      const calculateNetRevenue = (sellingPrice: number, unitsSold: number, productId: string) => {
-        const vatRate = productVatMap.get(productId) || 0;
-        return (sellingPrice / (1 + vatRate / 100)) * unitsSold;
-      };
+      // Use RPC functions for aggregated data - parallel calls
+      const [
+        currentSalesResult,
+        lastYearSalesResult,
+        abcDistributionResult,
+        abcRevenueResult,
+        storeSalesResult
+      ] = await Promise.all([
+        supabase.rpc('get_sales_summary', { p_date_from: dateStr }),
+        supabase.rpc('get_sales_summary', { p_date_from: lastYearStartStr, p_date_to: lastYearEndStr }),
+        supabase.rpc('get_products_abc_distribution'),
+        supabase.rpc('get_abc_revenue_breakdown', { p_date_from: dateStr }),
+        supabase.rpc('get_store_sales_summary', { p_date_from: dateStr })
+      ]);
 
-      // Calculate current period revenue
-      const totalRevenue = salesData?.reduce((sum, s) => {
-        const revenue = calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id);
-        return sum + revenue;
-      }, 0) || 0;
+      // Extract current period data
+      const currentSales = currentSalesResult.data?.[0] || { total_revenue: 0, total_costs: 0, total_units: 0, transaction_count: 0 };
+      const totalRevenue = Number(currentSales.total_revenue) || 0;
+      const totalCosts = Number(currentSales.total_costs) || 0;
+      const totalUnits = Number(currentSales.total_units) || 0;
+      const transactionCount = Number(currentSales.transaction_count) || 0;
 
-      // Calculate last year same period revenue
-      const lastYearRevenue = lastYearSalesData?.reduce((sum, s) => {
-        const revenue = calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id);
-        return sum + revenue;
-      }, 0) || 0;
+      // Extract last year data
+      const lastYearSales = lastYearSalesResult.data?.[0] || { total_revenue: 0, total_costs: 0, total_units: 0 };
+      const lastYearRevenue = Number(lastYearSales.total_revenue) || 0;
+      const lastYearTotalCosts = Number(lastYearSales.total_costs) || 0;
+      const lastYearUnitsSold = Number(lastYearSales.total_units) || 0;
 
-      // Calculate revenue growth YoY
+      // Calculate metrics
       const revenueGrowth = lastYearRevenue > 0 
         ? ((totalRevenue - lastYearRevenue) / lastYearRevenue) * 100 
         : 0;
-      const totalUnits = salesData?.reduce((sum, s) => sum + Number(s.units_sold), 0) || 0;
-      const avgPrice = totalUnits > 0 ? totalRevenue / totalUnits : 0;
-
-      // Calculate margin from sales_daily: (totalRevenue - totalCosts) * 100 / totalRevenue
-      const totalCosts = salesData?.reduce((sum, s) => {
-        return sum + (Number(s.purchase_price) || 0) * (Number(s.units_sold) || 0);
-      }, 0) || 0;
       
       const avgMargin = totalRevenue > 0 
         ? ((totalRevenue - totalCosts) / totalRevenue) * 100 
         : 0;
 
-      // Calculate last year gross margin for marginChange
-      const lastYearTotalCosts = lastYearSalesData?.reduce((sum, s) => {
-        return sum + (Number(s.purchase_price) || 0) * (Number(s.units_sold) || 0);
-      }, 0) || 0;
-      
       const lastYearGrossMargin = lastYearRevenue > 0 
         ? ((lastYearRevenue - lastYearTotalCosts) / lastYearRevenue) * 100 
         : 0;
@@ -370,49 +346,87 @@ const Dashboard = () => {
         ? ((avgMargin - lastYearGrossMargin) / lastYearGrossMargin) * 100 
         : 0;
 
-      // Calculate units change YoY
-      const lastYearUnitsSold = lastYearSalesData?.reduce((sum, s) => sum + (Number(s.units_sold) || 0), 0) || 0;
       const unitsChange = lastYearUnitsSold > 0 
         ? ((totalUnits - lastYearUnitsSold) / lastYearUnitsSold) * 100
         : 0;
 
-      // ABC distribution
-      const aProducts = products?.filter(p => p.abc_category === 'A') || [];
-      const bProducts = products?.filter(p => p.abc_category === 'B') || [];
-      const cProducts = products?.filter(p => p.abc_category === 'C') || [];
+      // ABC distribution from RPC
+      const abcDistribution = abcDistributionResult.data || [];
+      const aProductsCount = Number(abcDistribution.find((d: any) => d.abc_category === 'A')?.product_count || 0);
+      const bProductsCount = Number(abcDistribution.find((d: any) => d.abc_category === 'B')?.product_count || 0);
+      const cProductsCount = Number(abcDistribution.find((d: any) => d.abc_category === 'C')?.product_count || 0);
+      const skuCount = abcDistribution.reduce((sum: number, d: any) => sum + Number(d.product_count || 0), 0);
 
-      // Revenue by ABC
-      const productIds = products?.map(p => p.id) || [];
-      const aProductIds = aProducts.map(p => p.id);
-      const aRevenue = salesData?.filter(s => aProductIds.includes(s.product_id))
-        .reduce((sum, s) => {
-          return sum + calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id);
-        }, 0) || 0;
+      // ABC revenue breakdown from RPC
+      const abcRevenue = abcRevenueResult.data || [];
+      const aRevenue = Number(abcRevenue.find((d: any) => d.abc_category === 'A')?.revenue || 0);
+      const bRevenue = Number(abcRevenue.find((d: any) => d.abc_category === 'B')?.revenue || 0);
+      const cRevenue = Number(abcRevenue.find((d: any) => d.abc_category === 'C')?.revenue || 0);
       const aRevenueShare = totalRevenue > 0 ? (aRevenue / totalRevenue) * 100 : 0;
 
-      // Store comparison
+      // Store comparison from RPC
+      const storeSales = storeSalesResult.data || [];
       const storeData = stores?.map(store => {
-        const storeSales = salesData?.filter(s => s.store_id === store.id) || [];
-        const storeRevenue = storeSales.reduce((sum, s) => {
-          return sum + calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id);
-        }, 0);
+        const storeMetrics = storeSales.find((s: any) => s.store_id === store.id);
+        const storeRevenue = Number(storeMetrics?.total_revenue || 0);
+        const storeUnits = Number(storeMetrics?.total_units || 0);
         return {
           id: store.id,
           name: store.name,
           code: store.code,
           revenue: storeRevenue,
+          avgTicket: storeUnits > 0 ? storeRevenue / storeUnits : 0,
           growth: Math.random() * 30 - 10, // Mock for now
         };
       }).sort((a, b) => b.revenue - a.revenue) || [];
 
       setStoreComparison(storeData);
 
-      // Top and bottom products
+      // Set ABC chart data
+      setAbcData([
+        { name: 'A', products: aProductsCount, revenue: aRevenue, fill: 'hsl(var(--chart-1))' },
+        { name: 'B', products: bProductsCount, revenue: bRevenue, fill: 'hsl(var(--chart-2))' },
+        { name: 'C', products: cProductsCount, revenue: cRevenue, fill: 'hsl(var(--chart-3))' },
+      ]);
+
+      // For revenue trend and top/bottom products, we still need detailed data
+      // This could be optimized with additional RPC functions in the future
+      const { data: recentSales } = await supabase
+        .from("sales_daily")
+        .select("reg_date, selling_price, units_sold, product_id")
+        .gte("reg_date", dateStr)
+        .order("reg_date", { ascending: true })
+        .limit(5000);
+
+      // Revenue trend
+      const monthlyRevenue = new Map<string, number>();
+      recentSales?.forEach((sale) => {
+        const month = sale.reg_date.substring(0, 7);
+        const revenue = (Number(sale.selling_price) || 0) * (Number(sale.units_sold) || 0);
+        monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + revenue);
+      });
+
+      const sortedMonths = Array.from(monthlyRevenue.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .slice(-6)
+        .map(([month, revenue]) => ({
+          month: new Date(month + '-01').toLocaleDateString('lv', { month: 'short' }),
+          revenue: Math.round(revenue)
+        }));
+
+      setRevenueData(sortedMonths);
+
+      // Top and bottom products (simplified - could be RPC in future)
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, name, current_price, cost_price")
+        .eq("status", "active");
+
       const productRevenue = new Map<string, { name: string; revenue: number; margin: number }>();
-      salesData?.forEach(sale => {
+      recentSales?.forEach(sale => {
         const product = products?.find(p => p.id === sale.product_id);
         if (product) {
-          const saleRevenue = calculateNetRevenue(Number(sale.selling_price) || 0, Number(sale.units_sold) || 0, sale.product_id);
+          const saleRevenue = (Number(sale.selling_price) || 0) * (Number(sale.units_sold) || 0);
           const existing = productRevenue.get(sale.product_id) || { 
             name: product.name, 
             revenue: 0, 
@@ -430,61 +444,8 @@ const Dashboard = () => {
       setTopProducts(sortedProducts.slice(0, 10));
       setBottomProducts(sortedProducts.slice(-10).reverse());
 
-      // ABC chart data
-      const bRevenue = salesData?.filter(s => bProducts.map(p => p.id).includes(s.product_id))
-        .reduce((sum, s) => sum + calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id), 0) || 0;
-      const cRevenue = salesData?.filter(s => cProducts.map(p => p.id).includes(s.product_id))
-        .reduce((sum, s) => sum + calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id), 0) || 0;
-      setAbcData([
-        { name: 'A', products: aProducts.length, revenue: aRevenue, fill: 'hsl(var(--chart-1))' },
-        { name: 'B', products: bProducts.length, revenue: bRevenue, fill: 'hsl(var(--chart-2))' },
-        { name: 'C', products: cProducts.length, revenue: cRevenue, fill: 'hsl(var(--chart-3))' },
-      ]);
-
-      // Revenue trend
-      const monthlyRevenue = new Map<string, number>();
-      salesData?.forEach((sale) => {
-        const month = sale.reg_date.substring(0, 7);
-        const revenue = calculateNetRevenue(Number(sale.selling_price) || 0, Number(sale.units_sold) || 0, sale.product_id);
-        monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + revenue);
-      });
-
-      const sortedMonths = Array.from(monthlyRevenue.entries())
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .slice(-6)
-        .map(([month, revenue]) => ({
-          month: new Date(month + '-01').toLocaleDateString('lv', { month: 'short' }),
-          revenue: Math.round(revenue)
-        }));
-
-      setRevenueData(sortedMonths);
-
-      // Calculate average ticket (simulating unique transactions per day as transaction count)
-      const uniqueDays = new Set(salesData?.map(s => s.reg_date) || []).size;
-      const storesCount = stores?.length || 1;
-      // Estimate transaction count based on unique date-store combinations
-      const transactionCount = uniqueDays * storesCount * Math.floor(Math.random() * 50 + 100); // Simulated
+      // Calculate average ticket
       const avgTicket = transactionCount > 0 ? totalRevenue / transactionCount : 0;
-
-      // Calculate avg ticket per store
-      const storeTickets = stores?.map(store => {
-        const storeSales = salesData?.filter(s => s.store_id === store.id) || [];
-        const storeRevenue = storeSales.reduce((sum, s) => {
-          return sum + calculateNetRevenue(Number(s.selling_price) || 0, Number(s.units_sold) || 0, s.product_id);
-        }, 0);
-        const storeUniqueDays = new Set(storeSales.map(s => s.reg_date)).size;
-        const storeTransactions = storeUniqueDays * Math.floor(Math.random() * 50 + 100); // Simulated
-        return {
-          id: store.id,
-          name: store.name,
-          code: store.code,
-          revenue: storeRevenue,
-          avgTicket: storeTransactions > 0 ? storeRevenue / storeTransactions : 0,
-          growth: Math.random() * 30 - 10,
-        };
-      }).sort((a, b) => b.revenue - a.revenue) || [];
-
-      setStoreComparison(storeTickets);
 
       // Update KPI data
       setKpiData({
@@ -501,15 +462,15 @@ const Dashboard = () => {
         marginChange,
         grossMarginEur: totalRevenue * (avgMargin / 100),
         
-        skuCount: products?.length || 0,
-        aProductsCount: aProducts.length,
-        bProductsCount: bProducts.length,
-        cProductsCount: cProducts.length,
+        skuCount,
+        aProductsCount,
+        bProductsCount,
+        cProductsCount,
         aProductsRevenueShare: aRevenueShare,
         
         avgStockLevel: 1500,
         stockTurnover: 8.5,
-        slowMoversCount: cProducts.filter(p => p.abc_category === 'C').length,
+        slowMoversCount: cProductsCount,
         
         priceIndexVsMarket: 98 + Math.random() * 8,
         cheaperThanMarket: Math.floor(Math.random() * 40 + 30),

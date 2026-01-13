@@ -1773,6 +1773,47 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_abc_revenue_breakdown: {
+        Args: { p_date_from: string; p_date_to?: string }
+        Returns: {
+          abc_category: string
+          product_count: number
+          revenue: number
+        }[]
+      }
+      get_category_sales_summary: {
+        Args: { p_date_from: string; p_date_to?: string }
+        Returns: {
+          category_name: string
+          product_count: number
+          total_revenue: number
+          total_units: number
+        }[]
+      }
+      get_products_abc_distribution: {
+        Args: never
+        Returns: {
+          abc_category: string
+          product_count: number
+        }[]
+      }
+      get_sales_summary: {
+        Args: { p_date_from: string; p_date_to?: string }
+        Returns: {
+          total_costs: number
+          total_revenue: number
+          total_units: number
+          transaction_count: number
+        }[]
+      }
+      get_store_sales_summary: {
+        Args: { p_date_from: string; p_date_to?: string }
+        Returns: {
+          store_id: string
+          total_revenue: number
+          total_units: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
