@@ -208,7 +208,7 @@ const Dashboard = () => {
   const [revenueData, setRevenueData] = useState<any[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [bottomProducts, setBottomProducts] = useState<any[]>([]);
-  const [debugDateStr, setDebugDateStr] = useState<string>("");
+  
   const [storeComparison, setStoreComparison] = useState<any[]>([]);
 
   useEffect(() => {
@@ -279,7 +279,7 @@ const Dashboard = () => {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - daysAgo);
       const dateStr = startDate.toISOString().split('T')[0];
-      setDebugDateStr(dateStr);
+      
 
       // Calculate same period last year (same dateRange, but -1 year)
       const endDate = new Date();
@@ -597,9 +597,6 @@ const Dashboard = () => {
             </h1>
             <p className="text-muted-foreground mt-1 md:mt-2 text-sm md:text-lg">
               {new Date().toLocaleDateString('lv-LV', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
-              <span className="ml-4 text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-2 py-0.5 rounded font-mono">
-                DEBUG dateStr: {debugDateStr}
-              </span>
             </p>
           </div>
 
