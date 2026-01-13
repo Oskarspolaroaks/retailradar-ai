@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchSalesDailyColumnsPaginated } from "@/lib/supabasePaginate";
+import { fetchSalesDailyColumnsPaginated, fetchProductsPaginated } from "@/lib/supabasePaginate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
@@ -21,11 +21,8 @@ export const ABCChart = () => {
 
   const fetchABCData = async () => {
     try {
-      // Fetch products with their ABC categories
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, abc_category, current_price")
-        .eq("status", "active") as any;
+      // Fetch products with their ABC categories using pagination
+      const products = await fetchProductsPaginated("id, abc_category, current_price", { status: "active" });
 
       if (!products) return;
 

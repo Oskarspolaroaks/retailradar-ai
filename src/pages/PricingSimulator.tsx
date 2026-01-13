@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchProductsPaginated } from "@/lib/supabasePaginate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,19 +89,17 @@ const PricingSimulator = () => {
   };
 
   const fetchProducts = async () => {
-    const { data, error } = await supabase
-      .from("products")
-      .select("*")
-      .order("name") as any;
-
-    if (error) {
+    try {
+      const data = await fetchProductsPaginated("*");
+      // Sort by name
+      data.sort((a: any, b: any) => a.name.localeCompare(b.name));
+      setProducts(data || []);
+    } catch (error: any) {
       toast({
         title: "Error",
         description: error.message,
         variant: "destructive",
       });
-    } else {
-      setProducts(data || []);
     }
   };
 
