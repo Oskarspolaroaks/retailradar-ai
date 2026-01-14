@@ -173,9 +173,9 @@ const Dashboard = () => {
     revenueGrowth: 0,
     unitsSold: 0,
     unitsChange: 0,
-    avgTicket: 0,
-    avgTicketChange: 0,
-    transactionCount: 0,
+    avgReceipt: 0,
+    avgReceiptChange: 0,
+    receiptCount: 0,
     revenuePerStore: 0,
     
     // Profitability
@@ -317,17 +317,19 @@ const Dashboard = () => {
       ]);
 
       // Extract current period data
-      const currentSales = currentSalesResult.data?.[0] || { total_revenue: 0, total_costs: 0, total_units: 0, transaction_count: 0 };
+      const currentSales = currentSalesResult.data?.[0] || { total_revenue: 0, total_costs: 0, total_units: 0, transaction_count: 0, receipt_count: 0, avg_receipt: 0 };
       const totalRevenue = Number(currentSales.total_revenue) || 0;
       const totalCosts = Number(currentSales.total_costs) || 0;
       const totalUnits = Number(currentSales.total_units) || 0;
-      const transactionCount = Number(currentSales.transaction_count) || 0;
+      const receiptCount = Number(currentSales.receipt_count) || 0;
+      const avgReceipt = Number(currentSales.avg_receipt) || 0;
 
       // Extract last year data
-      const lastYearSales = lastYearSalesResult.data?.[0] || { total_revenue: 0, total_costs: 0, total_units: 0 };
+      const lastYearSales = lastYearSalesResult.data?.[0] || { total_revenue: 0, total_costs: 0, total_units: 0, avg_receipt: 0 };
       const lastYearRevenue = Number(lastYearSales.total_revenue) || 0;
       const lastYearTotalCosts = Number(lastYearSales.total_costs) || 0;
       const lastYearUnitsSold = Number(lastYearSales.total_units) || 0;
+      const lastYearAvgReceipt = Number(lastYearSales.avg_receipt) || 0;
 
       // Calculate metrics
       const revenueGrowth = lastYearRevenue > 0 
@@ -350,6 +352,10 @@ const Dashboard = () => {
         ? ((totalUnits - lastYearUnitsSold) / lastYearUnitsSold) * 100
         : 0;
 
+      const avgReceiptChange = lastYearAvgReceipt > 0 
+        ? ((avgReceipt - lastYearAvgReceipt) / lastYearAvgReceipt) * 100
+        : 0;
+
       // ABC distribution from RPC
       const abcDistribution = abcDistributionResult.data || [];
       const aProductsCount = Number(abcDistribution.find((d: any) => d.abc_category === 'A')?.product_count || 0);
@@ -369,13 +375,13 @@ const Dashboard = () => {
       const storeData = stores?.map(store => {
         const storeMetrics = storeSales.find((s: any) => s.store_id === store.id);
         const storeRevenue = Number(storeMetrics?.total_revenue || 0);
-        const storeUnits = Number(storeMetrics?.total_units || 0);
+        const storeReceipts = Number(storeMetrics?.receipt_count || 0);
         return {
           id: store.id,
           name: store.name,
           code: store.code,
           revenue: storeRevenue,
-          avgTicket: storeUnits > 0 ? storeRevenue / storeUnits : 0,
+          avgReceipt: storeReceipts > 0 ? storeRevenue / storeReceipts : 0,
           growth: Math.random() * 30 - 10, // Mock for now
         };
       }).sort((a, b) => b.revenue - a.revenue) || [];
@@ -444,18 +450,15 @@ const Dashboard = () => {
       setTopProducts(sortedProducts.slice(0, 10));
       setBottomProducts(sortedProducts.slice(-10).reverse());
 
-      // Calculate average ticket
-      const avgTicket = transactionCount > 0 ? totalRevenue / transactionCount : 0;
-
       // Update KPI data
       setKpiData({
         totalRevenue,
         revenueGrowth,
         unitsSold: totalUnits,
         unitsChange,
-        avgTicket,
-        avgTicketChange: Math.random() * 10 - 2,
-        transactionCount,
+        avgReceipt,
+        avgReceiptChange,
+        receiptCount,
         revenuePerStore: stores?.length ? totalRevenue / stores.length : 0,
         
         grossMargin: avgMargin,
@@ -657,16 +660,16 @@ const Dashboard = () => {
           />
           <KPICard
             title="Vid. Čeks"
-            value={kpiData.avgTicket}
+            value={kpiData.avgReceipt}
             unit="€"
-            change={kpiData.avgTicketChange}
+            change={kpiData.avgReceiptChange}
             icon={<ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-chart-4" />}
             gradient="bg-gradient-to-br from-chart-4/10 to-chart-4/5"
             size="lg"
           />
         </div>
         
-        {/* Average Ticket by Store - Scrollable on mobile */}
+        {/* Average Receipt by Store - Scrollable on mobile */}
         {storeComparison.length > 1 && (
           <div className="mt-4">
             <h3 className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 sm:mb-3">Vid. Čeks pa Veikaliem</h3>
@@ -678,7 +681,7 @@ const Dashboard = () => {
                     <span className="text-xs sm:text-sm font-medium truncate">{store.code || store.name}</span>
                   </div>
                   <div className="mt-1 sm:mt-2">
-                    <span className="text-base sm:text-xl font-bold">{store.avgTicket?.toFixed(2) || '0.00'}</span>
+                    <span className="text-base sm:text-xl font-bold">{store.avgReceipt?.toFixed(2) || '0.00'}</span>
                     <span className="text-xs sm:text-sm text-muted-foreground ml-1">€</span>
                   </div>
                 </Card>
