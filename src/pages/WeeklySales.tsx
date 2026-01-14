@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, TrendingUp, Package, ArrowUpRight, ArrowDownRight, Minus, BarChart3, Loader2 } from "lucide-react";
-import { format, startOfWeek, endOfWeek, subWeeks } from "date-fns";
+import { format, startOfWeek, endOfWeek, subWeeks, subDays, getISOWeek } from "date-fns";
 import { lv } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 
@@ -413,11 +413,16 @@ const WeeklySales = () => {
                 <SelectValue placeholder="Izvēlieties nedēļu" />
               </SelectTrigger>
               <SelectContent>
-                {availableWeeks.map((week) => (
-                  <SelectItem key={week.week_end} value={week.week_end}>
-                    Nedēļa: {format(new Date(week.week_end), "dd.MM.yyyy")}
-                  </SelectItem>
-                ))}
+                {availableWeeks.map((week) => {
+                  const weekEndDate = new Date(week.week_end);
+                  const weekStartDate = subDays(weekEndDate, 6);
+                  const weekNumber = getISOWeek(weekEndDate);
+                  return (
+                    <SelectItem key={week.week_end} value={week.week_end}>
+                      Nedēļa {weekNumber} ({format(weekStartDate, "dd.MM")} - {format(weekEndDate, "dd.MM.yyyy")})
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           )}
