@@ -378,21 +378,32 @@ const Dashboard = () => {
       const cRevenue = Number(abcRevenue.find((d: any) => d.abc_category === "C")?.revenue || 0);
       const aRevenueShare = totalRevenue > 0 ? (aRevenue / totalRevenue) * 100 : 0;
 
-      // Store comparison from RPC
+      // Store comparison from RPC - also fetch last year data for growth calculation
+      const { data: lastYearStoreSales } = await supabase.rpc("get_store_sales_summary", { 
+        p_date_from: lastYearStartStr, 
+        p_date_to: lastYearEndStr 
+      });
+      
       const storeSales = storeSalesResult.data || [];
+      const lastYearStoreData = lastYearStoreSales || [];
       const storeData =
         stores
           ?.map((store) => {
             const storeMetrics = storeSales.find((s: any) => s.store_id === store.id);
+            const lastYearStoreMetrics = lastYearStoreData.find((s: any) => s.store_id === store.id);
             const storeRevenue = Number(storeMetrics?.total_revenue || 0);
+            const lastYearStoreRevenue = Number(lastYearStoreMetrics?.total_revenue || 0);
             const storeAvgReceipt = Number(storeMetrics?.avg_receipt || 0);
+            const storeGrowth = lastYearStoreRevenue > 0 
+              ? ((storeRevenue - lastYearStoreRevenue) / lastYearStoreRevenue) * 100 
+              : 0;
             return {
               id: store.id,
               name: store.name,
               code: store.code,
               revenue: storeRevenue,
               avgReceipt: storeAvgReceipt,
-              growth: Math.random() * 30 - 10, // Mock for now
+              growth: storeGrowth,
             };
           })
           .sort((a, b) => b.revenue - a.revenue) || [];
