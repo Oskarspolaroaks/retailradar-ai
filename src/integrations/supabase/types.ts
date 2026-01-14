@@ -1811,6 +1811,8 @@ export type Database = {
       get_store_sales_summary: {
         Args: { p_date_from: string; p_date_to?: string }
         Returns: {
+          avg_receipt: number
+          receipt_count: number
           store_id: string
           total_revenue: number
           total_units: number
