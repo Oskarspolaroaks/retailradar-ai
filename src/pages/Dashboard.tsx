@@ -375,13 +375,13 @@ const Dashboard = () => {
       const storeData = stores?.map(store => {
         const storeMetrics = storeSales.find((s: any) => s.store_id === store.id);
         const storeRevenue = Number(storeMetrics?.total_revenue || 0);
-        const storeReceipts = Number(storeMetrics?.receipt_count || 0);
+        const storeAvgReceipt = Number(storeMetrics?.avg_receipt || 0);
         return {
           id: store.id,
           name: store.name,
           code: store.code,
           revenue: storeRevenue,
-          avgReceipt: storeReceipts > 0 ? storeRevenue / storeReceipts : 0,
+          avgReceipt: storeAvgReceipt,
           growth: Math.random() * 30 - 10, // Mock for now
         };
       }).sort((a, b) => b.revenue - a.revenue) || [];
