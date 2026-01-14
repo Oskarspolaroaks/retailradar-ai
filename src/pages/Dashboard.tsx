@@ -699,9 +699,7 @@ const Dashboard = () => {
                 >
                   <div className="flex items-center gap-1 sm:gap-2">
                     <Store className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-xs sm:text-sm font-medium truncate">
-                      {store.code && store.code.trim() ? store.code : store.name}
-                    </span>
+                    <span className="text-xs sm:text-sm font-medium truncate">{store.name}</span>
                   </div>
                   <div className="mt-1 sm:mt-2">
                     <span className="text-base sm:text-xl font-bold">{store.avgReceipt?.toFixed(2) || "0.00"}</span>
