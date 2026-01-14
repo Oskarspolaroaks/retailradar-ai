@@ -7,65 +7,58 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Calendar, TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, Minus, BarChart3, Trash2, Loader2, Upload } from "lucide-react";
-import { format } from "date-fns";
+import { Calendar, TrendingUp, Package, ArrowUpRight, ArrowDownRight, Minus, BarChart3, Loader2 } from "lucide-react";
+import { format, startOfWeek, endOfWeek, subWeeks } from "date-fns";
 import { lv } from "date-fns/locale";
-import { WeeklySalesImportDialog } from "@/components/WeeklySalesImportDialog";
 import { useToast } from "@/hooks/use-toast";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 
-type ProductAgg = {
-  product_id: string | null;
-  product_name: string; // derived from products.name
-  total_units: number;
-  total_revenue: number;
+type WeeklySummaryRow = {
+  product_id: string;
+  product_name: string;
+  product_sku: string;
+  product_brand: string | null;
+  category_name: string | null;
+  units_sold: number;
+  gross_margin: number;
+  stock_end: number;
 };
 
-type ProductWithABC = ProductAgg & { abc_category: "A" | "B" | "C" };
+type ProductWithABC = WeeklySummaryRow & { abc_category: "A" | "B" | "C" };
 
 type ComparisonRow = {
+  product_id: string;
   product_name: string;
-  product_id: string | null;
+  product_sku: string;
+  product_brand: string | null;
+  category_name: string | null;
   lw_units: number;
   pw_units: number;
   lw_margin: number;
   pw_margin: number;
-  stock_end: number | null;
+  stock_end: number;
   units_change: number;
   units_change_pct: number;
   margin_change: number;
   margin_change_pct: number;
   abc_lw: "A" | "B" | "C" | null;
   abc_pw: "A" | "B" | "C" | null;
-  mapped: boolean;
 };
 
-function assignABC(products: ProductAgg[]): ProductWithABC[] {
+function assignABC(products: WeeklySummaryRow[]): ProductWithABC[] {
   if (products.length === 0) return [];
   
-  const sorted = [...products].sort((a, b) => b.total_revenue - a.total_revenue);
-  const totalRevenue = sorted.reduce((sum, p) => sum + p.total_revenue, 0);
+  const sorted = [...products].sort((a, b) => b.gross_margin - a.gross_margin);
+  const totalMargin = sorted.reduce((sum, p) => sum + p.gross_margin, 0);
 
-  if (totalRevenue === 0) {
+  if (totalMargin === 0) {
     return sorted.map(p => ({ ...p, abc_category: "C" as const }));
   }
 
   let cumulative = 0;
   return sorted.map(p => {
-    cumulative += p.total_revenue;
-    const share = (cumulative / totalRevenue) * 100;
+    cumulative += p.gross_margin;
+    const share = (cumulative / totalMargin) * 100;
 
     let abc: "A" | "B" | "C";
     if (share <= 80) abc = "A";
@@ -79,106 +72,109 @@ function assignABC(products: ProductAgg[]): ProductWithABC[] {
 const WeeklySales = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [partnerFilter, setPartnerFilter] = useState<string>("all");
   const [productSearch, setProductSearch] = useState<string>("");
   const [abcFilter, setAbcFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("margin_desc");
   const [displayLimit, setDisplayLimit] = useState<number>(100);
+  const [selectedLwWeek, setSelectedLwWeek] = useState<string>("");
 
-  const { data: weeklySales, isLoading, refetch } = useQuery({
-    queryKey: ["weekly-sales"],
+  // Fetch tenant info
+  const { data: tenantInfo } = useQuery({
+    queryKey: ["tenant-info"],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
       const { data: userTenants } = await supabase
         .from("user_tenants")
-        .select("tenant_id")
+        .select("tenant_id, tenants(name)")
         .eq("user_id", user.id)
         .single();
 
       if (!userTenants) throw new Error("No tenant found");
 
-      // Fetch ALL records without limit
-      const { data, error, count } = await supabase
-        .from("weekly_sales")
-        .select(`
-          *,
-          products (
-            name,
-            sku,
-            brand,
-            current_price,
-            cost_price,
-            categories(name)
-          )
-        `, { count: 'exact' })
-        .eq("tenant_id", userTenants.tenant_id)
-        .order("week_end", { ascending: false });
-
-      if (error) throw error;
-      console.log(`Loaded ${data?.length} weekly sales records`);
-      return data;
+      return {
+        tenantId: userTenants.tenant_id,
+        tenantName: (userTenants.tenants as any)?.name || "Unknown"
+      };
     },
   });
 
-  const deleteAllMutation = useMutation({
-    mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { data: userTenants } = await supabase
-        .from("user_tenants")
-        .select("tenant_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!userTenants) throw new Error("No tenant found");
-
-      const { error } = await supabase
-        .from("weekly_sales")
-        .delete()
-        .eq("tenant_id", userTenants.tenant_id);
+  // Fetch available weeks from sales_daily
+  const { data: availableWeeks, isLoading: weeksLoading } = useQuery({
+    queryKey: ["available-weeks", tenantInfo?.tenantId],
+    queryFn: async () => {
+      if (!tenantInfo?.tenantId) return [];
+      
+      const { data, error } = await supabase.rpc("get_available_weeks", {
+        p_tenant_id: tenantInfo.tenantId
+      });
 
       if (error) throw error;
+      return (data || []) as { week_end: string; record_count: number }[];
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["weekly-sales"] });
-      toast({
-        title: "Dati dzēsti",
-        description: "Visi nedēļas pārdošanas dati ir veiksmīgi dzēsti.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Kļūda",
-        description: error.message || "Neizdevās dzēst datus",
-        variant: "destructive",
-      });
-    },
+    enabled: !!tenantInfo?.tenantId,
   });
 
-  // Get latest upload date
-  const latestUploadDate = useMemo(() => {
-    if (!weeklySales || weeklySales.length === 0) return null;
-    const dates = weeklySales.map(s => new Date(s.created_at)).filter(d => !isNaN(d.getTime()));
-    if (dates.length === 0) return null;
-    return new Date(Math.max(...dates.map(d => d.getTime())));
-  }, [weeklySales]);
+  // Set default week when available weeks load
+  useMemo(() => {
+    if (availableWeeks && availableWeeks.length > 0 && !selectedLwWeek) {
+      setSelectedLwWeek(availableWeeks[0].week_end);
+    }
+  }, [availableWeeks, selectedLwWeek]);
 
-  // Get week end date range
-  const weekEndRange = useMemo(() => {
-    if (!weeklySales || weeklySales.length === 0) return null;
-    const dates = weeklySales.map(s => new Date(s.week_end)).filter(d => !isNaN(d.getTime()));
-    if (dates.length === 0) return null;
-    const min = new Date(Math.min(...dates.map(d => d.getTime())));
-    const max = new Date(Math.max(...dates.map(d => d.getTime())));
-    return { min, max };
-  }, [weeklySales]);
+  // Calculate LW and PW dates
+  const { lwWeekEnd, pwWeekEnd } = useMemo(() => {
+    if (!selectedLwWeek) {
+      return { lwWeekEnd: null, pwWeekEnd: null };
+    }
+    const lwDate = new Date(selectedLwWeek);
+    const pwDate = subWeeks(lwDate, 1);
+    return {
+      lwWeekEnd: selectedLwWeek,
+      pwWeekEnd: format(pwDate, "yyyy-MM-dd")
+    };
+  }, [selectedLwWeek]);
+
+  // Fetch LW data
+  const { data: lwData, isLoading: lwLoading } = useQuery({
+    queryKey: ["weekly-sales-lw", tenantInfo?.tenantId, lwWeekEnd],
+    queryFn: async () => {
+      if (!tenantInfo?.tenantId || !lwWeekEnd) return [];
+      
+      const { data, error } = await supabase.rpc("get_weekly_sales_summary", {
+        p_tenant_id: tenantInfo.tenantId,
+        p_week_end: lwWeekEnd
+      });
+
+      if (error) throw error;
+      return (data || []) as WeeklySummaryRow[];
+    },
+    enabled: !!tenantInfo?.tenantId && !!lwWeekEnd,
+  });
+
+  // Fetch PW data
+  const { data: pwData, isLoading: pwLoading } = useQuery({
+    queryKey: ["weekly-sales-pw", tenantInfo?.tenantId, pwWeekEnd],
+    queryFn: async () => {
+      if (!tenantInfo?.tenantId || !pwWeekEnd) return [];
+      
+      const { data, error } = await supabase.rpc("get_weekly_sales_summary", {
+        p_tenant_id: tenantInfo.tenantId,
+        p_week_end: pwWeekEnd
+      });
+
+      if (error) throw error;
+      return (data || []) as WeeklySummaryRow[];
+    },
+    enabled: !!tenantInfo?.tenantId && !!pwWeekEnd,
+  });
+
+  const isLoading = weeksLoading || lwLoading || pwLoading;
 
   // Calculate ABC and comparison data
   const { abcAnalysis, comparisonData, totals } = useMemo(() => {
-    if (!weeklySales || weeklySales.length === 0) {
+    if (!lwData || lwData.length === 0) {
       return { 
         abcAnalysis: { LW: [], PW: [], abcMap: new Map() },
         comparisonData: [],
@@ -186,118 +182,75 @@ const WeeklySales = () => {
       };
     }
 
-    const lwSales = weeklySales.filter(s => s.period_type === "LW");
-    const pwSales = weeklySales.filter(s => s.period_type === "PW");
-
-    // Aggregate by product for ABC
-    const aggregateByProduct = (sales: typeof weeklySales): ProductAgg[] => {
-      const map = new Map<string, ProductAgg>();
-      sales.forEach(sale => {
-        // Use product_id as key, skip records without product_id
-        if (!sale.product_id) return;
-        const key = sale.product_id;
-        const productName = sale.products?.name || 'Nezināms produkts';
-        const existing = map.get(key);
-        if (existing) {
-          existing.total_units += Number(sale.units_sold) || 0;
-          existing.total_revenue += Number(sale.gross_margin) || 0;
-        } else {
-          map.set(key, {
-            product_id: sale.product_id,
-            product_name: productName,
-            total_units: Number(sale.units_sold) || 0,
-            total_revenue: Number(sale.gross_margin) || 0,
-          });
-        }
-      });
-      return Array.from(map.values());
-    };
-
-    const lwAgg = aggregateByProduct(lwSales);
-    const pwAgg = aggregateByProduct(pwSales);
-
-    const lwWithABC = assignABC(lwAgg);
-    const pwWithABC = assignABC(pwAgg);
+    const lwWithABC = assignABC(lwData);
+    const pwWithABC = pwData ? assignABC(pwData) : [];
 
     // Create ABC map
     const abcMap = new Map<string, { LW?: "A" | "B" | "C", PW?: "A" | "B" | "C" }>();
     lwWithABC.forEach(p => {
-      if (!p.product_id) return;
       abcMap.set(p.product_id, { ...abcMap.get(p.product_id), LW: p.abc_category });
     });
     pwWithABC.forEach(p => {
-      if (!p.product_id) return;
       abcMap.set(p.product_id, { ...abcMap.get(p.product_id), PW: p.abc_category });
     });
 
-    // Build comparison data - only include records with product_id
+    // Build comparison data
     const productMap = new Map<string, ComparisonRow>();
     
-    lwSales.forEach(sale => {
-      if (!sale.product_id) return; // Skip unmapped records
-      const key = sale.product_id;
-      const productName = sale.products?.name || 'Nezināms produkts';
-      const existing = productMap.get(key);
-      const abcData = abcMap.get(key);
-      
-      if (existing) {
-        existing.lw_units += Number(sale.units_sold) || 0;
-        existing.lw_margin += Number(sale.gross_margin) || 0;
-        existing.stock_end = sale.stock_end ? Number(sale.stock_end) : existing.stock_end;
-        existing.mapped = sale.mapped || existing.mapped;
-      } else {
-        productMap.set(key, {
-          product_name: productName,
-          product_id: sale.product_id,
-          lw_units: Number(sale.units_sold) || 0,
-          pw_units: 0,
-          lw_margin: Number(sale.gross_margin) || 0,
-          pw_margin: 0,
-          stock_end: sale.stock_end ? Number(sale.stock_end) : null,
-          units_change: 0,
-          units_change_pct: 0,
-          margin_change: 0,
-          margin_change_pct: 0,
-          abc_lw: abcData?.LW || null,
-          abc_pw: abcData?.PW || null,
-          mapped: sale.mapped,
-        });
-      }
+    lwWithABC.forEach(item => {
+      const abcData = abcMap.get(item.product_id);
+      productMap.set(item.product_id, {
+        product_id: item.product_id,
+        product_name: item.product_name,
+        product_sku: item.product_sku,
+        product_brand: item.product_brand,
+        category_name: item.category_name,
+        lw_units: Number(item.units_sold) || 0,
+        pw_units: 0,
+        lw_margin: Number(item.gross_margin) || 0,
+        pw_margin: 0,
+        stock_end: Number(item.stock_end) || 0,
+        units_change: 0,
+        units_change_pct: 0,
+        margin_change: 0,
+        margin_change_pct: 0,
+        abc_lw: abcData?.LW || null,
+        abc_pw: abcData?.PW || null,
+      });
     });
 
-    pwSales.forEach(sale => {
-      if (!sale.product_id) return; // Skip unmapped records
-      const key = sale.product_id;
-      const productName = sale.products?.name || 'Nezināms produkts';
-      const existing = productMap.get(key);
-      const abcData = abcMap.get(key);
+    pwWithABC.forEach(item => {
+      const existing = productMap.get(item.product_id);
+      const abcData = abcMap.get(item.product_id);
       
       if (existing) {
-        existing.pw_units += Number(sale.units_sold) || 0;
-        existing.pw_margin += Number(sale.gross_margin) || 0;
+        existing.pw_units = Number(item.units_sold) || 0;
+        existing.pw_margin = Number(item.gross_margin) || 0;
         existing.abc_pw = abcData?.PW || null;
       } else {
-        productMap.set(key, {
-          product_name: productName,
-          product_id: sale.product_id,
+        productMap.set(item.product_id, {
+          product_id: item.product_id,
+          product_name: item.product_name,
+          product_sku: item.product_sku,
+          product_brand: item.product_brand,
+          category_name: item.category_name,
           lw_units: 0,
-          pw_units: Number(sale.units_sold) || 0,
+          pw_units: Number(item.units_sold) || 0,
           lw_margin: 0,
-          pw_margin: Number(sale.gross_margin) || 0,
-          stock_end: sale.stock_end ? Number(sale.stock_end) : null,
+          pw_margin: Number(item.gross_margin) || 0,
+          stock_end: 0,
           units_change: 0,
           units_change_pct: 0,
           margin_change: 0,
           margin_change_pct: 0,
           abc_lw: abcData?.LW || null,
           abc_pw: abcData?.PW || null,
-          mapped: sale.mapped,
         });
       }
     });
 
     // Calculate changes
-    productMap.forEach((row, key) => {
+    productMap.forEach((row) => {
       row.units_change = row.lw_units - row.pw_units;
       row.margin_change = row.lw_margin - row.pw_margin;
       row.units_change_pct = row.pw_units > 0 ? ((row.lw_units - row.pw_units) / row.pw_units) * 100 : (row.lw_units > 0 ? 100 : 0);
@@ -319,16 +272,16 @@ const WeeklySales = () => {
       comparisonData: comparison,
       totals
     };
-  }, [weeklySales]);
+  }, [lwData, pwData]);
 
   // Filter and sort comparison data
   const filteredData = useMemo(() => {
     let data = comparisonData.filter(row => {
-      const matchesPartner = partnerFilter === "all"; // All data is from the same query
       const matchesProduct = !productSearch || 
-        row.product_name.toLowerCase().includes(productSearch.toLowerCase());
+        row.product_name.toLowerCase().includes(productSearch.toLowerCase()) ||
+        row.product_sku?.toLowerCase().includes(productSearch.toLowerCase());
       const matchesABC = abcFilter === "all" || row.abc_lw === abcFilter;
-      return matchesPartner && matchesProduct && matchesABC;
+      return matchesProduct && matchesABC;
     });
 
     // Sort
@@ -357,9 +310,7 @@ const WeeklySales = () => {
     }
 
     return data;
-  }, [comparisonData, partnerFilter, productSearch, abcFilter, sortBy]);
-
-  const uniquePartners = [...new Set(weeklySales?.map(s => s.partner) || [])];
+  }, [comparisonData, productSearch, abcFilter, sortBy]);
 
   // ABC stats
   const getAbcStats = (products: ProductWithABC[]) => {
@@ -370,26 +321,26 @@ const WeeklySales = () => {
     const bProducts = products.filter(p => p.abc_category === "B");
     const cProducts = products.filter(p => p.abc_category === "C");
 
-    const totalRevenue = products.reduce((sum, p) => sum + p.total_revenue, 0);
+    const totalMargin = products.reduce((sum, p) => sum + p.gross_margin, 0);
 
     return {
       A: { 
         count: aProducts.length, 
         pct: (aProducts.length / total * 100).toFixed(0),
-        revenue: aProducts.reduce((sum, p) => sum + p.total_revenue, 0),
-        revenuePct: totalRevenue > 0 ? (aProducts.reduce((sum, p) => sum + p.total_revenue, 0) / totalRevenue * 100).toFixed(0) : "0"
+        revenue: aProducts.reduce((sum, p) => sum + p.gross_margin, 0),
+        revenuePct: totalMargin > 0 ? (aProducts.reduce((sum, p) => sum + p.gross_margin, 0) / totalMargin * 100).toFixed(0) : "0"
       },
       B: { 
         count: bProducts.length, 
         pct: (bProducts.length / total * 100).toFixed(0),
-        revenue: bProducts.reduce((sum, p) => sum + p.total_revenue, 0),
-        revenuePct: totalRevenue > 0 ? (bProducts.reduce((sum, p) => sum + p.total_revenue, 0) / totalRevenue * 100).toFixed(0) : "0"
+        revenue: bProducts.reduce((sum, p) => sum + p.gross_margin, 0),
+        revenuePct: totalMargin > 0 ? (bProducts.reduce((sum, p) => sum + p.gross_margin, 0) / totalMargin * 100).toFixed(0) : "0"
       },
       C: { 
         count: cProducts.length, 
         pct: (cProducts.length / total * 100).toFixed(0),
-        revenue: cProducts.reduce((sum, p) => sum + p.total_revenue, 0),
-        revenuePct: totalRevenue > 0 ? (cProducts.reduce((sum, p) => sum + p.total_revenue, 0) / totalRevenue * 100).toFixed(0) : "0"
+        revenue: cProducts.reduce((sum, p) => sum + p.gross_margin, 0),
+        revenuePct: totalMargin > 0 ? (cProducts.reduce((sum, p) => sum + p.gross_margin, 0) / totalMargin * 100).toFixed(0) : "0"
       },
     };
   };
@@ -439,67 +390,37 @@ const WeeklySales = () => {
           <h1 className="text-3xl font-bold">Nedēļas Pārdošanas Pārskats</h1>
           <p className="text-muted-foreground mt-1">
             LW vs PW salīdzinājums ar ABC analīzi
-            {weeklySales && weeklySales.length > 0 && (
+            {tenantInfo && (
               <span className="ml-2 text-xs">
-                ({weeklySales.length} ieraksti datubāzē)
+                ({tenantInfo.tenantName})
               </span>
             )}
           </p>
-          {/* Upload date and data period info */}
-          {weeklySales && weeklySales.length > 0 && (
+          {/* Week selection and data period info */}
+          {availableWeeks && availableWeeks.length > 0 && (
             <div className="flex flex-wrap items-center gap-4 mt-2 text-sm">
-              {latestUploadDate && (
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <Upload className="h-3.5 w-3.5" />
-                  <span>Augšupielādēts: <span className="font-medium text-foreground">{format(latestUploadDate, "dd.MM.yyyy HH:mm", { locale: lv })}</span></span>
-                </div>
-              )}
-              {weekEndRange && (
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <Calendar className="h-3.5 w-3.5" />
-                  <span>Datu periods: <span className="font-medium text-foreground">{format(weekEndRange.min, "dd.MM.yyyy")} - {format(weekEndRange.max, "dd.MM.yyyy")}</span></span>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                <span>Datu periods: {availableWeeks.length} nedēļas pieejamas</span>
+              </div>
             </div>
           )}
         </div>
         <div className="flex items-center gap-2">
-          {weeklySales && weeklySales.length > 0 && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Dzēst Visus
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Dzēst visus nedēļas pārdošanas datus?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Šī darbība dzēsīs {weeklySales.length} ierakstus. To nevar atsaukt.
-                    Pēc dzēšanas varēsiet importēt jaunus datus.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Atcelt</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => deleteAllMutation.mutate()}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  >
-                    {deleteAllMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Dzēš...
-                      </>
-                    ) : (
-                      "Dzēst Visus"
-                    )}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+          {availableWeeks && availableWeeks.length > 0 && (
+            <Select value={selectedLwWeek} onValueChange={setSelectedLwWeek}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Izvēlieties nedēļu" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableWeeks.map((week) => (
+                  <SelectItem key={week.week_end} value={week.week_end}>
+                    Nedēļa: {format(new Date(week.week_end), "dd.MM.yyyy")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
-          <WeeklySalesImportDialog onImportComplete={() => refetch()} />
         </div>
       </div>
 
@@ -640,21 +561,6 @@ const WeeklySales = () => {
         <CardContent className="pt-4">
           <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-1.5 min-w-[140px]">
-              <Label className="text-xs">Partneris</Label>
-              <Select value={partnerFilter} onValueChange={setPartnerFilter}>
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Visi</SelectItem>
-                  {uniquePartners.map((partner) => (
-                    <SelectItem key={partner} value={partner}>{partner}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5 min-w-[140px]">
               <Label className="text-xs">ABC Kategorija</Label>
               <Select value={abcFilter} onValueChange={setAbcFilter}>
                 <SelectTrigger className="h-9">
@@ -689,7 +595,7 @@ const WeeklySales = () => {
             <div className="space-y-1.5 flex-1 min-w-[200px]">
               <Label className="text-xs">Meklēt produktu</Label>
               <Input
-                placeholder="Nosaukums..."
+                placeholder="Nosaukums vai SKU..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
                 className="h-9"
@@ -708,6 +614,11 @@ const WeeklySales = () => {
               <CardDescription>
                 Rāda {displayedData.length} no {filteredData.length} produktiem 
                 {comparisonData.length !== filteredData.length && ` (kopā ${comparisonData.length})`}
+                {lwWeekEnd && pwWeekEnd && (
+                  <span className="ml-2">
+                    | LW: {format(new Date(lwWeekEnd), "dd.MM")} | PW: {format(new Date(pwWeekEnd), "dd.MM")}
+                  </span>
+                )}
               </CardDescription>
             </div>
             {filteredData.length > 100 && (
@@ -749,16 +660,18 @@ const WeeklySales = () => {
                       <TableHead className="sticky top-0 bg-muted/50 text-right w-[100px]">PW Marža</TableHead>
                       <TableHead className="sticky top-0 bg-muted/50 text-center w-[100px]">Δ Marža</TableHead>
                       <TableHead className="sticky top-0 bg-muted/50 text-right w-[80px]">Atlikums</TableHead>
-                      <TableHead className="sticky top-0 bg-muted/50 text-center w-[80px]">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {displayedData.map((row, idx) => (
-                      <TableRow key={`${row.product_id || row.product_name}-${idx}`}>
+                      <TableRow key={`${row.product_id}-${idx}`}>
                         <TableCell className="sticky left-0 bg-background font-medium">
                           <div className="truncate max-w-[200px]" title={row.product_name}>
                             {row.product_name}
                           </div>
+                          {row.product_sku && (
+                            <div className="text-xs text-muted-foreground truncate">{row.product_sku}</div>
+                          )}
                         </TableCell>
                         <TableCell className="text-center">
                           <ABCBadge abc={row.abc_lw} />
@@ -782,18 +695,7 @@ const WeeklySales = () => {
                           {renderChangeIndicator(row.margin_change, row.margin_change_pct, true)}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {row.stock_end !== null ? row.stock_end.toLocaleString() : '-'}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {row.mapped ? (
-                            <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20 text-xs">
-                              ✓
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-yellow-600 border-yellow-500/30 text-xs">
-                              ?
-                            </Badge>
-                          )}
+                          {row.stock_end > 0 ? row.stock_end.toLocaleString() : '-'}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -825,8 +727,8 @@ const WeeklySales = () => {
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <Package className="h-12 w-12 mx-auto mb-4 opacity-30" />
-              <p>Nav atrasti dati.</p>
-              <p className="text-sm mt-1">Importējiet Spirits&Wine Excel failu, lai redzētu pārskatu.</p>
+              <p>Nav atrasti dati izvēlētajai nedēļai.</p>
+              <p className="text-sm mt-1">Izvēlieties citu nedēļu vai pārbaudiet, vai ir pieejami pārdošanas dati.</p>
             </div>
           )}
         </CardContent>

@@ -1768,6 +1768,51 @@ export type Database = {
           },
         ]
       }
+      weekly_stock_snapshots: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          stock_quantity: number
+          tenant_id: string
+          updated_at: string
+          week_end: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          stock_quantity?: number
+          tenant_id: string
+          updated_at?: string
+          week_end: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          stock_quantity?: number
+          tenant_id?: string
+          updated_at?: string
+          week_end?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_stock_snapshots_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_stock_snapshots_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1779,6 +1824,13 @@ export type Database = {
           abc_category: string
           product_count: number
           revenue: number
+        }[]
+      }
+      get_available_weeks: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          record_count: number
+          week_end: string
         }[]
       }
       get_category_sales_summary: {
@@ -1816,6 +1868,19 @@ export type Database = {
           store_id: string
           total_revenue: number
           total_units: number
+        }[]
+      }
+      get_weekly_sales_summary: {
+        Args: { p_tenant_id: string; p_week_end: string }
+        Returns: {
+          category_name: string
+          gross_margin: number
+          product_brand: string
+          product_id: string
+          product_name: string
+          product_sku: string
+          stock_end: number
+          units_sold: number
         }[]
       }
       has_role: {
