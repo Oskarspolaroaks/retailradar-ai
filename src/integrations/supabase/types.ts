@@ -1774,6 +1774,7 @@ export type Database = {
           id: string
           product_id: string
           stock_quantity: number
+          store_id: string | null
           tenant_id: string
           updated_at: string
           week_end: string
@@ -1783,6 +1784,7 @@ export type Database = {
           id?: string
           product_id: string
           stock_quantity?: number
+          store_id?: string | null
           tenant_id: string
           updated_at?: string
           week_end: string
@@ -1792,6 +1794,7 @@ export type Database = {
           id?: string
           product_id?: string
           stock_quantity?: number
+          store_id?: string | null
           tenant_id?: string
           updated_at?: string
           week_end?: string
@@ -1802,6 +1805,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_stock_snapshots_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
             referencedColumns: ["id"]
           },
           {
