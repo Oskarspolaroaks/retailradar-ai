@@ -175,20 +175,26 @@ const WeeklySales = () => {
   // Mutation to update product ABC categories
   const updateAbcMutation = useMutation({
     mutationFn: async (abcData: Array<{ product_id: string; abc_category: "A" | "B" | "C" }>) => {
-      // Update in batches
-      const batchSize = 50;
-      for (let i = 0; i < abcData.length; i += batchSize) {
-        const batch = abcData.slice(i, i + batchSize);
-        const promises = batch.map(item =>
-          supabase
+      // Group products by ABC category for efficient batch updates
+      const groupedByCategory = abcData.reduce((acc, item) => {
+        if (!acc[item.abc_category]) acc[item.abc_category] = [];
+        acc[item.abc_category].push(item.product_id);
+        return acc;
+      }, {} as Record<string, string[]>);
+
+      // Update each category group in batches using IN clause
+      const batchSize = 100; // Supabase handles IN clauses efficiently
+      for (const [category, productIds] of Object.entries(groupedByCategory)) {
+        for (let i = 0; i < productIds.length; i += batchSize) {
+          const batchIds = productIds.slice(i, i + batchSize);
+          const { error } = await supabase
             .from("products")
-            .update({ abc_category: item.abc_category })
-            .eq("id", item.product_id)
-        );
-        const results = await Promise.all(promises);
-        const errors = results.filter(r => r.error);
-        if (errors.length > 0) {
-          throw new Error(`Failed to update some products: ${errors[0].error?.message}`);
+            .update({ abc_category: category })
+            .in("id", batchIds);
+          
+          if (error) {
+            throw new Error(`Failed to update ${category} products: ${error.message}`);
+          }
         }
       }
       return abcData.length;
