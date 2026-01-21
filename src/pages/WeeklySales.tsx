@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, TrendingUp, Package, ArrowUpRight, ArrowDownRight, Minus, BarChart3, Loader2 } from "lucide-react";
+import { Calendar, TrendingUp, Package, ArrowUpRight, ArrowDownRight, Minus, BarChart3, Loader2, RefreshCw } from "lucide-react";
 import { format, startOfWeek, endOfWeek, subWeeks, subDays, getISOWeek } from "date-fns";
 import { lv } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -172,13 +172,51 @@ const WeeklySales = () => {
 
   const isLoading = weeksLoading || lwLoading || pwLoading;
 
+  // Mutation to update product ABC categories
+  const updateAbcMutation = useMutation({
+    mutationFn: async (abcData: Array<{ product_id: string; abc_category: "A" | "B" | "C" }>) => {
+      // Update in batches
+      const batchSize = 50;
+      for (let i = 0; i < abcData.length; i += batchSize) {
+        const batch = abcData.slice(i, i + batchSize);
+        const promises = batch.map(item =>
+          supabase
+            .from("products")
+            .update({ abc_category: item.abc_category })
+            .eq("id", item.product_id)
+        );
+        const results = await Promise.all(promises);
+        const errors = results.filter(r => r.error);
+        if (errors.length > 0) {
+          throw new Error(`Failed to update some products: ${errors[0].error?.message}`);
+        }
+      }
+      return abcData.length;
+    },
+    onSuccess: (count) => {
+      toast({
+        title: "ABC kategorijas atjaunotas",
+        description: `Veiksmīgi atjaunoti ${count} produkti ar LW ABC vērtībām.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Kļūda",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Calculate ABC and comparison data
-  const { abcAnalysis, comparisonData, totals } = useMemo(() => {
+  const { abcAnalysis, comparisonData, totals, lwWithABC } = useMemo(() => {
     if (!lwData || lwData.length === 0) {
       return { 
         abcAnalysis: { LW: [], PW: [], abcMap: new Map() },
         comparisonData: [],
-        totals: { lwUnits: 0, pwUnits: 0, lwMargin: 0, pwMargin: 0 }
+        totals: { lwUnits: 0, pwUnits: 0, lwMargin: 0, pwMargin: 0 },
+        lwWithABC: []
       };
     }
 
@@ -270,7 +308,8 @@ const WeeklySales = () => {
     return { 
       abcAnalysis: { LW: lwWithABC, PW: pwWithABC, abcMap },
       comparisonData: comparison,
-      totals
+      totals,
+      lwWithABC
     };
   }, [lwData, pwData]);
 
@@ -626,22 +665,43 @@ const WeeklySales = () => {
                 )}
               </CardDescription>
             </div>
-            {filteredData.length > 100 && (
-              <Select 
-                value={displayLimit.toString()} 
-                onValueChange={(v) => setDisplayLimit(Number(v))}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={updateAbcMutation.isPending || lwWithABC.length === 0}
+                onClick={() => {
+                  const abcData = lwWithABC.map(p => ({
+                    product_id: p.product_id,
+                    abc_category: p.abc_category
+                  }));
+                  updateAbcMutation.mutate(abcData);
+                }}
               >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Rādīt..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="100">Rādīt 100</SelectItem>
-                  <SelectItem value="500">Rādīt 500</SelectItem>
-                  <SelectItem value="1000">Rādīt 1000</SelectItem>
-                  <SelectItem value="99999">Rādīt Visus</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
+                {updateAbcMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Atjaunot ABC
+              </Button>
+              {filteredData.length > 100 && (
+                <Select 
+                  value={displayLimit.toString()} 
+                  onValueChange={(v) => setDisplayLimit(Number(v))}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Rādīt..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="100">Rādīt 100</SelectItem>
+                    <SelectItem value="500">Rādīt 500</SelectItem>
+                    <SelectItem value="1000">Rādīt 1000</SelectItem>
+                    <SelectItem value="99999">Rādīt Visus</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
