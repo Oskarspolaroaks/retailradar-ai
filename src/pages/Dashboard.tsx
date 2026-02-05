@@ -304,12 +304,12 @@ const Dashboard = () => {
       const lastYearEndStr = lastYearEndDate.toISOString().split("T")[0];
 
       // Fetch categories from categories table
-      const { data: categoriesData } = await supabase.from("categories").select("name").eq("tenant_id", tenantId);
+      const { data: categoriesData } = await supabase.from("categories").select("name");
       const uniqueCategories = categoriesData?.map((c) => c.name).filter(Boolean) || [];
       setCategories(uniqueCategories as string[]);
 
       // Fetch stores
-      const { data: stores } = await supabase.from("stores").select("*").eq("tenant_id", tenantId).eq("is_active", true);
+      const { data: stores } = await supabase.from("stores").select("*").eq("is_active", true);
 
       // Use RPC functions for aggregated data - parallel calls (with tenant isolation)
       const [currentSalesResult, lastYearSalesResult, abcDistributionResult, abcRevenueResult, storeSalesResult] =
@@ -423,7 +423,6 @@ const Dashboard = () => {
       const { data: recentSales } = await supabase
         .from("sales_daily")
         .select("reg_date, selling_price, units_sold, product_id")
-        .eq("tenant_id", tenantId)
         .gte("reg_date", dateStr)
         .order("reg_date", { ascending: true })
         .limit(5000);
@@ -450,7 +449,6 @@ const Dashboard = () => {
       const { data: products } = await supabase
         .from("products")
         .select("id, name, current_price, cost_price")
-        .eq("tenant_id", tenantId)
         .eq("status", "active");
 
       const productRevenue = new Map<string, { name: string; revenue: number; margin: number }>();
