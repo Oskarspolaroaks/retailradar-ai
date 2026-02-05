@@ -20,15 +20,33 @@ export const ABCChart = () => {
 
   const fetchABCData = async () => {
     try {
+      // Get user's tenant
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: userTenant } = await supabase
+        .from("user_tenants")
+        .select("tenant_id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!userTenant) {
+        setLoading(false);
+        return;
+      }
+
       // Calculate date from 90 days ago for revenue breakdown
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - 90);
       const dateStr = startDate.toISOString().split('T')[0];
 
-      // Use RPC functions for aggregated data
+      // Use RPC functions for aggregated data (with tenant isolation)
       const [distributionResult, revenueResult] = await Promise.all([
-        supabase.rpc('get_products_abc_distribution'),
-        supabase.rpc('get_abc_revenue_breakdown', { p_date_from: dateStr })
+        supabase.rpc('get_products_abc_distribution', { p_tenant_id: userTenant.tenant_id }),
+        supabase.rpc('get_abc_revenue_breakdown', { p_tenant_id: userTenant.tenant_id, p_date_from: dateStr })
       ]);
 
       const distribution = distributionResult.data || [];

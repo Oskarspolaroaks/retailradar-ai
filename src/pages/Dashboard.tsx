@@ -311,14 +311,14 @@ const Dashboard = () => {
       // Fetch stores
       const { data: stores } = await supabase.from("stores").select("*").eq("is_active", true);
 
-      // Use RPC functions for aggregated data - parallel calls
+      // Use RPC functions for aggregated data - parallel calls (with tenant isolation)
       const [currentSalesResult, lastYearSalesResult, abcDistributionResult, abcRevenueResult, storeSalesResult] =
         await Promise.all([
-          supabase.rpc("get_sales_summary", { p_date_from: dateStr, p_date_to: endDateStr }),
-          supabase.rpc("get_sales_summary", { p_date_from: lastYearStartStr, p_date_to: lastYearEndStr }),
-          supabase.rpc("get_products_abc_distribution"),
-          supabase.rpc("get_abc_revenue_breakdown", { p_date_from: dateStr, p_date_to: endDateStr }),
-          supabase.rpc("get_store_sales_summary", { p_date_from: dateStr, p_date_to: endDateStr }),
+          supabase.rpc("get_sales_summary", { p_tenant_id: tenantId, p_date_from: dateStr, p_date_to: endDateStr }),
+          supabase.rpc("get_sales_summary", { p_tenant_id: tenantId, p_date_from: lastYearStartStr, p_date_to: lastYearEndStr }),
+          supabase.rpc("get_products_abc_distribution", { p_tenant_id: tenantId }),
+          supabase.rpc("get_abc_revenue_breakdown", { p_tenant_id: tenantId, p_date_from: dateStr, p_date_to: endDateStr }),
+          supabase.rpc("get_store_sales_summary", { p_tenant_id: tenantId, p_date_from: dateStr, p_date_to: endDateStr }),
         ]);
 
       // Extract current period data
@@ -380,6 +380,7 @@ const Dashboard = () => {
 
       // Store comparison from RPC - also fetch last year data for growth calculation
       const { data: lastYearStoreSales } = await supabase.rpc("get_store_sales_summary", { 
+        p_tenant_id: tenantId,
         p_date_from: lastYearStartStr, 
         p_date_to: lastYearEndStr 
       });
