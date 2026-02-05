@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 serve(async (req) => {
@@ -12,26 +12,59 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+    // Authentication check
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Authorization required' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { query } = await req.json();
-    
-    if (!query) {
-      return new Response(JSON.stringify({ error: 'Query is required' }), {
+
+    // Input validation
+    if (!query || typeof query !== 'string') {
+      return new Response(JSON.stringify({ error: 'Query must be a non-empty string' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    // Length limit to prevent abuse
+    if (query.length > 2000) {
+      return new Response(JSON.stringify({ error: 'Query too long (max 2000 characters)' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    console.log('AI Query:', query);
+    // Sanitize query - remove potential prompt injection patterns
+    const sanitizedQuery = query
+      .replace(/system:|assistant:|user:/gi, '')
+      .trim();
+
+    console.log(`AI Query from user ${user.id}:`, sanitizedQuery.substring(0, 100));
 
     // Get recent data for context
     const { data: products } = await supabase
       .from('products')
-      .select('id, sku, name, brand, category, cost_price, current_price, abc_category')
+      .select('id, sku, name, brand, subcategory, cost_price, current_price, abc_category')
       .eq('status', 'active')
       .limit(100);
 
@@ -41,7 +74,7 @@ serve(async (req) => {
 
     const { data: sales } = await supabase
       .from('sales_daily')
-      .select('product_id, units_sold, revenue')
+      .select('product_id, units_sold, selling_price')
       .gte('reg_date', dateStr);
 
     // Build sales aggregation
@@ -49,7 +82,7 @@ serve(async (req) => {
     sales?.forEach((s: any) => {
       const existing = salesByProduct.get(s.product_id) || { units: 0, revenue: 0 };
       existing.units += Number(s.units_sold);
-      existing.revenue += Number(s.revenue);
+      existing.revenue += Number(s.selling_price || 0) * Number(s.units_sold);
       salesByProduct.set(s.product_id, existing);
     });
 
@@ -182,7 +215,7 @@ Clear, confident, practical. Focus on actionable insights with specific product 
         model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: query }
+          { role: 'user', content: sanitizedQuery }
         ],
       }),
     });

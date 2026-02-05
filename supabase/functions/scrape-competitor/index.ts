@@ -3,8 +3,33 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
+
+// Allowed domains for scraping
+const ALLOWED_DOMAINS = ['rimi.lv', 'maxima.lv', 'lidl.lv', 'barbora.lv', 'citro.lv', 'nuko.lv', 'top.lv'];
+
+function isAllowedUrl(urlString: string): boolean {
+  try {
+    const parsedUrl = new URL(urlString);
+    
+    // Block internal/local URLs
+    if (parsedUrl.hostname === 'localhost' || 
+        parsedUrl.hostname.startsWith('127.') ||
+        parsedUrl.hostname.startsWith('192.168.') ||
+        parsedUrl.hostname.startsWith('10.') ||
+        parsedUrl.hostname.startsWith('172.') ||
+        parsedUrl.hostname.endsWith('.internal') ||
+        parsedUrl.hostname.endsWith('.local')) {
+      return false;
+    }
+    
+    // Check if domain is in allowed list
+    return ALLOWED_DOMAINS.some(domain => parsedUrl.hostname.endsWith(domain));
+  } catch {
+    return false;
+  }
+}
 
 interface ScrapedProduct {
   name: string;
@@ -125,8 +150,33 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+    // Authentication check
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Authorization required' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { url, competitor_id } = await req.json();
-    
+
+    // Input validation
     if (!url) {
       return new Response(JSON.stringify({ error: 'URL is required' }), {
         status: 400,
@@ -134,21 +184,63 @@ serve(async (req) => {
       });
     }
 
-    console.log('Scraping competitor URL:', url);
+    if (typeof url !== 'string' || url.length > 2000) {
+      return new Response(JSON.stringify({ error: 'Invalid URL format' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate URL format and domain
+    if (!isAllowedUrl(url)) {
+      return new Response(JSON.stringify({ 
+        error: 'Domain not allowed. Only Latvian retail sites are permitted.',
+        allowed_domains: ALLOWED_DOMAINS 
+      }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate competitor_id format if provided
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (competitor_id && !uuidRegex.test(competitor_id)) {
+      return new Response(JSON.stringify({ error: 'Invalid competitor_id format' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log(`User ${user.id} scraping competitor URL:`, url);
 
     // Fetch the webpage
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-      },
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+    let response;
+    try {
+      response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml',
+        },
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       throw new Error(`Failed to fetch: ${response.statusText}`);
     }
 
     const html = await response.text();
+    
+    // Limit response size to prevent memory issues
+    if (html.length > 5000000) { // 5MB limit
+      throw new Error('Response too large');
+    }
+    
     console.log(`Fetched ${html.length} bytes of HTML`);
 
     // Extract products
@@ -156,13 +248,17 @@ serve(async (req) => {
 
     // If competitor_id provided, save to database
     if (competitor_id && products.length > 0) {
-      const supabase = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      );
+      // Get tenant_id from user
+      const { data: userTenant } = await supabase
+        .from('user_tenants')
+        .select('tenant_id')
+        .eq('user_id', user.id)
+        .single();
+
+      const tenant_id = userTenant?.tenant_id;
 
       // Save scraping results
-      for (const product of products) {
+      for (const product of products.slice(0, 100)) { // Limit to 100 products
         // Create or update competitor product
         const { data: compProduct, error: compError } = await supabase
           .from('competitor_products')
@@ -171,7 +267,7 @@ serve(async (req) => {
             competitor_name: product.name,
             competitor_sku: `scraped-${Date.now()}`,
             category_hint: product.brand,
-            tenant_id: (await supabase.auth.getUser()).data.user?.id || 'system',
+            tenant_id: tenant_id,
           })
           .select()
           .single();
@@ -184,12 +280,12 @@ serve(async (req) => {
             price: product.regular_price || 0,
             promo_flag: product.is_on_promo,
             note: product.promo_text || (product.promo_price ? `Promo: €${product.promo_price}` : null),
-            tenant_id: compProduct.tenant_id,
+            tenant_id: tenant_id,
           });
         }
       }
 
-      console.log(`Saved ${products.length} products to database`);
+      console.log(`Saved ${Math.min(products.length, 100)} products to database`);
     }
 
     return new Response(
