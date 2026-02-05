@@ -3,8 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
+
+// Secret token for cron job authentication
+const CRON_SECRET = Deno.env.get('CRON_SECRET');
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -12,12 +15,51 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+    // Authentication: either via cron secret or user token
+    const authHeader = req.headers.get('Authorization');
+    const cronHeader = req.headers.get('X-Cron-Secret');
+
+    // Check cron secret first (for scheduled jobs)
+    if (CRON_SECRET && cronHeader === CRON_SECRET) {
+      console.log('Authenticated via cron secret');
+    } else if (authHeader) {
+      // Fallback to user authentication
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Check if user has admin role
+      const { data: hasAdminRole } = await supabase
+        .rpc('has_role', { _user_id: user.id, _role: 'admin' });
+
+      if (!hasAdminRole) {
+        return new Response(JSON.stringify({ error: 'Admin access required' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      console.log(`Admin user ${user.id} triggered scheduled scrape`);
+    } else {
+      return new Response(JSON.stringify({ error: 'Authorization required' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.log('Starting scheduled competitor scraping...');
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Fetch all active competitors with website URLs
     const { data: competitors, error: fetchError } = await supabase

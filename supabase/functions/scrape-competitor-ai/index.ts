@@ -3,8 +3,34 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
+
+// Allowed domains for scraping
+const ALLOWED_DOMAINS = ['rimi.lv', 'maxima.lv', 'lidl.lv', 'barbora.lv', 'citro.lv', 'nuko.lv', 'top.lv'];
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isAllowedUrl(urlString: string): boolean {
+  try {
+    const parsedUrl = new URL(urlString);
+    
+    // Block internal/local URLs
+    if (parsedUrl.hostname === 'localhost' || 
+        parsedUrl.hostname.startsWith('127.') ||
+        parsedUrl.hostname.startsWith('192.168.') ||
+        parsedUrl.hostname.startsWith('10.') ||
+        parsedUrl.hostname.startsWith('172.') ||
+        parsedUrl.hostname.endsWith('.internal') ||
+        parsedUrl.hostname.endsWith('.local')) {
+      return false;
+    }
+    
+    // Check if domain is in allowed list
+    return ALLOWED_DOMAINS.some(domain => parsedUrl.hostname.endsWith(domain));
+  } catch {
+    return false;
+  }
+}
 
 // Latvian retail sites product extraction patterns
 const SITE_PATTERNS: Record<string, any> = {
@@ -132,19 +158,71 @@ serve(async (req) => {
   }
 
   try {
-    const { url, competitor_id, use_ai = true } = await req.json();
-    
-    if (!url) {
-      return new Response(JSON.stringify({ error: 'URL is required' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+    // Authentication check
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Authorization required' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log(`AI Scraping: ${url}`);
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { url, competitor_id, use_ai = true } = await req.json();
+
+    // Input validation
+    if (!url) {
+      return new Response(JSON.stringify({ error: 'URL is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (typeof url !== 'string' || url.length > 2000) {
+      return new Response(JSON.stringify({ error: 'Invalid URL format' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate URL format and domain
+    if (!isAllowedUrl(url)) {
+      return new Response(JSON.stringify({ 
+        error: 'Domain not allowed. Only Latvian retail sites are permitted.',
+        allowed_domains: ALLOWED_DOMAINS 
+      }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate competitor_id format if provided
+    if (competitor_id && !UUID_REGEX.test(competitor_id)) {
+      return new Response(JSON.stringify({ error: 'Invalid competitor_id format' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log(`User ${user.id} AI Scraping: ${url}`);
 
     // Fetch the webpage with multiple retry strategies
     let html = '';
-    
+
     const headerSets: Record<string, string>[] = [
       {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -160,9 +238,21 @@ serve(async (req) => {
 
     for (const headerSet of headerSets) {
       try {
-        const response = await fetch(url, { headers: headerSet });
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        
+        const response = await fetch(url, { 
+          headers: headerSet,
+          signal: controller.signal 
+        });
+        clearTimeout(timeout);
+        
         if (response.ok) {
           html = await response.text();
+          // Limit response size
+          if (html.length > 5000000) {
+            html = html.substring(0, 5000000);
+          }
           break;
         }
         console.log(`Fetch returned ${response.status} ${response.statusText}`);
@@ -196,11 +286,6 @@ serve(async (req) => {
 
     // If we got products and have competitor_id, save to database
     if (competitor_id && products.length > 0) {
-      const supabase = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      );
-
       // Get tenant_id from competitor
       const { data: competitor } = await supabase
         .from('competitors')
