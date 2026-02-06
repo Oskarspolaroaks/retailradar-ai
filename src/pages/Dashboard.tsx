@@ -667,7 +667,7 @@ const Dashboard = () => {
                     <span className="text-xs sm:text-sm font-medium truncate">{store.code || store.name}</span>
                   </div>
                   <div className="mt-1 sm:mt-2">
-                    <span className="text-base sm:text-xl font-bold">{store.avgTicket?.toFixed(2) || '0.00'}</span>
+                                       <span className="text-base sm:text-xl font-bold">{formatKPIValue(store.avgTicket || 0, "€")}</span>
                     <span className="text-xs sm:text-sm text-muted-foreground ml-1">€</span>
                   </div>
                 </Card>
