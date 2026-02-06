@@ -540,7 +540,7 @@ const Dashboard = () => {
         <div className="relative z-10 flex flex-col gap-4 md:gap-6">
           <div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-              Executive Dashboard
+              Uzņēmuma pārvaldības panelis
             </h1>
             <p className="text-muted-foreground mt-1 md:mt-2 text-sm md:text-lg">
               {new Date().toLocaleDateString('lv-LV', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
