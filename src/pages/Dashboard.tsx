@@ -53,6 +53,30 @@ import { StoreSelector } from "@/components/kpi/StoreSelector";
 import { KPIExportButton } from "@/components/kpi/KPIExportButton";
 import { cn } from "@/lib/utils";
 
+// Helper function for consistent KPI number formatting
+function formatKPIValue(value: number, unit?: string): string {
+    if (unit === "€") {
+          if (Math.abs(value) < 1000) {
+                  return value.toLocaleString("lv-LV", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                  });
+          }
+          return Math.round(value).toLocaleString("lv-LV", {
+                  maximumFractionDigits: 0,
+          });
+    }
+    if (unit === "%") {
+          return value.toLocaleString("lv-LV", {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+          });
+    }
+    return Math.round(value).toLocaleString("lv-LV", {
+          maximumFractionDigits: 0,
+    });
+}
+
 // KPI Card Component
 const KPICard = ({
   title,
@@ -110,8 +134,7 @@ const KPICard = ({
       </CardHeader>
       <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
         <div className={cn("font-bold tracking-tight", size === "lg" ? "text-xl sm:text-4xl" : size === "md" ? "text-lg sm:text-3xl" : "text-base sm:text-2xl")}>
-          {typeof value === "number" ? value.toLocaleString("lv-LV", { maximumFractionDigits: 1 }) : value}
-          {unit && <span className="text-xs sm:text-lg font-normal text-muted-foreground ml-0.5 sm:ml-1">{unit}</span>}
+          {typeof value === "number" ? formatKPIValue(value, unit) : value}          {unit && <span className="text-xs sm:text-lg font-normal text-muted-foreground ml-0.5 sm:ml-1">{unit}</span>}
         </div>
         {change !== undefined && (
           <div className="flex items-center gap-1 sm:gap-2 mt-1 sm:mt-2 flex-wrap">
