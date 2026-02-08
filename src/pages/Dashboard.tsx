@@ -315,7 +315,7 @@ const Dashboard = () => {
       const { data: salesData } = await supabase
         .from("sales_daily")
         .select("*")
-        .gte("date", dateStr);
+        .gte("reg_date", dateStr);
 
       // Fetch stores
       const { data: stores } = await supabase
@@ -324,7 +324,7 @@ const Dashboard = () => {
         .eq("is_active", true);
 
       // Calculate KPIs
-      const totalRevenue = salesData?.reduce((sum, s) => sum + Number(s.revenue), 0) || 0;
+      const totalRevenue = salesData?.reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0) || 0;
       const totalUnits = salesData?.reduce((sum, s) => sum + Number(s.units_sold), 0) || 0;
       const avgPrice = totalUnits > 0 ? totalRevenue / totalUnits : 0;
 
@@ -347,13 +347,13 @@ const Dashboard = () => {
       const productIds = products?.map(p => p.id) || [];
       const aProductIds = aProducts.map(p => p.id);
       const aRevenue = salesData?.filter(s => aProductIds.includes(s.product_id))
-        .reduce((sum, s) => sum + Number(s.revenue), 0) || 0;
+        .reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0) || 0;
       const aRevenueShare = totalRevenue > 0 ? (aRevenue / totalRevenue) * 100 : 0;
 
       // Store comparison
       const storeData = stores?.map(store => {
         const storeSales = salesData?.filter(s => s.store_id === store.id) || [];
-        const storeRevenue = storeSales.reduce((sum, s) => sum + Number(s.revenue), 0);
+        const storeRevenue = storeSales.reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
         return {
           id: store.id,
           name: store.name,
@@ -375,7 +375,7 @@ const Dashboard = () => {
             revenue: 0, 
             margin: ((Number(product.current_price) - Number(product.cost_price)) / Number(product.current_price)) * 100
           };
-          existing.revenue += Number(sale.revenue);
+          existing.revenue += Number(sale.selling_price) * Number(sale.units_sold);
           productRevenue.set(sale.product_id, existing);
         }
       });
@@ -390,15 +390,15 @@ const Dashboard = () => {
       // ABC chart data
       setAbcData([
         { name: 'A', products: aProducts.length, revenue: aRevenue, fill: 'hsl(var(--chart-1))' },
-        { name: 'B', products: bProducts.length, revenue: salesData?.filter(s => bProducts.map(p => p.id).includes(s.product_id)).reduce((sum, s) => sum + Number(s.revenue), 0) || 0, fill: 'hsl(var(--chart-2))' },
-        { name: 'C', products: cProducts.length, revenue: salesData?.filter(s => cProducts.map(p => p.id).includes(s.product_id)).reduce((sum, s) => sum + Number(s.revenue), 0) || 0, fill: 'hsl(var(--chart-3))' },
+        { name: 'B', products: bProducts.length, revenue: salesData?.filter(s => bProducts.map(p => p.id).includes(s.product_id)).reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0) || 0, fill: 'hsl(var(--chart-2))' },
+        { name: 'C', products: cProducts.length, revenue: salesData?.filter(s => cProducts.map(p => p.id).includes(s.product_id)).reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0) || 0, fill: 'hsl(var(--chart-3))' },
       ]);
 
       // Revenue trend
       const monthlyRevenue = new Map<string, number>();
       salesData?.forEach((sale) => {
         const month = sale.date.substring(0, 7);
-        monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + Number(sale.revenue));
+        monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + Number(sale.selling_price) * Number(sale.units_sold));
       });
 
       const sortedMonths = Array.from(monthlyRevenue.entries())
@@ -412,7 +412,7 @@ const Dashboard = () => {
       setRevenueData(sortedMonths);
 
       // Calculate average ticket (simulating unique transactions per day as transaction count)
-      const uniqueDays = new Set(salesData?.map(s => s.date) || []).size;
+      const uniqueDays = new Set(salesData?.map(s => s.reg_date) || []).size;
       const storesCount = stores?.length || 1;
       // Estimate transaction count based on unique date-store combinations
       const transactionCount = uniqueDays * storesCount * Math.floor(Math.random() * 50 + 100); // Simulated
@@ -421,8 +421,8 @@ const Dashboard = () => {
       // Calculate avg ticket per store
       const storeTickets = stores?.map(store => {
         const storeSales = salesData?.filter(s => s.store_id === store.id) || [];
-        const storeRevenue = storeSales.reduce((sum, s) => sum + Number(s.revenue), 0);
-        const storeUniqueDays = new Set(storeSales.map(s => s.date)).size;
+        const storeRevenue = storeSales.reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
+        const storeUniqueDays = new Set(storeSales.map(s => s.reg_date)).size;
         const storeTransactions = storeUniqueDays * Math.floor(Math.random() * 50 + 100); // Simulated
         return {
           id: store.id,

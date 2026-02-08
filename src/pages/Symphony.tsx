@@ -137,16 +137,16 @@ const Symphony = () => {
     // Get sales data
     const { data: recentSales } = await supabase
       .from("sales_daily")
-      .select("product_id, units_sold, revenue")
+      .select("product_id, units_sold, selling_price")
       .in("product_id", productIds)
-      .gte("date", midDate.toISOString().split('T')[0]);
+      .gte("reg_date", midDate.toISOString().split('T')[0]);
 
     const { data: olderSales } = await supabase
       .from("sales_daily")
-      .select("product_id, units_sold, revenue")
+      .select("product_id, units_sold, selling_price")
       .in("product_id", productIds)
-      .gte("date", startDate.toISOString().split('T')[0])
-      .lt("date", midDate.toISOString().split('T')[0]);
+      .gte("reg_date", startDate.toISOString().split('T')[0])
+      .lt("reg_date", midDate.toISOString().split('T')[0]);
 
     // Calculate sales by product
     const recentSalesByProduct = new Map();
@@ -156,7 +156,7 @@ const Symphony = () => {
       const current = recentSalesByProduct.get(s.product_id) || { units: 0, revenue: 0 };
       recentSalesByProduct.set(s.product_id, {
         units: current.units + Number(s.units_sold),
-        revenue: current.revenue + Number(s.revenue)
+        revenue: current.revenue + (Number(s.selling_price) * Number(s.units_sold))
       });
     });
 
@@ -164,7 +164,7 @@ const Symphony = () => {
       const current = olderSalesByProduct.get(s.product_id) || { units: 0, revenue: 0 };
       olderSalesByProduct.set(s.product_id, {
         units: current.units + Number(s.units_sold),
-        revenue: current.revenue + Number(s.revenue)
+        revenue: current.revenue + (Number(s.selling_price) * Number(s.units_sold))
       });
     });
 

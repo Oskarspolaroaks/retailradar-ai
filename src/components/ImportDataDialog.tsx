@@ -305,7 +305,7 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
             tenant_id: tenantId,
             store_id: storeId,
             product_id: productId,
-            date: row.Week_End_Date,
+            reg_date: row.Week_End_Date,
             units_sold: row.Units_Sold || 0,
             revenue: row.Net_Revenue || 0,
             regular_price: row.Regular_Price,
@@ -528,7 +528,7 @@ export const ImportDataDialog = ({ onImportComplete }: ImportDataDialogProps) =>
           tenant_id: tenantId,
           store_id: storeId,
           product_id: productId || null, // Allow null product_id
-          date: parsedDate,
+          reg_date: parsedDate,
           units_sold: isNaN(unitsSold) ? 0 : unitsSold,
           revenue: isNaN(revenue) ? 0 : revenue,
           regular_price: regularPrice,
