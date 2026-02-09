@@ -183,7 +183,7 @@ const Dashboard = () => {
   const [selectedStore, setSelectedStore] = useState("all");
   
   // Filters
-  const [dateRange, setDateRange] = useState("90");
+  const [dateRange, setDateRange] = useState("30");
   const [abcFilter, setAbcFilter] = useState("all");
   const [categories, setCategories] = useState<string[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -315,7 +315,9 @@ const Dashboard = () => {
       const { data: salesData } = await supabase
         .from("sales_daily")
         .select("*")
-        .gte("reg_date", dateStr);
+        .gte("reg_date", dateStr)
+      .order("reg_date", { ascending: false })
+      .range(0, 99999);
 
       // Fetch stores
       const { data: stores } = await supabase
@@ -664,7 +666,7 @@ const Dashboard = () => {
                 <Card key={store.id} className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-muted/30 flex-shrink-0 w-[120px] sm:w-auto">
                   <div className="flex items-center gap-1 sm:gap-2">
                     <Store className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-xs sm:text-sm font-medium truncate">{store.code || store.name}</span>
+                    <span className="text-xs sm:text-sm font-medium truncate">{store.name || store.code}</span>
                   </div>
                   <div className="mt-1 sm:mt-2">
                                        <span className="text-base sm:text-xl font-bold">{formatKPIValue(store.avgTicket || 0, "€")}</span>
