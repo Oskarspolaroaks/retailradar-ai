@@ -311,13 +311,18 @@ const Dashboard = () => {
       const uniqueCategories = [...new Set(products?.map(p => p.category).filter(Boolean))];
       setCategories(uniqueCategories as string[]);
 
-      // Fetch sales data
+      // Fetch sales data (limited to 1000 for ABC analysis)
       const { data: salesData } = await supabase
         .from("sales_daily")
         .select("*")
         .gte("reg_date", dateStr)
-      .order("reg_date", { ascending: false })
-      .range(0, 99999);
+        .order("reg_date", { ascending: false });
+
+      // Fetch aggregated KPIs via RPC (bypasses 1000 row limit)
+      const { data: rpcResult } = await supabase.rpc("get_dashboard_kpis", {
+        from_date: dateStr
+      });
+      const kpis = rpcResult || {};
 
       // Fetch stores
       const { data: stores } = await supabase
@@ -325,9 +330,9 @@ const Dashboard = () => {
         .select("*")
         .eq("is_active", true);
 
-      // Calculate KPIs
-      const totalRevenue = salesData?.reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0) || 0;
-      const totalUnits = salesData?.reduce((sum, s) => sum + Number(s.units_sold), 0) || 0;
+      // Calculate KPIs from RPC (accurate, not limited to 1000 rows)
+      const totalRevenue = Number(kpis.total_revenue) || 0;
+      const totalUnits = Number(kpis.total_units) || 0;
       const avgPrice = totalUnits > 0 ? totalRevenue / totalUnits : 0;
 
       // Calculate margin
@@ -396,11 +401,12 @@ const Dashboard = () => {
         { name: 'C', products: cProducts.length, revenue: salesData?.filter(s => cProducts.map(p => p.id).includes(s.product_id)).reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0) || 0, fill: 'hsl(var(--chart-3))' },
       ]);
 
-      // Revenue trend
+      // Revenue trend from RPC (accurate aggregation)
+      const rpcDays = kpis.revenue_by_day || [];
       const monthlyRevenue = new Map<string, number>();
-      salesData?.forEach((sale) => {
-        const month = sale.reg_date.substring(0, 7);
-        monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + Number(sale.selling_price) * Number(sale.units_sold));
+      rpcDays.forEach((d: any) => {
+        const month = d.day.substring(0, 7);
+        monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + Number(d.revenue));
       });
 
       const sortedMonths = Array.from(monthlyRevenue.entries())
@@ -420,21 +426,19 @@ const Dashboard = () => {
       const transactionCount = uniqueDays * storesCount * Math.floor(Math.random() * 50 + 100); // Simulated
       const avgTicket = transactionCount > 0 ? totalRevenue / transactionCount : 0;
 
-      // Calculate avg ticket per store
-      const storeTickets = stores?.map(store => {
-        const storeSales = salesData?.filter(s => s.store_id === store.id) || [];
-        const storeRevenue = storeSales.reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
-        const storeUniqueDays = new Set(storeSales.map(s => s.reg_date)).size;
-        const storeTransactions = storeUniqueDays * Math.floor(Math.random() * 50 + 100); // Simulated
+      // Calculate avg ticket per store from RPC (accurate)
+      const rpcStores = kpis.revenue_by_store || [];
+      const storeTickets = rpcStores.map((rs: any) => {
+        const storeInfo = stores?.find(s => s.id === rs.store_id);
         return {
-          id: store.id,
-          name: store.name,
-          code: store.code,
-          revenue: storeRevenue,
-          avgTicket: storeTransactions > 0 ? storeRevenue / storeTransactions : 0,
+          id: rs.store_id,
+          name: rs.store_name || storeInfo?.name || rs.store_code,
+          code: rs.store_code || storeInfo?.code,
+          revenue: Number(rs.revenue) || 0,
+          avgTicket: Number(rs.units) > 0 ? Number(rs.revenue) / Number(rs.units) : 0,
           growth: Math.random() * 30 - 10,
         };
-      }).sort((a, b) => b.revenue - a.revenue) || [];
+      }).sort((a: any, b: any) => b.revenue - a.revenue) || [];
 
       setStoreComparison(storeTickets);
 
