@@ -424,7 +424,7 @@ const Dashboard = () => {
       const storesCount = stores?.length || 1;
       // Estimate transaction count based on unique date-store combinations
       const transactionCount = uniqueDays * storesCount * Math.floor(Math.random() * 50 + 100); // Simulated
-      const avgTicket = transactionCount > 0 ? totalRevenue / transactionCount : 0;
+      const avgTicket = avgPrice; // Use real avg price per unit from RPC
 
       // Calculate avg ticket per store from RPC (accurate)
       const rpcStores = kpis.revenue_by_store || [];
