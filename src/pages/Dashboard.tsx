@@ -424,7 +424,7 @@ const Dashboard = () => {
       const storesCount = stores?.length || 1;
       // Estimate transaction count based on unique date-store combinations
       const transactionCount = uniqueDays * storesCount * Math.floor(Math.random() * 50 + 100); // Simulated
-      const avgTicket = avgPrice; // Use real avg price per unit from RPC
+      const avgTicket = Number(kpis.avg_ticket) || 0; // Retail: Revenue / Receipts (COUNT DISTINCT id_receipt)
 
       // Calculate avg ticket per store from RPC (accurate)
       const rpcStores = kpis.revenue_by_store || [];
@@ -435,7 +435,7 @@ const Dashboard = () => {
           name: rs.store_name || storeInfo?.name || rs.store_code,
           code: rs.store_code || storeInfo?.code,
           revenue: Number(rs.revenue) || 0,
-          avgTicket: Number(rs.units) > 0 ? Number(rs.revenue) / Number(rs.units) : 0,
+          avgTicket: Number(rs.avg_ticket) || 0, // Retail: Revenue / Receipts
           growth: Math.random() * 30 - 10,
         };
       }).sort((a: any, b: any) => b.revenue - a.revenue) || [];
