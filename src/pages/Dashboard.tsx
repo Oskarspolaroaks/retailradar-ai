@@ -397,7 +397,7 @@ const Dashboard = () => {
       // Revenue trend
       const monthlyRevenue = new Map<string, number>();
       salesData?.forEach((sale) => {
-        const month = sale.date.substring(0, 7);
+        const month = sale.reg_date.substring(0, 7);
         monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + Number(sale.selling_price) * Number(sale.units_sold));
       });
 
