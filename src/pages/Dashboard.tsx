@@ -457,10 +457,10 @@ const Dashboard = () => {
         marginChange: Math.random() * 8 - 2,
         grossMarginEur: totalRevenue * (avgMargin / 100),
         
-        skuCount: products?.length || 0,
-        aProductsCount: aProducts.length,
-        bProductsCount: bProducts.length,
-        cProductsCount: cProducts.length,
+        skuCount: Number(kpis?.product_stats?.total_products) || 0,
+        aProductsCount: Number(kpis?.product_stats?.abc_a_count) || aProducts.length,
+        bProductsCount: Number(kpis?.product_stats?.abc_b_count) || bProducts.length,
+        cProductsCount: Number(kpis?.product_stats?.abc_c_count) || cProducts.length,
         aProductsRevenueShare: aRevenueShare,
         
         avgStockLevel: 1500,
