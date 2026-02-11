@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Package, 
-  DollarSign, 
-  AlertCircle, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Package,
+  DollarSign,
+  AlertCircle,
   Search,
   Sparkles,
   BarChart3,
@@ -26,7 +26,9 @@ import {
   Warehouse,
   Users,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Info,
+  Clock
 } from "lucide-react";
 import { 
   BarChart, 
@@ -55,7 +57,7 @@ import { cn } from "@/lib/utils";
 
 // Helper function for consistent KPI number formatting
 function formatKPIValue(value: number, unit?: string): string {
-    if (unit === "€") {
+    if (unit === "â¬") {
           if (Math.abs(value) < 1000) {
                   return value.toLocaleString("lv-LV", {
                             minimumFractionDigits: 2,
@@ -158,14 +160,14 @@ const KPICard = ({
         {status === "warning" && target && (
           <p className="text-[10px] sm:text-xs text-warning mt-1 sm:mt-2 flex items-center gap-1">
             <AlertCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-            <span className="hidden sm:inline">Zem mērķa ({target}{unit})</span>
-            <span className="sm:hidden">Zem mērķa</span>
+            <span className="hidden sm:inline">Zem mÄrÄ·a ({target}{unit})</span>
+            <span className="sm:hidden">Zem mÄrÄ·a</span>
           </p>
         )}
         {status === "danger" && warning && (
           <p className="text-[10px] sm:text-xs text-destructive mt-1 sm:mt-2 flex items-center gap-1">
             <AlertCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-            <span className="hidden sm:inline">Kritisks līmenis!</span>
+            <span className="hidden sm:inline">Kritisks lÄ«menis!</span>
             <span className="sm:hidden">Kritisks!</span>
           </p>
         )}
@@ -231,6 +233,13 @@ const Dashboard = () => {
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [bottomProducts, setBottomProducts] = useState<any[]>([]);
   const [storeComparison, setStoreComparison] = useState<any[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [dataInfo, setDataInfo] = useState<{
+    latestDate: string | null;
+    earliestDate: string | null;
+    usedAutoRange: boolean;
+    effectiveDateStr: string | null;
+  }>({ latestDate: null, earliestDate: null, usedAutoRange: false, effectiveDateStr: null });
 
   useEffect(() => {
     initializeDashboard();
@@ -295,34 +304,75 @@ const Dashboard = () => {
   };
 
   const fetchDashboardData = async () => {
+    setIsLoadingData(true);
     try {
+      // Step 1: Determine available data range
+      const { data: latestRow } = await supabase
+        .from("sales_daily")
+        .select("reg_date")
+        .order("reg_date", { ascending: false })
+        .limit(1);
+
+      const { data: earliestRow } = await supabase
+        .from("sales_daily")
+        .select("reg_date")
+        .order("reg_date", { ascending: true })
+        .limit(1);
+
+      const latestDate = latestRow?.[0]?.reg_date || null;
+      const earliestDate = earliestRow?.[0]?.reg_date || null;
+
+      if (!latestDate || !earliestDate) {
+        setDataInfo({ latestDate: null, earliestDate: null, usedAutoRange: false, effectiveDateStr: null });
+        setIsLoadingData(false);
+        return;
+      }
+
+      // Step 2: Calculate date filter â auto-adjust if no data in selected range
       const daysAgo = parseInt(dateRange);
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - daysAgo);
-      const dateStr = startDate.toISOString().split('T')[0];
+      let dateStr = startDate.toISOString().split('T')[0];
+      let usedAutoRange = false;
 
-      // Fetch products
+      // If the filter start date is AFTER the latest data, use the full available range
+      if (dateStr > latestDate) {
+        dateStr = earliestDate;
+        usedAutoRange = true;
+      }
+
+      setDataInfo({ latestDate, earliestDate, usedAutoRange, effectiveDateStr: dateStr });
+
+      // Step 3: Fetch products (allow NULL status â most products don't have status set)
       const { data: products } = await supabase
         .from("products")
-        .select("*")
-        .eq("status", "active");
+        .select("*");
 
       // Fetch categories
       const uniqueCategories = [...new Set(products?.map(p => p.category).filter(Boolean))];
       setCategories(uniqueCategories as string[]);
 
-      // Fetch sales data (limited to 1000 for ABC analysis)
+      // Step 4: Fetch sales data (limited to 1000 for ABC/product analysis)
       const { data: salesData } = await supabase
         .from("sales_daily")
         .select("*")
         .gte("reg_date", dateStr)
         .order("reg_date", { ascending: false });
 
-      // Fetch aggregated KPIs via RPC (bypasses 1000 row limit)
-      const { data: rpcResult } = await supabase.rpc("get_dashboard_kpis", {
-        from_date: dateStr
-      });
-      const kpis = rpcResult || {};
+      // Step 5: Fetch aggregated KPIs via RPC (bypasses 1000 row limit)
+      let kpis: any = {};
+      try {
+        const { data: rpcResult, error: rpcError } = await supabase.rpc("get_dashboard_kpis", {
+          from_date: dateStr
+        });
+        if (rpcError) {
+          console.warn("RPC get_dashboard_kpis failed, using client-side fallback:", rpcError.message);
+        } else {
+          kpis = rpcResult || {};
+        }
+      } catch (rpcErr) {
+        console.warn("RPC call exception, using client-side fallback:", rpcErr);
+      }
 
       // Fetch stores
       const { data: stores } = await supabase
@@ -330,20 +380,43 @@ const Dashboard = () => {
         .select("*")
         .eq("is_active", true);
 
-      // Calculate KPIs from RPC (accurate, not limited to 1000 rows)
-      const totalRevenue = Number(kpis.total_revenue) || 0;
-      const totalUnits = Number(kpis.total_units) || 0;
-      const avgPrice = totalUnits > 0 ? totalRevenue / totalUnits : 0;
+      // Step 6: Calculate KPIs â prefer RPC, fallback to client-side from salesData
+      let totalRevenue = Number(kpis.total_revenue) || 0;
+      let totalUnits = Number(kpis.total_units) || 0;
+      let totalReceipts = Number(kpis.total_receipts) || 0;
 
-      // Calculate margin
-      const productsWithMargin = products?.map(p => ({
-        ...p,
-        margin: ((Number(p.current_price) - Number(p.cost_price)) / Number(p.current_price)) * 100
-      })) || [];
-      
-      const avgMargin = productsWithMargin.length > 0 
-        ? productsWithMargin.reduce((sum, p) => sum + p.margin, 0) / productsWithMargin.length 
-        : 0;
+      // Client-side fallback if RPC returned 0 but we have salesData
+      if (totalRevenue === 0 && salesData && salesData.length > 0) {
+        totalRevenue = salesData.reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
+        totalUnits = salesData.reduce((sum, s) => sum + Number(s.units_sold), 0);
+        const receiptIds = new Set(salesData.map(s => s.id_receipt).filter(Boolean));
+        totalReceipts = receiptIds.size;
+      }
+
+      // Step 7: Calculate margin from sales_daily (accurate: from actual transactions)
+      let grossMarginPct = 0;
+      if (salesData && salesData.length > 0) {
+        const totalCost = salesData.reduce((sum, s) => {
+          const sp = Number(s.selling_price) || 0;
+          const pp = Number(s.purchase_price) || 0;
+          const units = Number(s.units_sold) || 0;
+          // Only include rows where both prices are valid
+          if (sp > 0 && pp > 0) {
+            return sum + ((sp - pp) * units);
+          }
+          return sum;
+        }, 0);
+        const totalRevenueForMargin = salesData.reduce((sum, s) => {
+          const sp = Number(s.selling_price) || 0;
+          const pp = Number(s.purchase_price) || 0;
+          const units = Number(s.units_sold) || 0;
+          if (sp > 0 && pp > 0) {
+            return sum + (sp * units);
+          }
+          return sum;
+        }, 0);
+        grossMarginPct = totalRevenueForMargin > 0 ? (totalCost / totalRevenueForMargin) * 100 : 0;
+      }
 
       // ABC distribution
       const aProducts = products?.filter(p => p.abc_category === 'A') || [];
@@ -351,38 +424,25 @@ const Dashboard = () => {
       const cProducts = products?.filter(p => p.abc_category === 'C') || [];
 
       // Revenue by ABC
-      const productIds = products?.map(p => p.id) || [];
       const aProductIds = aProducts.map(p => p.id);
       const aRevenue = salesData?.filter(s => aProductIds.includes(s.product_id))
         .reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0) || 0;
       const aRevenueShare = totalRevenue > 0 ? (aRevenue / totalRevenue) * 100 : 0;
-
-      // Store comparison
-      const storeData = stores?.map(store => {
-        const storeSales = salesData?.filter(s => s.store_id === store.id) || [];
-        const storeRevenue = storeSales.reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
-        return {
-          id: store.id,
-          name: store.name,
-          code: store.code,
-          revenue: storeRevenue,
-          growth: Math.random() * 30 - 10, // Mock for now
-        };
-      }).sort((a, b) => b.revenue - a.revenue) || [];
-
-      setStoreComparison(storeData);
 
       // Top and bottom products
       const productRevenue = new Map<string, { name: string; revenue: number; margin: number }>();
       salesData?.forEach(sale => {
         const product = products?.find(p => p.id === sale.product_id);
         if (product) {
-          const existing = productRevenue.get(sale.product_id) || { 
-            name: product.name, 
-            revenue: 0, 
-            margin: ((Number(product.current_price) - Number(product.cost_price)) / Number(product.current_price)) * 100
+          const sp = Number(sale.selling_price) || 0;
+          const pp = Number(sale.purchase_price) || 0;
+          const saleMargin = sp > 0 && pp > 0 ? ((sp - pp) / sp) * 100 : 0;
+          const existing = productRevenue.get(sale.product_id) || {
+            name: product.name,
+            revenue: 0,
+            margin: saleMargin
           };
-          existing.revenue += Number(sale.selling_price) * Number(sale.units_sold);
+          existing.revenue += sp * Number(sale.units_sold);
           productRevenue.set(sale.product_id, existing);
         }
       });
@@ -401,13 +461,23 @@ const Dashboard = () => {
         { name: 'C', products: cProducts.length, revenue: salesData?.filter(s => cProducts.map(p => p.id).includes(s.product_id)).reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0) || 0, fill: 'hsl(var(--chart-3))' },
       ]);
 
-      // Revenue trend from RPC (accurate aggregation)
+      // Revenue trend from RPC or salesData
       const rpcDays = kpis.revenue_by_day || [];
       const monthlyRevenue = new Map<string, number>();
-      rpcDays.forEach((d: any) => {
-        const month = d.day.substring(0, 7);
-        monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + Number(d.revenue));
-      });
+
+      if (rpcDays.length > 0) {
+        rpcDays.forEach((d: any) => {
+          const month = d.day.substring(0, 7);
+          monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + Number(d.revenue));
+        });
+      } else if (salesData && salesData.length > 0) {
+        // Fallback: build from salesData
+        salesData.forEach(s => {
+          const month = String(s.reg_date).substring(0, 7);
+          const rev = Number(s.selling_price) * Number(s.units_sold);
+          monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + rev);
+        });
+      }
 
       const sortedMonths = Array.from(monthlyRevenue.entries())
         .sort((a, b) => a[0].localeCompare(b[0]))
@@ -419,72 +489,88 @@ const Dashboard = () => {
 
       setRevenueData(sortedMonths);
 
-      // Calculate average ticket (simulating unique transactions per day as transaction count)
-      const uniqueDays = new Set(salesData?.map(s => s.reg_date) || []).size;
-      const storesCount = stores?.length || 1;
-      // Estimate transaction count based on unique date-store combinations
-      const transactionCount = uniqueDays * storesCount * Math.floor(Math.random() * 50 + 100); // Simulated
-      const avgTicket = Number(kpis.avg_ticket) || 0; // Retail: Revenue / Receipts (COUNT DISTINCT id_receipt)
+      // Average ticket
+      const avgTicket = Number(kpis.avg_ticket) || (totalReceipts > 0 ? totalRevenue / totalReceipts : 0);
+      const transactionCount = Number(kpis.total_receipts) || totalReceipts;
 
-      // Calculate avg ticket per store from RPC (accurate)
+      // Store avg ticket from RPC (accurate)
       const rpcStores = kpis.revenue_by_store || [];
-      const storeTickets = rpcStores.map((rs: any) => {
-        const storeInfo = stores?.find(s => s.id === rs.store_id);
-        return {
-          id: rs.store_id,
-          name: rs.store_name || storeInfo?.name || rs.store_code,
-          code: rs.store_code || storeInfo?.code,
-          revenue: Number(rs.revenue) || 0,
-          avgTicket: Number(rs.avg_ticket) || 0, // Retail: Revenue / Receipts
-          growth: Math.random() * 30 - 10,
-        };
-      }).sort((a: any, b: any) => b.revenue - a.revenue) || [];
-
-      setStoreComparison(storeTickets);
+      if (rpcStores.length > 0) {
+        const storeTickets = rpcStores.map((rs: any) => {
+          const storeInfo = stores?.find(s => s.id === rs.store_id);
+          return {
+            id: rs.store_id,
+            name: rs.store_name || storeInfo?.name || rs.store_code,
+            code: rs.store_code || storeInfo?.code,
+            revenue: Number(rs.revenue) || 0,
+            avgTicket: Number(rs.avg_ticket) || 0,
+            growth: 0,
+          };
+        }).sort((a: any, b: any) => b.revenue - a.revenue) || [];
+        setStoreComparison(storeTickets);
+      } else {
+        // Fallback: calculate from salesData (limited to 1000 rows but better than nothing)
+        const storeData = stores?.map(store => {
+          const storeSales = salesData?.filter(s => s.store_id === store.id) || [];
+          const storeRevenue = storeSales.reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
+          const storeReceipts = new Set(storeSales.map(s => s.id_receipt).filter(Boolean)).size;
+          return {
+            id: store.id,
+            name: store.name,
+            code: store.code,
+            revenue: storeRevenue,
+            avgTicket: storeReceipts > 0 ? storeRevenue / storeReceipts : 0,
+            growth: 0,
+          };
+        }).sort((a, b) => b.revenue - a.revenue) || [];
+        setStoreComparison(storeData);
+      }
 
       // Update KPI data
       setKpiData({
         totalRevenue,
-        revenueGrowth: Math.random() * 20 - 5,
+        revenueGrowth: 0,
         unitsSold: totalUnits,
-        unitsChange: Math.random() * 15 - 3,
+        unitsChange: 0,
         avgTicket,
-        avgTicketChange: Math.random() * 10 - 2,
+        avgTicketChange: 0,
         transactionCount,
         revenuePerStore: stores?.length ? totalRevenue / stores.length : 0,
-        
-        grossMargin: avgMargin,
-        marginChange: Math.random() * 8 - 2,
-        grossMarginEur: totalRevenue * (avgMargin / 100),
-        
-        skuCount: Number(kpis?.product_stats?.total_products) || 0,
+
+        grossMargin: grossMarginPct,
+        marginChange: 0,
+        grossMarginEur: totalRevenue * (grossMarginPct / 100),
+
+        skuCount: Number(kpis?.product_stats?.total_products) || products?.length || 0,
         aProductsCount: Number(kpis?.product_stats?.abc_a_count) || aProducts.length,
         bProductsCount: Number(kpis?.product_stats?.abc_b_count) || bProducts.length,
         cProductsCount: Number(kpis?.product_stats?.abc_c_count) || cProducts.length,
         aProductsRevenueShare: aRevenueShare,
-        
+
         avgStockLevel: 1500,
         stockTurnover: 8.5,
         slowMoversCount: cProducts.filter(p => p.abc_category === 'C').length,
-        
-        priceIndexVsMarket: 98 + Math.random() * 8,
-        cheaperThanMarket: Math.floor(Math.random() * 40 + 30),
-        moreExpensiveThanMarket: Math.floor(Math.random() * 30 + 10),
-        promoDependency: Math.random() * 25 + 10,
+
+        priceIndexVsMarket: 100,
+        cheaperThanMarket: 0,
+        moreExpensiveThanMarket: 0,
+        promoDependency: 0,
       });
 
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
       toast({
-        title: "Kļūda",
-        description: "Neizdevās ielādēt dashboard datus",
+        title: "KÄ¼Å«da",
+        description: "NeizdevÄs ielÄdÄt dashboard datus. MÄÄ£iniet atsvaidzinÄt lapu.",
         variant: "destructive",
       });
+    } finally {
+      setIsLoadingData(false);
     }
   };
 
   const seedDemoData = async () => {
-    if (!confirm('Izveidosim demo datus. Turpināt?')) return;
+    if (!confirm('Izveidosim demo datus. TurpinÄt?')) return;
     
     setLoading(true);
     try {
@@ -492,14 +578,14 @@ const Dashboard = () => {
       if (error) throw error;
 
       toast({
-        title: "Veiksmīgi!",
+        title: "VeiksmÄ«gi!",
         description: `Izveidoti demo dati.`,
       });
 
       await fetchDashboardData();
     } catch (error: any) {
       toast({
-        title: "Kļūda",
+        title: "KÄ¼Å«da",
         description: error.message,
         variant: "destructive",
       });
@@ -516,10 +602,10 @@ const Dashboard = () => {
       });
       if (error) throw error;
 
-      toast({ title: "ABC pārrēķināts!" });
+      toast({ title: "ABC pÄrrÄÄ·inÄts!" });
       await fetchDashboardData();
     } catch (error: any) {
-      toast({ title: "Kļūda", description: error.message, variant: "destructive" });
+      toast({ title: "KÄ¼Å«da", description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -546,7 +632,7 @@ const Dashboard = () => {
         <div className="relative z-10 flex flex-col gap-4 md:gap-6">
           <div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-              Uzņēmuma pārvaldības panelis
+              UzÅÄmuma pÄrvaldÄ«bas panelis
             </h1>
             <p className="text-muted-foreground mt-1 md:mt-2 text-sm md:text-lg">
               {new Date().toLocaleDateString('lv-LV', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
@@ -574,7 +660,7 @@ const Dashboard = () => {
               <Link to="/" className="flex-1 sm:flex-none">
                 <Button variant="outline" className="gap-2 rounded-xl w-full sm:w-auto text-sm">
                   <ExternalLink className="h-4 w-4" />
-                  <span className="hidden sm:inline">Mājaslapa</span>
+                  <span className="hidden sm:inline">MÄjaslapa</span>
                 </Button>
               </Link>
               <KPIExportButton
@@ -595,7 +681,7 @@ const Dashboard = () => {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-3 text-lg">
               <Zap className="h-5 w-5 text-primary" />
-              Administratora Darbības
+              Administratora DarbÄ«bas
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -606,24 +692,62 @@ const Dashboard = () => {
               </Button>
               <Button onClick={recalculateABC} disabled={loading} variant="outline" className="gap-2 rounded-xl">
                 <BarChart3 className="h-4 w-4" />
-                Pārrēķināt ABC
+                PÄrrÄÄ·inÄt ABC
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
+      {/* Data Freshness Banner */}
+      {dataInfo.latestDate && (
+        <div className={cn(
+          "flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-xl text-xs sm:text-sm",
+          (() => {
+            const daysSinceUpdate = Math.floor((Date.now() - new Date(dataInfo.latestDate!).getTime()) / 86400000);
+            if (daysSinceUpdate > 30) return "bg-destructive/10 text-destructive border border-destructive/20";
+            if (daysSinceUpdate > 7) return "bg-warning/10 text-warning border border-warning/20";
+            return "bg-primary/5 text-muted-foreground border border-primary/10";
+          })()
+        )}>
+          <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+          <span>
+            Dati par periodu{" "}
+            <strong>{new Date(dataInfo.earliestDate!).toLocaleDateString("lv-LV")}</strong>
+            {" â "}
+            <strong>{new Date(dataInfo.latestDate!).toLocaleDateString("lv-LV")}</strong>
+            {" | PÄdÄjais atjauninÄjums: pirms "}
+            <strong>{Math.floor((Date.now() - new Date(dataInfo.latestDate!).getTime()) / 86400000)}</strong>
+            {" dienÄm"}
+          </span>
+          {dataInfo.usedAutoRange && (
+            <Badge variant="secondary" className="ml-auto text-[10px] sm:text-xs flex-shrink-0">
+              <Info className="h-3 w-3 mr-1" />
+              AutomÄtisks periods
+            </Badge>
+          )}
+        </div>
+      )}
+
+      {/* Loading indicator */}
+      {isLoadingData && (
+        <div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-sm">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          IelÄdÄ datus...
+        </div>
+      )}
+
       {/* PRIMARY KPIs - Sales & Profitability */}
       <section>
         <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 flex items-center gap-2">
           <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-          Pārdošanas Veiktspēja
+          PÄrdoÅ¡anas VeiktspÄja
         </h2>
         <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
           <KPICard
-            title="Kopējie Ieņēmumi"
+            title="KopÄjie IeÅÄmumi"
             value={kpiData.totalRevenue}
-            unit="€"
+            unit="â¬"
             change={kpiData.revenueGrowth}
             target={kpiTargets.revenue_growth?.target}
             warning={kpiTargets.revenue_growth?.warning}
@@ -632,7 +756,7 @@ const Dashboard = () => {
             size="lg"
           />
           <KPICard
-            title="Bruto Peļņa"
+            title="Bruto PeÄ¼Åa"
             value={kpiData.grossMargin}
             unit="%"
             change={kpiData.marginChange}
@@ -643,7 +767,7 @@ const Dashboard = () => {
             size="lg"
           />
           <KPICard
-            title="Pārdotas Vien."
+            title="PÄrdotas Vien."
             value={kpiData.unitsSold}
             change={kpiData.unitsChange}
             icon={<ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-chart-3" />}
@@ -651,9 +775,9 @@ const Dashboard = () => {
             size="lg"
           />
           <KPICard
-            title="Vid. Čeks"
+            title="Vid. Äeks"
             value={kpiData.avgTicket}
-            unit="€"
+            unit="â¬"
             change={kpiData.avgTicketChange}
             icon={<ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-chart-4" />}
             gradient="bg-gradient-to-br from-chart-4/10 to-chart-4/5"
@@ -664,7 +788,7 @@ const Dashboard = () => {
         {/* Average Ticket by Store - Scrollable on mobile */}
         {storeComparison.length > 1 && (
           <div className="mt-4">
-            <h3 className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 sm:mb-3">Vid. Čeks pa Veikaliem</h3>
+            <h3 className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 sm:mb-3">Vid. Äeks pa Veikaliem</h3>
             <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 sm:grid sm:gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 scrollbar-thin">
               {storeComparison.map((store) => (
                 <Card key={store.id} className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-muted/30 flex-shrink-0 w-[120px] sm:w-auto">
@@ -673,8 +797,8 @@ const Dashboard = () => {
                     <span className="text-xs sm:text-sm font-medium truncate">{store.name || store.code}</span>
                   </div>
                   <div className="mt-1 sm:mt-2">
-                                       <span className="text-base sm:text-xl font-bold">{formatKPIValue(store.avgTicket || 0, "€")}</span>
-                    <span className="text-xs sm:text-sm text-muted-foreground ml-1">€</span>
+                                       <span className="text-base sm:text-xl font-bold">{formatKPIValue(store.avgTicket || 0, "â¬")}</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground ml-1">â¬</span>
                   </div>
                 </Card>
               ))}
@@ -687,18 +811,18 @@ const Dashboard = () => {
       <section>
         <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 flex items-center gap-2">
           <Package className="h-4 w-4 sm:h-5 sm:w-5 text-chart-2" />
-          Sortiments & Operācijas
+          Sortiments & OperÄcijas
         </h2>
         <div className="grid gap-2 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
           <KPICard
-            title="Aktīvi SKU"
+            title="AktÄ«vi SKU"
             value={kpiData.skuCount}
             icon={<Package className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />}
             gradient="bg-card"
             size="sm"
           />
           <KPICard
-            title="A-Prod. Daļa"
+            title="A-Prod. DaÄ¼a"
             value={kpiData.aProductsRevenueShare}
             unit="%"
             target={kpiTargets.a_products_revenue_share?.target}
@@ -708,7 +832,7 @@ const Dashboard = () => {
             size="sm"
           />
           <KPICard
-            title="Apgrozījums"
+            title="ApgrozÄ«jums"
             value={kpiData.stockTurnover}
             unit="x"
             target={kpiTargets.stock_turnover?.target}
@@ -748,15 +872,15 @@ const Dashboard = () => {
           <CardHeader className="p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-              ABC Segmentācija
+              ABC SegmentÄcija
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Produktu un ieņēmumu sadalījums</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Produktu un ieÅÄmumu sadalÄ«jums</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <Tabs defaultValue="distribution">
               <TabsList className="mb-3 sm:mb-4 w-full sm:w-auto">
-                <TabsTrigger value="distribution" className="flex-1 sm:flex-none text-xs sm:text-sm">Sadalījums</TabsTrigger>
-                <TabsTrigger value="revenue" className="flex-1 sm:flex-none text-xs sm:text-sm">Ieņēmumi</TabsTrigger>
+                <TabsTrigger value="distribution" className="flex-1 sm:flex-none text-xs sm:text-sm">SadalÄ«jums</TabsTrigger>
+                <TabsTrigger value="revenue" className="flex-1 sm:flex-none text-xs sm:text-sm">IeÅÄmumi</TabsTrigger>
               </TabsList>
               
               <TabsContent value="distribution">
@@ -789,7 +913,7 @@ const Dashboard = () => {
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(value) => `€${Number(value).toLocaleString()}`} />
+                    <Tooltip formatter={(value) => `â¬${Number(value).toLocaleString()}`} />
                     <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -803,9 +927,9 @@ const Dashboard = () => {
           <CardHeader className="p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-success" />
-              Ieņēmumu Tendence
+              IeÅÄmumu Tendence
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Mēneša ieņēmumi laika gaitā</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">MÄneÅ¡a ieÅÄmumi laika gaitÄ</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <ResponsiveContainer width="100%" height={220}>
@@ -819,7 +943,7 @@ const Dashboard = () => {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(value) => `€${Number(value).toLocaleString()}`} />
+                <Tooltip formatter={(value) => `â¬${Number(value).toLocaleString()}`} />
                 <Area 
                   type="monotone" 
                   dataKey="revenue" 
@@ -841,7 +965,7 @@ const Dashboard = () => {
               <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
               Top 10 Produkti
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Augstākie ieņēmumi</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">AugstÄkie ieÅÄmumi</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <div className="space-y-2 sm:space-y-3 max-h-[280px] sm:max-h-[350px] overflow-y-auto">
@@ -852,8 +976,8 @@ const Dashboard = () => {
                     <span className="font-medium truncate text-sm sm:text-base">{product.name}</span>
                   </div>
                   <div className="text-right flex-shrink-0 ml-2">
-                    <p className="font-semibold text-sm sm:text-base">€{product.revenue.toLocaleString()}</p>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">{product.margin.toFixed(1)}% marža</p>
+                    <p className="font-semibold text-sm sm:text-base">â¬{product.revenue.toLocaleString()}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">{product.margin.toFixed(1)}% marÅ¾a</p>
                   </div>
                 </div>
               ))}
@@ -870,7 +994,7 @@ const Dashboard = () => {
               <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5" />
               Bottom 10 Produkti
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Zemākie ieņēmumi / marža</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">ZemÄkie ieÅÄmumi / marÅ¾a</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <div className="space-y-2 sm:space-y-3 max-h-[280px] sm:max-h-[350px] overflow-y-auto">
@@ -881,7 +1005,7 @@ const Dashboard = () => {
                     <span className="font-medium truncate text-sm sm:text-base">{product.name}</span>
                   </div>
                   <div className="text-right flex-shrink-0 ml-2">
-                    <p className="font-semibold text-sm sm:text-base">€{product.revenue.toLocaleString()}</p>
+                    <p className="font-semibold text-sm sm:text-base">â¬{product.revenue.toLocaleString()}</p>
                     <Badge variant={product.margin < 10 ? "destructive" : "secondary"} className="text-[10px] sm:text-xs">
                       {product.margin.toFixed(1)}%
                     </Badge>
@@ -902,9 +1026,9 @@ const Dashboard = () => {
           <CardHeader className="p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <Store className="h-4 w-4 sm:h-5 sm:w-5 text-chart-4" />
-              Veikalu Salīdzinājums
+              Veikalu SalÄ«dzinÄjums
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Veiktspēja pa veikaliem</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">VeiktspÄja pa veikaliem</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <div className="grid gap-2 sm:gap-4 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -922,7 +1046,7 @@ const Dashboard = () => {
                     <span className="font-medium text-sm sm:text-base truncate">{store.name}</span>
                     {i === 0 && <Badge className="bg-success text-success-foreground text-[10px] sm:text-xs">Top</Badge>}
                   </div>
-                  <p className="text-lg sm:text-2xl font-bold">€{store.revenue.toLocaleString()}</p>
+                  <p className="text-lg sm:text-2xl font-bold">â¬{store.revenue.toLocaleString()}</p>
                   <div className="flex items-center gap-1 mt-1">
                     {store.growth >= 0 ? (
                       <ArrowUpRight className="h-3 w-3 text-success" />
