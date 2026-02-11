@@ -57,24 +57,24 @@ import { cn } from "@/lib/utils";
 
 // Helper function for consistent KPI number formatting
 function formatKPIValue(value: number, unit?: string): string {
-    if (unit === "â¬") {
+    if (unit === "€") {
           if (Math.abs(value) < 1000) {
-                  return value.toLocaleString("lv-LV", {
+                  return value.toLocaleString("en-US", {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                   });
           }
-          return Math.round(value).toLocaleString("lv-LV", {
+          return Math.round(value).toLocaleString("en-US", {
                   maximumFractionDigits: 0,
           });
     }
     if (unit === "%") {
-          return value.toLocaleString("lv-LV", {
+          return value.toLocaleString("en-US", {
                   minimumFractionDigits: 1,
                   maximumFractionDigits: 1,
           });
     }
-    return Math.round(value).toLocaleString("lv-LV", {
+    return Math.round(value).toLocaleString("en-US", {
           maximumFractionDigits: 0,
     });
 }
@@ -160,15 +160,15 @@ const KPICard = ({
         {status === "warning" && target && (
           <p className="text-[10px] sm:text-xs text-warning mt-1 sm:mt-2 flex items-center gap-1">
             <AlertCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-            <span className="hidden sm:inline">Zem mÄrÄ·a ({target}{unit})</span>
-            <span className="sm:hidden">Zem mÄrÄ·a</span>
+            <span className="hidden sm:inline">Below target ({target}{unit})</span>
+            <span className="sm:hidden">Below target</span>
           </p>
         )}
         {status === "danger" && warning && (
           <p className="text-[10px] sm:text-xs text-destructive mt-1 sm:mt-2 flex items-center gap-1">
             <AlertCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-            <span className="hidden sm:inline">Kritisks lÄ«menis!</span>
-            <span className="sm:hidden">Kritisks!</span>
+            <span className="hidden sm:inline">Critical level!</span>
+            <span className="sm:hidden">Critical!</span>
           </p>
         )}
       </CardContent>
@@ -328,7 +328,7 @@ const Dashboard = () => {
         return;
       }
 
-      // Step 2: Calculate date filter â auto-adjust if no data in selected range
+      // Step 2: Calculate date filter — auto-adjust if no data in selected range
       const daysAgo = parseInt(dateRange);
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - daysAgo);
@@ -343,7 +343,7 @@ const Dashboard = () => {
 
       setDataInfo({ latestDate, earliestDate, usedAutoRange, effectiveDateStr: dateStr });
 
-      // Step 3: Fetch products (allow NULL status â most products don't have status set)
+      // Step 3: Fetch products (allow NULL status — most products don't have status set)
       const { data: products } = await supabase
         .from("products")
         .select("*");
@@ -380,7 +380,7 @@ const Dashboard = () => {
         .select("*")
         .eq("is_active", true);
 
-      // Step 6: Calculate KPIs â prefer RPC, fallback to client-side from salesData
+      // Step 6: Calculate KPIs — prefer RPC, fallback to client-side from salesData
       let totalRevenue = Number(kpis.total_revenue) || 0;
       let totalUnits = Number(kpis.total_units) || 0;
       let totalReceipts = Number(kpis.total_receipts) || 0;
@@ -483,7 +483,7 @@ const Dashboard = () => {
         .sort((a, b) => a[0].localeCompare(b[0]))
         .slice(-6)
         .map(([month, revenue]) => ({
-          month: new Date(month + '-01').toLocaleDateString('lv', { month: 'short' }),
+          month: new Date(month + '-01').toLocaleDateString('en', { month: 'short' }),
           revenue: Math.round(revenue)
         }));
 
@@ -560,8 +560,8 @@ const Dashboard = () => {
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
       toast({
-        title: "KÄ¼Å«da",
-        description: "NeizdevÄs ielÄdÄt dashboard datus. MÄÄ£iniet atsvaidzinÄt lapu.",
+        title: "Error",
+        description: "Failed to load dashboard data. Please refresh the page.",
         variant: "destructive",
       });
     } finally {
@@ -570,7 +570,7 @@ const Dashboard = () => {
   };
 
   const seedDemoData = async () => {
-    if (!confirm('Izveidosim demo datus. TurpinÄt?')) return;
+    if (!confirm('Generate demo data. Continue?')) return;
     
     setLoading(true);
     try {
@@ -578,14 +578,14 @@ const Dashboard = () => {
       if (error) throw error;
 
       toast({
-        title: "VeiksmÄ«gi!",
-        description: `Izveidoti demo dati.`,
+        title: "Success!",
+        description: `Demo data generated.`,
       });
 
       await fetchDashboardData();
     } catch (error: any) {
       toast({
-        title: "KÄ¼Å«da",
+        title: "Error",
         description: error.message,
         variant: "destructive",
       });
@@ -602,10 +602,10 @@ const Dashboard = () => {
       });
       if (error) throw error;
 
-      toast({ title: "ABC pÄrrÄÄ·inÄts!" });
+      toast({ title: "ABC recalculated!" });
       await fetchDashboardData();
     } catch (error: any) {
-      toast({ title: "KÄ¼Å«da", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -632,10 +632,10 @@ const Dashboard = () => {
         <div className="relative z-10 flex flex-col gap-4 md:gap-6">
           <div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-              UzÅÄmuma pÄrvaldÄ«bas panelis
+              Executive Dashboard
             </h1>
             <p className="text-muted-foreground mt-1 md:mt-2 text-sm md:text-lg">
-              {new Date().toLocaleDateString('lv-LV', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+              {new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
             </p>
           </div>
 
@@ -660,7 +660,7 @@ const Dashboard = () => {
               <Link to="/" className="flex-1 sm:flex-none">
                 <Button variant="outline" className="gap-2 rounded-xl w-full sm:w-auto text-sm">
                   <ExternalLink className="h-4 w-4" />
-                  <span className="hidden sm:inline">MÄjaslapa</span>
+                  <span className="hidden sm:inline">Homepage</span>
                 </Button>
               </Link>
               <KPIExportButton
@@ -681,7 +681,7 @@ const Dashboard = () => {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-3 text-lg">
               <Zap className="h-5 w-5 text-primary" />
-              Administratora DarbÄ«bas
+              Admin Actions
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -692,7 +692,7 @@ const Dashboard = () => {
               </Button>
               <Button onClick={recalculateABC} disabled={loading} variant="outline" className="gap-2 rounded-xl">
                 <BarChart3 className="h-4 w-4" />
-                PÄrrÄÄ·inÄt ABC
+                Recalculate ABC
               </Button>
             </div>
           </CardContent>
@@ -712,18 +712,18 @@ const Dashboard = () => {
         )}>
           <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
           <span>
-            Dati par periodu{" "}
-            <strong>{new Date(dataInfo.earliestDate!).toLocaleDateString("lv-LV")}</strong>
-            {" â "}
-            <strong>{new Date(dataInfo.latestDate!).toLocaleDateString("lv-LV")}</strong>
-            {" | PÄdÄjais atjauninÄjums: pirms "}
+            Data period{" "}
+            <strong>{new Date(dataInfo.earliestDate!).toLocaleDateString("en-GB")}</strong>
+            {" — "}
+            <strong>{new Date(dataInfo.latestDate!).toLocaleDateString("en-GB")}</strong>
+            {" | Last update: "}
             <strong>{Math.floor((Date.now() - new Date(dataInfo.latestDate!).getTime()) / 86400000)}</strong>
-            {" dienÄm"}
+            {" days ago"}
           </span>
           {dataInfo.usedAutoRange && (
             <Badge variant="secondary" className="ml-auto text-[10px] sm:text-xs flex-shrink-0">
               <Info className="h-3 w-3 mr-1" />
-              AutomÄtisks periods
+              Auto period
             </Badge>
           )}
         </div>
@@ -733,7 +733,7 @@ const Dashboard = () => {
       {isLoadingData && (
         <div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-sm">
           <RefreshCw className="h-4 w-4 animate-spin" />
-          IelÄdÄ datus...
+          Loading data...
         </div>
       )}
 
@@ -741,13 +741,13 @@ const Dashboard = () => {
       <section>
         <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 flex items-center gap-2">
           <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-          PÄrdoÅ¡anas VeiktspÄja
+          Sales Performance
         </h2>
         <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
           <KPICard
-            title="KopÄjie IeÅÄmumi"
+            title="Total Revenue"
             value={kpiData.totalRevenue}
-            unit="â¬"
+            unit="€"
             change={kpiData.revenueGrowth}
             target={kpiTargets.revenue_growth?.target}
             warning={kpiTargets.revenue_growth?.warning}
@@ -756,7 +756,7 @@ const Dashboard = () => {
             size="lg"
           />
           <KPICard
-            title="Bruto PeÄ¼Åa"
+            title="Gross Margin"
             value={kpiData.grossMargin}
             unit="%"
             change={kpiData.marginChange}
@@ -767,7 +767,7 @@ const Dashboard = () => {
             size="lg"
           />
           <KPICard
-            title="PÄrdotas Vien."
+            title="Units Sold"
             value={kpiData.unitsSold}
             change={kpiData.unitsChange}
             icon={<ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-chart-3" />}
@@ -775,9 +775,9 @@ const Dashboard = () => {
             size="lg"
           />
           <KPICard
-            title="Vid. Äeks"
+            title="Avg. Ticket"
             value={kpiData.avgTicket}
-            unit="â¬"
+            unit="€"
             change={kpiData.avgTicketChange}
             icon={<ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-chart-4" />}
             gradient="bg-gradient-to-br from-chart-4/10 to-chart-4/5"
@@ -788,7 +788,7 @@ const Dashboard = () => {
         {/* Average Ticket by Store - Scrollable on mobile */}
         {storeComparison.length > 1 && (
           <div className="mt-4">
-            <h3 className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 sm:mb-3">Vid. Äeks pa Veikaliem</h3>
+            <h3 className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 sm:mb-3">Avg. Ticket by Store</h3>
             <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 sm:grid sm:gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 scrollbar-thin">
               {storeComparison.map((store) => (
                 <Card key={store.id} className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-muted/30 flex-shrink-0 w-[120px] sm:w-auto">
@@ -797,8 +797,8 @@ const Dashboard = () => {
                     <span className="text-xs sm:text-sm font-medium truncate">{store.name || store.code}</span>
                   </div>
                   <div className="mt-1 sm:mt-2">
-                                       <span className="text-base sm:text-xl font-bold">{formatKPIValue(store.avgTicket || 0, "â¬")}</span>
-                    <span className="text-xs sm:text-sm text-muted-foreground ml-1">â¬</span>
+                                       <span className="text-base sm:text-xl font-bold">{formatKPIValue(store.avgTicket || 0, "€")}</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground ml-1">€</span>
                   </div>
                 </Card>
               ))}
@@ -811,18 +811,18 @@ const Dashboard = () => {
       <section>
         <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 flex items-center gap-2">
           <Package className="h-4 w-4 sm:h-5 sm:w-5 text-chart-2" />
-          Sortiments & OperÄcijas
+          Assortment & Operations
         </h2>
         <div className="grid gap-2 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
           <KPICard
-            title="AktÄ«vi SKU"
+            title="Active SKU"
             value={kpiData.skuCount}
             icon={<Package className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />}
             gradient="bg-card"
             size="sm"
           />
           <KPICard
-            title="A-Prod. DaÄ¼a"
+            title="A-Prod. Share"
             value={kpiData.aProductsRevenueShare}
             unit="%"
             target={kpiTargets.a_products_revenue_share?.target}
@@ -832,7 +832,7 @@ const Dashboard = () => {
             size="sm"
           />
           <KPICard
-            title="ApgrozÄ«jums"
+            title="Stock Turn"
             value={kpiData.stockTurnover}
             unit="x"
             target={kpiTargets.stock_turnover?.target}
@@ -842,7 +842,7 @@ const Dashboard = () => {
             size="sm"
           />
           <KPICard
-            title="Cenu Indekss"
+            title="Price Index"
             value={kpiData.priceIndexVsMarket}
             unit="%"
             target={100}
@@ -852,7 +852,7 @@ const Dashboard = () => {
             size="sm"
           />
           <KPICard
-            title="Promo Atk."
+            title="Promo Dep."
             value={kpiData.promoDependency}
             unit="%"
             icon={<AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 text-warning" />}
@@ -872,15 +872,15 @@ const Dashboard = () => {
           <CardHeader className="p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-              ABC SegmentÄcija
+              ABC Segmentation
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Produktu un ieÅÄmumu sadalÄ«jums</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Product and revenue distribution</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <Tabs defaultValue="distribution">
               <TabsList className="mb-3 sm:mb-4 w-full sm:w-auto">
-                <TabsTrigger value="distribution" className="flex-1 sm:flex-none text-xs sm:text-sm">SadalÄ«jums</TabsTrigger>
-                <TabsTrigger value="revenue" className="flex-1 sm:flex-none text-xs sm:text-sm">IeÅÄmumi</TabsTrigger>
+                <TabsTrigger value="distribution" className="flex-1 sm:flex-none text-xs sm:text-sm">Distribution</TabsTrigger>
+                <TabsTrigger value="revenue" className="flex-1 sm:flex-none text-xs sm:text-sm">Revenue</TabsTrigger>
               </TabsList>
               
               <TabsContent value="distribution">
@@ -913,7 +913,7 @@ const Dashboard = () => {
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(value) => `â¬${Number(value).toLocaleString()}`} />
+                    <Tooltip formatter={(value) => `€${Number(value).toLocaleString()}`} />
                     <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -927,9 +927,9 @@ const Dashboard = () => {
           <CardHeader className="p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-success" />
-              IeÅÄmumu Tendence
+              Revenue Trend
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">MÄneÅ¡a ieÅÄmumi laika gaitÄ</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Monthly revenue over time</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <ResponsiveContainer width="100%" height={220}>
@@ -943,7 +943,7 @@ const Dashboard = () => {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(value) => `â¬${Number(value).toLocaleString()}`} />
+                <Tooltip formatter={(value) => `€${Number(value).toLocaleString()}`} />
                 <Area 
                   type="monotone" 
                   dataKey="revenue" 
@@ -965,7 +965,7 @@ const Dashboard = () => {
               <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
               Top 10 Produkti
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">AugstÄkie ieÅÄmumi</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Highest revenue</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <div className="space-y-2 sm:space-y-3 max-h-[280px] sm:max-h-[350px] overflow-y-auto">
@@ -976,13 +976,13 @@ const Dashboard = () => {
                     <span className="font-medium truncate text-sm sm:text-base">{product.name}</span>
                   </div>
                   <div className="text-right flex-shrink-0 ml-2">
-                    <p className="font-semibold text-sm sm:text-base">â¬{product.revenue.toLocaleString()}</p>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">{product.margin.toFixed(1)}% marÅ¾a</p>
+                    <p className="font-semibold text-sm sm:text-base">€{product.revenue.toLocaleString()}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">{product.margin.toFixed(1)}% margin</p>
                   </div>
                 </div>
               ))}
               {topProducts.length === 0 && (
-                <p className="text-center text-muted-foreground py-6 sm:py-8 text-sm">Nav datu</p>
+                <p className="text-center text-muted-foreground py-6 sm:py-8 text-sm">No data</p>
               )}
             </div>
           </CardContent>
@@ -994,7 +994,7 @@ const Dashboard = () => {
               <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5" />
               Bottom 10 Produkti
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">ZemÄkie ieÅÄmumi / marÅ¾a</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Lowest revenue / margin</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <div className="space-y-2 sm:space-y-3 max-h-[280px] sm:max-h-[350px] overflow-y-auto">
@@ -1005,7 +1005,7 @@ const Dashboard = () => {
                     <span className="font-medium truncate text-sm sm:text-base">{product.name}</span>
                   </div>
                   <div className="text-right flex-shrink-0 ml-2">
-                    <p className="font-semibold text-sm sm:text-base">â¬{product.revenue.toLocaleString()}</p>
+                    <p className="font-semibold text-sm sm:text-base">€{product.revenue.toLocaleString()}</p>
                     <Badge variant={product.margin < 10 ? "destructive" : "secondary"} className="text-[10px] sm:text-xs">
                       {product.margin.toFixed(1)}%
                     </Badge>
@@ -1013,7 +1013,7 @@ const Dashboard = () => {
                 </div>
               ))}
               {bottomProducts.length === 0 && (
-                <p className="text-center text-muted-foreground py-6 sm:py-8 text-sm">Nav datu</p>
+                <p className="text-center text-muted-foreground py-6 sm:py-8 text-sm">No data</p>
               )}
             </div>
           </CardContent>
@@ -1026,9 +1026,9 @@ const Dashboard = () => {
           <CardHeader className="p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <Store className="h-4 w-4 sm:h-5 sm:w-5 text-chart-4" />
-              Veikalu SalÄ«dzinÄjums
+              Store Comparison
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">VeiktspÄja pa veikaliem</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Performance by store</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <div className="grid gap-2 sm:gap-4 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -1046,7 +1046,7 @@ const Dashboard = () => {
                     <span className="font-medium text-sm sm:text-base truncate">{store.name}</span>
                     {i === 0 && <Badge className="bg-success text-success-foreground text-[10px] sm:text-xs">Top</Badge>}
                   </div>
-                  <p className="text-lg sm:text-2xl font-bold">â¬{store.revenue.toLocaleString()}</p>
+                  <p className="text-lg sm:text-2xl font-bold">€{store.revenue.toLocaleString()}</p>
                   <div className="flex items-center gap-1 mt-1">
                     {store.growth >= 0 ? (
                       <ArrowUpRight className="h-3 w-3 text-success" />
