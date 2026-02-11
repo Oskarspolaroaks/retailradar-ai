@@ -303,6 +303,25 @@ const Dashboard = () => {
     }
   };
 
+  // Paginated fetch for any table — bypasses PostgREST 1000-row limit
+  const fetchAllProducts = async (): Promise<any[]> => {
+    const pageSize = 1000;
+    let allRows: any[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      allRows = allRows.concat(data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+    return allRows;
+  };
+
   // Paginated fetch for sales_daily — bypasses PostgREST 1000-row limit
   const fetchAllSalesDaily = async (startDate: string, endDate?: string): Promise<any[]> => {
     const pageSize = 1000;
@@ -456,10 +475,8 @@ const Dashboard = () => {
 
       setDataInfo({ latestDate, earliestDate, usedAutoRange, effectiveDateStr: dateStr });
 
-      // Step 3: Fetch products (allow NULL status — most products don't have status set)
-      const { data: products } = await supabase
-        .from("products")
-        .select("*");
+      // Step 3: Fetch ALL products with pagination (7,353 products, bypasses 1000-row limit)
+      const products = await fetchAllProducts();
 
       // Fetch categories
       const uniqueCategories = [...new Set(products?.map(p => p.category).filter(Boolean))];
@@ -527,10 +544,10 @@ const Dashboard = () => {
       }
 
       // Step 8: Calculate ABC from ACTUAL sales revenue (Pareto analysis)
-      const { abcMap, aProducts, bProducts, cProducts } = calculateABCFromSales(allSalesData, products || []);
+      const { abcMap, aProducts, bProducts, cProducts } = calculateABCFromSales(allSalesData, products);
 
       // Step 9: Auto-update products.abc_category in database (background, non-blocking)
-      updateProductsABC(abcMap, products || []).catch(err =>
+      updateProductsABC(abcMap, products).catch(err =>
         console.warn("ABC update to products table failed (non-critical):", err)
       );
 
@@ -539,22 +556,23 @@ const Dashboard = () => {
       const bProductIds = new Set(bProducts.map(p => p.id));
       const cProductIds = new Set(cProducts.map(p => p.id));
 
-      const aRevenue = allSalesData
-        .filter(s => aProductIds.has(s.product_id))
-        .reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
-      const bRevenue = allSalesData
-        .filter(s => bProductIds.has(s.product_id))
-        .reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
-      const cRevenue = allSalesData
-        .filter(s => cProductIds.has(s.product_id))
-        .reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
+      let aRevenue = 0, bRevenue = 0, cRevenue = 0, salesTotalRevenue = 0;
+      allSalesData.forEach(s => {
+        const rev = (Number(s.selling_price) || 0) * (Number(s.units_sold) || 0);
+        salesTotalRevenue += rev;
+        if (aProductIds.has(s.product_id)) aRevenue += rev;
+        else if (bProductIds.has(s.product_id)) bRevenue += rev;
+        else cRevenue += rev;
+      });
 
-      const aRevenueShare = totalRevenue > 0 ? (aRevenue / totalRevenue) * 100 : 0;
+      // Use sales-based total for A-revenue share to ensure consistency (~80% by Pareto definition)
+      const aRevenueShare = salesTotalRevenue > 0 ? (aRevenue / salesTotalRevenue) * 100 : 0;
 
       // Step 11: Top and bottom products from ALL sales data
+      const productLookup = new Map(products.map(p => [p.id, p]));
       const productRevenueAgg = new Map<string, { name: string; revenue: number; profit: number; revenueForMargin: number }>();
       allSalesData.forEach(sale => {
-        const product = products?.find(p => p.id === sale.product_id);
+        const product = productLookup.get(sale.product_id);
         if (product) {
           const sp = Number(sale.selling_price) || 0;
           const pp = Number(sale.purchase_price) || 0;
@@ -672,7 +690,7 @@ const Dashboard = () => {
         marginChange: 0,
         grossMarginEur: totalRevenue * (grossMarginPct / 100),
 
-        skuCount: products?.length || 0,
+        skuCount: products.length || 0,
         aProductsCount: aProducts.length,
         bProductsCount: bProducts.length,
         cProductsCount: cProducts.length,
