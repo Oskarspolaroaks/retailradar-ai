@@ -303,6 +303,119 @@ const Dashboard = () => {
     }
   };
 
+  // Paginated fetch for sales_daily — bypasses PostgREST 1000-row limit
+  const fetchAllSalesDaily = async (startDate: string, endDate?: string): Promise<any[]> => {
+    const pageSize = 1000;
+    let allRows: any[] = [];
+    let from = 0;
+    while (true) {
+      let query = supabase
+        .from("sales_daily")
+        .select("product_id, selling_price, purchase_price, units_sold, reg_date, store_id, id_receipt, promo_flag")
+        .gte("reg_date", startDate);
+      if (endDate) {
+        query = query.lte("reg_date", endDate);
+      }
+      const { data, error } = await query.range(from, from + pageSize - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      allRows = allRows.concat(data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+    return allRows;
+  };
+
+  // Calculate ABC categories from sales revenue using Pareto analysis
+  // A = products contributing top 80% of revenue, B = next 15% (80-95%), C = rest (5%)
+  const calculateABCFromSales = (
+    salesRows: any[],
+    products: any[]
+  ): { abcMap: Map<string, string>; aProducts: any[]; bProducts: any[]; cProducts: any[] } => {
+    // Step 1: Aggregate revenue per product_id
+    const productRevenueMap = new Map<string, number>();
+    salesRows.forEach(sale => {
+      const rev = (Number(sale.selling_price) || 0) * (Number(sale.units_sold) || 0);
+      productRevenueMap.set(sale.product_id, (productRevenueMap.get(sale.product_id) || 0) + rev);
+    });
+
+    // Step 2: Sort products by revenue descending
+    const sorted = Array.from(productRevenueMap.entries())
+      .sort((a, b) => b[1] - a[1]);
+
+    const totalRevenue = sorted.reduce((sum, [, rev]) => sum + rev, 0);
+
+    // Step 3: Assign ABC based on cumulative revenue share
+    const abcMap = new Map<string, string>();
+    let cumulative = 0;
+    for (const [productId, rev] of sorted) {
+      cumulative += rev;
+      const share = totalRevenue > 0 ? (cumulative / totalRevenue) * 100 : 0;
+      if (share <= 80) {
+        abcMap.set(productId, 'A');
+      } else if (share <= 95) {
+        abcMap.set(productId, 'B');
+      } else {
+        abcMap.set(productId, 'C');
+      }
+    }
+
+    // Products with sales but not reaching threshold still get 'C'
+    // Products WITHOUT any sales also get 'C'
+    const productsWithSales = new Set(abcMap.keys());
+    products?.forEach(p => {
+      if (!productsWithSales.has(p.id)) {
+        abcMap.set(p.id, 'C');
+      }
+    });
+
+    // Step 4: Build product arrays for display
+    const productMap = new Map(products?.map(p => [p.id, p]) || []);
+    const aProducts: any[] = [];
+    const bProducts: any[] = [];
+    const cProducts: any[] = [];
+    abcMap.forEach((cat, pid) => {
+      const prod = productMap.get(pid);
+      if (prod) {
+        if (cat === 'A') aProducts.push(prod);
+        else if (cat === 'B') bProducts.push(prod);
+        else cProducts.push(prod);
+      }
+    });
+
+    return { abcMap, aProducts, bProducts, cProducts };
+  };
+
+  // Batch-update products.abc_category in Supabase
+  const updateProductsABC = async (abcMap: Map<string, string>, products: any[]) => {
+    // Only update products whose abc_category actually changed
+    const updates: { id: string; abc_category: string }[] = [];
+    products?.forEach(p => {
+      const newCat = abcMap.get(p.id);
+      if (newCat && newCat !== p.abc_category) {
+        updates.push({ id: p.id, abc_category: newCat });
+      }
+    });
+
+    if (updates.length === 0) return;
+
+    // Batch in chunks of 200
+    const chunkSize = 200;
+    for (let i = 0; i < updates.length; i += chunkSize) {
+      const chunk = updates.slice(i, i + chunkSize);
+      // Use Promise.all for parallel updates within chunk
+      await Promise.all(
+        chunk.map(u =>
+          supabase
+            .from("products")
+            .update({ abc_category: u.abc_category })
+            .eq("id", u.id)
+        )
+      );
+    }
+    console.log(`Updated ABC categories for ${updates.length} products`);
+  };
+
   const fetchDashboardData = async () => {
     setIsLoadingData(true);
     try {
@@ -352,12 +465,8 @@ const Dashboard = () => {
       const uniqueCategories = [...new Set(products?.map(p => p.category).filter(Boolean))];
       setCategories(uniqueCategories as string[]);
 
-      // Step 4: Fetch sales data (limited to 1000 for ABC/product analysis)
-      const { data: salesData } = await supabase
-        .from("sales_daily")
-        .select("*")
-        .gte("reg_date", dateStr)
-        .order("reg_date", { ascending: false });
+      // Step 4: Fetch ALL sales data with pagination (bypasses 1000-row limit)
+      const allSalesData = await fetchAllSalesDaily(dateStr, latestDate);
 
       // Step 5: Fetch aggregated KPIs via RPC (bypasses 1000 row limit)
       let kpis: any = {};
@@ -380,33 +489,32 @@ const Dashboard = () => {
         .select("*")
         .eq("is_active", true);
 
-      // Step 6: Calculate KPIs — prefer RPC, fallback to client-side from salesData
+      // Step 6: Calculate KPIs — prefer RPC, fallback to client-side from allSalesData
       let totalRevenue = Number(kpis.total_revenue) || 0;
       let totalUnits = Number(kpis.total_units) || 0;
       let totalReceipts = Number(kpis.total_receipts) || 0;
 
-      // Client-side fallback if RPC returned 0 but we have salesData
-      if (totalRevenue === 0 && salesData && salesData.length > 0) {
-        totalRevenue = salesData.reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
-        totalUnits = salesData.reduce((sum, s) => sum + Number(s.units_sold), 0);
-        const receiptIds = new Set(salesData.map(s => s.id_receipt).filter(Boolean));
+      // Client-side fallback if RPC returned 0 but we have sales data
+      if (totalRevenue === 0 && allSalesData.length > 0) {
+        totalRevenue = allSalesData.reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
+        totalUnits = allSalesData.reduce((sum, s) => sum + Number(s.units_sold), 0);
+        const receiptIds = new Set(allSalesData.map(s => s.id_receipt).filter(Boolean));
         totalReceipts = receiptIds.size;
       }
 
-      // Step 7: Calculate margin from sales_daily (accurate: from actual transactions)
+      // Step 7: Calculate margin from ALL sales_daily (accurate: from actual transactions)
       let grossMarginPct = 0;
-      if (salesData && salesData.length > 0) {
-        const totalCost = salesData.reduce((sum, s) => {
+      if (allSalesData.length > 0) {
+        const totalProfit = allSalesData.reduce((sum, s) => {
           const sp = Number(s.selling_price) || 0;
           const pp = Number(s.purchase_price) || 0;
           const units = Number(s.units_sold) || 0;
-          // Only include rows where both prices are valid
           if (sp > 0 && pp > 0) {
             return sum + ((sp - pp) * units);
           }
           return sum;
         }, 0);
-        const totalRevenueForMargin = salesData.reduce((sum, s) => {
+        const totalRevenueForMargin = allSalesData.reduce((sum, s) => {
           const sp = Number(s.selling_price) || 0;
           const pp = Number(s.purchase_price) || 0;
           const units = Number(s.units_sold) || 0;
@@ -415,53 +523,77 @@ const Dashboard = () => {
           }
           return sum;
         }, 0);
-        grossMarginPct = totalRevenueForMargin > 0 ? (totalCost / totalRevenueForMargin) * 100 : 0;
+        grossMarginPct = totalRevenueForMargin > 0 ? (totalProfit / totalRevenueForMargin) * 100 : 0;
       }
 
-      // ABC distribution
-      const aProducts = products?.filter(p => p.abc_category === 'A') || [];
-      const bProducts = products?.filter(p => p.abc_category === 'B') || [];
-      const cProducts = products?.filter(p => p.abc_category === 'C') || [];
+      // Step 8: Calculate ABC from ACTUAL sales revenue (Pareto analysis)
+      const { abcMap, aProducts, bProducts, cProducts } = calculateABCFromSales(allSalesData, products || []);
 
-      // Revenue by ABC
-      const aProductIds = aProducts.map(p => p.id);
-      const aRevenue = salesData?.filter(s => aProductIds.includes(s.product_id))
-        .reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0) || 0;
+      // Step 9: Auto-update products.abc_category in database (background, non-blocking)
+      updateProductsABC(abcMap, products || []).catch(err =>
+        console.warn("ABC update to products table failed (non-critical):", err)
+      );
+
+      // Step 10: Calculate revenue by ABC category from actual sales
+      const aProductIds = new Set(aProducts.map(p => p.id));
+      const bProductIds = new Set(bProducts.map(p => p.id));
+      const cProductIds = new Set(cProducts.map(p => p.id));
+
+      const aRevenue = allSalesData
+        .filter(s => aProductIds.has(s.product_id))
+        .reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
+      const bRevenue = allSalesData
+        .filter(s => bProductIds.has(s.product_id))
+        .reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
+      const cRevenue = allSalesData
+        .filter(s => cProductIds.has(s.product_id))
+        .reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
+
       const aRevenueShare = totalRevenue > 0 ? (aRevenue / totalRevenue) * 100 : 0;
 
-      // Top and bottom products
-      const productRevenue = new Map<string, { name: string; revenue: number; margin: number }>();
-      salesData?.forEach(sale => {
+      // Step 11: Top and bottom products from ALL sales data
+      const productRevenueAgg = new Map<string, { name: string; revenue: number; profit: number; revenueForMargin: number }>();
+      allSalesData.forEach(sale => {
         const product = products?.find(p => p.id === sale.product_id);
         if (product) {
           const sp = Number(sale.selling_price) || 0;
           const pp = Number(sale.purchase_price) || 0;
-          const saleMargin = sp > 0 && pp > 0 ? ((sp - pp) / sp) * 100 : 0;
-          const existing = productRevenue.get(sale.product_id) || {
+          const units = Number(sale.units_sold) || 0;
+          const existing = productRevenueAgg.get(sale.product_id) || {
             name: product.name,
             revenue: 0,
-            margin: saleMargin
+            profit: 0,
+            revenueForMargin: 0
           };
-          existing.revenue += sp * Number(sale.units_sold);
-          productRevenue.set(sale.product_id, existing);
+          existing.revenue += sp * units;
+          if (sp > 0 && pp > 0) {
+            existing.profit += (sp - pp) * units;
+            existing.revenueForMargin += sp * units;
+          }
+          productRevenueAgg.set(sale.product_id, existing);
         }
       });
 
-      const sortedProducts = Array.from(productRevenue.entries())
-        .map(([id, data]) => ({ id, ...data }))
+      const sortedProducts = Array.from(productRevenueAgg.entries())
+        .map(([id, data]) => ({
+          id,
+          name: data.name,
+          revenue: data.revenue,
+          margin: data.revenueForMargin > 0 ? (data.profit / data.revenueForMargin) * 100 : 0
+        }))
         .sort((a, b) => b.revenue - a.revenue);
 
       setTopProducts(sortedProducts.slice(0, 10));
       setBottomProducts(sortedProducts.slice(-10).reverse());
 
-      // ABC chart data
+      // Step 12: ABC chart data from calculated categories
       setAbcData([
-        { name: 'A', products: aProducts.length, revenue: aRevenue, fill: 'hsl(var(--chart-1))' },
-        { name: 'B', products: bProducts.length, revenue: salesData?.filter(s => bProducts.map(p => p.id).includes(s.product_id)).reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0) || 0, fill: 'hsl(var(--chart-2))' },
-        { name: 'C', products: cProducts.length, revenue: salesData?.filter(s => cProducts.map(p => p.id).includes(s.product_id)).reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0) || 0, fill: 'hsl(var(--chart-3))' },
+        { name: 'A', products: aProducts.length, revenue: Math.round(aRevenue), fill: 'hsl(var(--chart-1))' },
+        { name: 'B', products: bProducts.length, revenue: Math.round(bRevenue), fill: 'hsl(var(--chart-2))' },
+        { name: 'C', products: cProducts.length, revenue: Math.round(cRevenue), fill: 'hsl(var(--chart-3))' },
       ]);
 
-      // Revenue trend from RPC or salesData
+      // Revenue trend from RPC or allSalesData
       const rpcDays = kpis.revenue_by_day || [];
       const monthlyRevenue = new Map<string, number>();
 
@@ -470,9 +602,8 @@ const Dashboard = () => {
           const month = d.day.substring(0, 7);
           monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + Number(d.revenue));
         });
-      } else if (salesData && salesData.length > 0) {
-        // Fallback: build from salesData
-        salesData.forEach(s => {
+      } else if (allSalesData.length > 0) {
+        allSalesData.forEach(s => {
           const month = String(s.reg_date).substring(0, 7);
           const rev = Number(s.selling_price) * Number(s.units_sold);
           monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + rev);
@@ -509,9 +640,9 @@ const Dashboard = () => {
         }).sort((a: any, b: any) => b.revenue - a.revenue) || [];
         setStoreComparison(storeTickets);
       } else {
-        // Fallback: calculate from salesData (limited to 1000 rows but better than nothing)
+        // Fallback: calculate from allSalesData
         const storeData = stores?.map(store => {
-          const storeSales = salesData?.filter(s => s.store_id === store.id) || [];
+          const storeSales = allSalesData.filter(s => s.store_id === store.id);
           const storeRevenue = storeSales.reduce((sum, s) => sum + (Number(s.selling_price) * Number(s.units_sold)), 0);
           const storeReceipts = new Set(storeSales.map(s => s.id_receipt).filter(Boolean)).size;
           return {
@@ -541,15 +672,15 @@ const Dashboard = () => {
         marginChange: 0,
         grossMarginEur: totalRevenue * (grossMarginPct / 100),
 
-        skuCount: Number(kpis?.product_stats?.total_products) || products?.length || 0,
-        aProductsCount: Number(kpis?.product_stats?.abc_a_count) || aProducts.length,
-        bProductsCount: Number(kpis?.product_stats?.abc_b_count) || bProducts.length,
-        cProductsCount: Number(kpis?.product_stats?.abc_c_count) || cProducts.length,
+        skuCount: products?.length || 0,
+        aProductsCount: aProducts.length,
+        bProductsCount: bProducts.length,
+        cProductsCount: cProducts.length,
         aProductsRevenueShare: aRevenueShare,
 
         avgStockLevel: 1500,
         stockTurnover: 8.5,
-        slowMoversCount: cProducts.filter(p => p.abc_category === 'C').length,
+        slowMoversCount: cProducts.length,
 
         priceIndexVsMarket: 100,
         cheaperThanMarket: 0,
