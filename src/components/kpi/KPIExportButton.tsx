@@ -75,137 +75,137 @@ export const KPIExportButton = ({
   const [isExporting, setIsExporting] = useState(false);
 
   const generateSummaryText = (): string => {
-    const dateLabel = `${dateRange} dienas`;
-    const today = new Date().toLocaleDateString("lv-LV", {
+    const dateLabel = `${dateRange} days`;
+    const today = new Date().toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
       day: "numeric",
     });
 
-    let summary = `KPI APKOPOJUMS — ${today}\n`;
-    summary += `Periods: Pēdējās ${dateLabel}\n`;
+    let summary = `KPI SUMMARY — ${today}\n`;
+    summary += `Period: Last ${dateLabel}\n`;
     summary += `═══════════════════════════════════════\n\n`;
 
     // Sales Performance
-    summary += `PĀRDOŠANAS VEIKTSPĒJA\n`;
+    summary += `SALES PERFORMANCE\n`;
     summary += `─────────────────────────────────────\n`;
-    summary += `• Kopējie ieņēmumi: €${kpiData.totalRevenue.toLocaleString("lv-LV", { maximumFractionDigits: 0 })}\n`;
-    summary += `• Ieņēmumu izmaiņa: ${kpiData.revenueGrowth >= 0 ? "+" : ""}${kpiData.revenueGrowth.toFixed(1)}%\n`;
-    summary += `• Pārdotās vienības: ${kpiData.unitsSold.toLocaleString("lv-LV")}\n`;
-    summary += `• Vidējais čeks: €${kpiData.avgTicket.toFixed(2)}\n`;
-    summary += `• Transakciju skaits: ${kpiData.transactionCount.toLocaleString("lv-LV")}\n`;
-    summary += `• Ieņēmumi uz veikalu: €${kpiData.revenuePerStore.toLocaleString("lv-LV", { maximumFractionDigits: 0 })}\n\n`;
+    summary += `• Total Revenue: €${kpiData.totalRevenue.toLocaleString("en-US", { maximumFractionDigits: 0 })}\n`;
+    summary += `• Revenue Change: ${kpiData.revenueGrowth >= 0 ? "+" : ""}${kpiData.revenueGrowth.toFixed(1)}%\n`;
+    summary += `• Units Sold: ${kpiData.unitsSold.toLocaleString("en-US")}\n`;
+    summary += `• Avg. Ticket: €${kpiData.avgTicket.toFixed(2)}\n`;
+    summary += `• Transaction Count: ${kpiData.transactionCount.toLocaleString("en-US")}\n`;
+    summary += `• Revenue per Store: €${kpiData.revenuePerStore.toLocaleString("en-US", { maximumFractionDigits: 0 })}\n\n`;
 
     // Profitability
-    summary += `RENTABILITĀTE\n`;
+    summary += `PROFITABILITY\n`;
     summary += `─────────────────────────────────────\n`;
-    summary += `• Bruto peļņas marža: ${kpiData.grossMargin.toFixed(1)}%\n`;
-    summary += `• Maržas izmaiņa: ${kpiData.marginChange >= 0 ? "+" : ""}${kpiData.marginChange.toFixed(1)}%\n`;
-    summary += `• Bruto peļņa (EUR): €${kpiData.grossMarginEur.toLocaleString("lv-LV", { maximumFractionDigits: 0 })}\n\n`;
+    summary += `• Gross Margin: ${kpiData.grossMargin.toFixed(1)}%\n`;
+    summary += `• Margin Change: ${kpiData.marginChange >= 0 ? "+" : ""}${kpiData.marginChange.toFixed(1)}%\n`;
+    summary += `• Gross Profit (EUR): €${kpiData.grossMarginEur.toLocaleString("en-US", { maximumFractionDigits: 0 })}\n\n`;
 
     // Assortment
-    summary += `SORTIMENTS\n`;
+    summary += `ASSORTMENT\n`;
     summary += `─────────────────────────────────────\n`;
-    summary += `• Aktīvie SKU: ${kpiData.skuCount}\n`;
-    summary += `• A-produkti: ${kpiData.aProductsCount} (${kpiData.aProductsRevenueShare.toFixed(1)}% ieņēmumu)\n`;
-    summary += `• B-produkti: ${kpiData.bProductsCount}\n`;
-    summary += `• C-produkti: ${kpiData.cProductsCount}\n\n`;
+    summary += `• Active SKU: ${kpiData.skuCount}\n`;
+    summary += `• A-Products: ${kpiData.aProductsCount} (${kpiData.aProductsRevenueShare.toFixed(1)}% revenue)\n`;
+    summary += `• B-Products: ${kpiData.bProductsCount}\n`;
+    summary += `• C-Products: ${kpiData.cProductsCount}\n\n`;
 
     // Operations
-    summary += `OPERĀCIJAS\n`;
+    summary += `OPERATIONS\n`;
     summary += `─────────────────────────────────────\n`;
-    summary += `• Vidējais krājumu līmenis: ${kpiData.avgStockLevel.toLocaleString("lv-LV")}\n`;
-    summary += `• Krājumu apgrozījums: ${kpiData.stockTurnover.toFixed(1)}x\n`;
-    summary += `• Lēni produkti: ${kpiData.slowMoversCount}\n\n`;
+    summary += `• Avg. Stock Level: ${kpiData.avgStockLevel.toLocaleString("en-US")}\n`;
+    summary += `• Stock Turnover: ${kpiData.stockTurnover.toFixed(1)}x\n`;
+    summary += `• Slow Movers: ${kpiData.slowMoversCount}\n\n`;
 
     // Pricing
-    summary += `CENU POZĪCIJA\n`;
+    summary += `PRICING POSITION\n`;
     summary += `─────────────────────────────────────\n`;
-    summary += `• Cenu indekss vs tirgus: ${kpiData.priceIndexVsMarket.toFixed(1)}%\n`;
-    summary += `• Lētāki par tirgu: ${kpiData.cheaperThanMarket}%\n`;
-    summary += `• Dārgāki par tirgu: ${kpiData.moreExpensiveThanMarket}%\n`;
-    summary += `• Promo atkarība: ${kpiData.promoDependency.toFixed(1)}%\n\n`;
+    summary += `• Price Index vs Market: ${kpiData.priceIndexVsMarket.toFixed(1)}%\n`;
+    summary += `• Cheaper than Market: ${kpiData.cheaperThanMarket}%\n`;
+    summary += `• More Expensive: ${kpiData.moreExpensiveThanMarket}%\n`;
+    summary += `• Promo Dependency: ${kpiData.promoDependency.toFixed(1)}%\n\n`;
 
     // Top 5 Products
     if (topProducts.length > 0) {
-      summary += `TOP 5 PRODUKTI (pēc ieņēmumiem)\n`;
+      summary += `TOP 5 PRODUCTS (by revenue)\n`;
       summary += `─────────────────────────────────────\n`;
       topProducts.slice(0, 5).forEach((p, i) => {
-        summary += `${i + 1}. ${p.name.substring(0, 40)} — €${p.revenue.toLocaleString("lv-LV", { maximumFractionDigits: 0 })}\n`;
+        summary += `${i + 1}. ${p.name.substring(0, 40)} — €${p.revenue.toLocaleString("en-US", { maximumFractionDigits: 0 })}\n`;
       });
       summary += `\n`;
     }
 
     // Bottom 5 Products
     if (bottomProducts.length > 0) {
-      summary += `BOTTOM 5 PRODUKTI\n`;
+      summary += `BOTTOM 5 PRODUCTS\n`;
       summary += `─────────────────────────────────────\n`;
       bottomProducts.slice(0, 5).forEach((p, i) => {
-        summary += `${i + 1}. ${p.name.substring(0, 40)} — €${p.revenue.toLocaleString("lv-LV", { maximumFractionDigits: 0 })}\n`;
+        summary += `${i + 1}. ${p.name.substring(0, 40)} — €${p.revenue.toLocaleString("en-US", { maximumFractionDigits: 0 })}\n`;
       });
       summary += `\n`;
     }
 
     // Store Comparison
     if (storeComparison.length > 0) {
-      summary += `VEIKALU SALĪDZINĀJUMS\n`;
+      summary += `STORE COMPARISON\n`;
       summary += `─────────────────────────────────────\n`;
       storeComparison.slice(0, 5).forEach((s, i) => {
-        summary += `${i + 1}. ${s.name} (${s.code}) — €${s.revenue.toLocaleString("lv-LV", { maximumFractionDigits: 0 })} | Čeks: €${s.avgTicket?.toFixed(2) || 'N/A'} (${s.growth >= 0 ? "+" : ""}${s.growth.toFixed(1)}%)\n`;
+        summary += `${i + 1}. ${s.name} (${s.code}) — €${s.revenue.toLocaleString("en-US", { maximumFractionDigits: 0 })} | Ticket: €${s.avgTicket?.toFixed(2) || 'N/A'} (${s.growth >= 0 ? "+" : ""}${s.growth.toFixed(1)}%)\n`;
       });
       summary += `\n`;
     }
 
     summary += `═══════════════════════════════════════\n`;
-    summary += `Ģenerēts: ${new Date().toLocaleString("lv-LV")}\n`;
-    summary += `RetailAI — Biznesa Inteliģence`;
+    summary += `Generated: ${new Date().toLocaleString("en-US")}\n`;
+    summary += `RetailAI — Business Intelligence`;
 
     return summary;
   };
 
   const generateCSVData = (): string => {
-    let csv = "Kategorija,KPI,Vērtība,Mērvienība,Izmaiņa\n";
+    let csv = "Category,KPI,Value,Unit,Change\n";
 
     // Sales
-    csv += `Pārdošana,Kopējie ieņēmumi,${kpiData.totalRevenue.toFixed(2)},EUR,${kpiData.revenueGrowth.toFixed(1)}%\n`;
-    csv += `Pārdošana,Pārdotās vienības,${kpiData.unitsSold},gab,${kpiData.unitsChange.toFixed(1)}%\n`;
-    csv += `Pārdošana,Vidējais čeks,${kpiData.avgTicket.toFixed(2)},EUR,${kpiData.avgTicketChange.toFixed(1)}%\n`;
-    csv += `Pārdošana,Transakciju skaits,${kpiData.transactionCount},gab,\n`;
-    csv += `Pārdošana,Ieņēmumi uz veikalu,${kpiData.revenuePerStore.toFixed(2)},EUR,\n`;
+    csv += `Sales,Total Revenue,${kpiData.totalRevenue.toFixed(2)},EUR,${kpiData.revenueGrowth.toFixed(1)}%\n`;
+    csv += `Sales,Units Sold,${kpiData.unitsSold},pcs,${kpiData.unitsChange.toFixed(1)}%\n`;
+    csv += `Sales,Avg Ticket,${kpiData.avgTicket.toFixed(2)},EUR,${kpiData.avgTicketChange.toFixed(1)}%\n`;
+    csv += `Sales,Transaction Count,${kpiData.transactionCount},pcs,\n`;
+    csv += `Sales,Revenue per Store,${kpiData.revenuePerStore.toFixed(2)},EUR,\n`;
 
     // Profitability
-    csv += `Rentabilitāte,Bruto marža,${kpiData.grossMargin.toFixed(2)},%,${kpiData.marginChange.toFixed(1)}%\n`;
-    csv += `Rentabilitāte,Bruto peļņa EUR,${kpiData.grossMarginEur.toFixed(2)},EUR,\n`;
+    csv += `Profitability,Gross Margin,${kpiData.grossMargin.toFixed(2)},%,${kpiData.marginChange.toFixed(1)}%\n`;
+    csv += `Profitability,Gross Profit EUR,${kpiData.grossMarginEur.toFixed(2)},EUR,\n`;
 
     // Assortment
-    csv += `Sortiments,SKU skaits,${kpiData.skuCount},gab,\n`;
-    csv += `Sortiments,A-produkti,${kpiData.aProductsCount},gab,\n`;
-    csv += `Sortiments,B-produkti,${kpiData.bProductsCount},gab,\n`;
-    csv += `Sortiments,C-produkti,${kpiData.cProductsCount},gab,\n`;
-    csv += `Sortiments,A-produktu ieņēmumu daļa,${kpiData.aProductsRevenueShare.toFixed(2)},%,\n`;
+    csv += `Assortment,SKU Count,${kpiData.skuCount},pcs,\n`;
+    csv += `Assortment,A-Products,${kpiData.aProductsCount},pcs,\n`;
+    csv += `Assortment,B-Products,${kpiData.bProductsCount},pcs,\n`;
+    csv += `Assortment,C-Products,${kpiData.cProductsCount},pcs,\n`;
+    csv += `Assortment,A-Products Revenue Share,${kpiData.aProductsRevenueShare.toFixed(2)},%,\n`;
 
     // Operations
-    csv += `Operācijas,Krājumu līmenis,${kpiData.avgStockLevel},gab,\n`;
-    csv += `Operācijas,Krājumu apgrozījums,${kpiData.stockTurnover.toFixed(2)},x,\n`;
-    csv += `Operācijas,Lēni produkti,${kpiData.slowMoversCount},gab,\n`;
+    csv += `Operations,Stock Level,${kpiData.avgStockLevel},pcs,\n`;
+    csv += `Operations,Stock Turnover,${kpiData.stockTurnover.toFixed(2)},x,\n`;
+    csv += `Operations,Slow Movers,${kpiData.slowMoversCount},pcs,\n`;
 
     // Pricing
-    csv += `Cenas,Cenu indekss vs tirgus,${kpiData.priceIndexVsMarket.toFixed(2)},%,\n`;
-    csv += `Cenas,Lētāki par tirgu,${kpiData.cheaperThanMarket},%,\n`;
-    csv += `Cenas,Dārgāki par tirgu,${kpiData.moreExpensiveThanMarket},%,\n`;
-    csv += `Cenas,Promo atkarība,${kpiData.promoDependency.toFixed(2)},%,\n`;
+    csv += `Pricing,Price Index vs Market,${kpiData.priceIndexVsMarket.toFixed(2)},%,\n`;
+    csv += `Pricing,Cheaper than Market,${kpiData.cheaperThanMarket},%,\n`;
+    csv += `Pricing,More Expensive,${kpiData.moreExpensiveThanMarket},%,\n`;
+    csv += `Pricing,Promo Dependency,${kpiData.promoDependency.toFixed(2)},%,\n`;
 
     // Top Products
-    csv += `\n\nTOP PRODUKTI\n`;
-    csv += `Vieta,Nosaukums,Ieņēmumi,Marža\n`;
+    csv += `\n\nTOP PRODUCTS\n`;
+    csv += `Rank,Name,Revenue,Margin\n`;
     topProducts.forEach((p, i) => {
       csv += `${i + 1},"${p.name}",${p.revenue.toFixed(2)},${p.margin.toFixed(2)}%\n`;
     });
 
     // Store Comparison
     if (storeComparison.length > 0) {
-      csv += `\n\nVEIKALU SALĪDZINĀJUMS\n`;
-      csv += `Vieta,Veikals,Kods,Ieņēmumi,Vidējais Čeks,Izmaiņa\n`;
+      csv += `\n\nSTORE COMPARISON\n`;
+      csv += `Rank,Store,Code,Revenue,Avg Ticket,Change\n`;
       storeComparison.forEach((s, i) => {
         csv += `${i + 1},"${s.name}",${s.code},${s.revenue.toFixed(2)},${s.avgTicket?.toFixed(2) || ''},${s.growth.toFixed(1)}%\n`;
       });
@@ -217,8 +217,8 @@ export const KPIExportButton = ({
   const downloadPDF = async () => {
     setIsExporting(true);
     toast({
-      title: "Ģenerē PDF...",
-      description: "Lūdzu, uzgaidiet, kamēr tiek veidots PDF dokuments ar grafikiem.",
+      title: "Generating PDF...",
+      description: "Please wait while the PDF report with charts is being created.",
     });
 
     try {
@@ -239,12 +239,12 @@ export const KPIExportButton = ({
       
       pdf.setFontSize(11);
       pdf.setFont("helvetica", "normal");
-      const today = new Date().toLocaleDateString("lv-LV", {
+      const today = new Date().toLocaleDateString("en-US", {
         year: "numeric",
         month: "long",
         day: "numeric",
       });
-      pdf.text(`KPI Apkopojums | ${today} | Periods: ${dateRange} dienas`, margin, 28);
+      pdf.text(`KPI Summary | ${today} | Period: ${dateRange} days`, margin, 28);
       
       yPosition = 45;
       pdf.setTextColor(0, 0, 0);
@@ -252,15 +252,15 @@ export const KPIExportButton = ({
       // KPI Summary Section
       pdf.setFontSize(14);
       pdf.setFont("helvetica", "bold");
-      pdf.text("Galvenie Rādītāji", margin, yPosition);
+      pdf.text("Key Metrics", margin, yPosition);
       yPosition += 8;
 
       // KPI Grid
       const kpiItems = [
-        { label: "Kopējie Ieņēmumi", value: `€${kpiData.totalRevenue.toLocaleString("lv-LV", { maximumFractionDigits: 0 })}`, change: kpiData.revenueGrowth },
-        { label: "Bruto Marža", value: `${kpiData.grossMargin.toFixed(1)}%`, change: kpiData.marginChange },
-        { label: "Pārdotās Vienības", value: kpiData.unitsSold.toLocaleString("lv-LV"), change: kpiData.unitsChange },
-        { label: "Vidējais Čeks", value: `€${kpiData.avgTicket.toFixed(2)}`, change: kpiData.avgTicketChange },
+        { label: "Total Revenue", value: `€${kpiData.totalRevenue.toLocaleString("en-US", { maximumFractionDigits: 0 })}`, change: kpiData.revenueGrowth },
+        { label: "Gross Margin", value: `${kpiData.grossMargin.toFixed(1)}%`, change: kpiData.marginChange },
+        { label: "Units Sold", value: kpiData.unitsSold.toLocaleString("en-US"), change: kpiData.unitsChange },
+        { label: "Avg. Ticket", value: `€${kpiData.avgTicket.toFixed(2)}`, change: kpiData.avgTicketChange },
       ];
 
       const boxWidth = (pageWidth - margin * 2 - 15) / 2;
@@ -304,13 +304,13 @@ export const KPIExportButton = ({
       pdf.setFontSize(14);
       pdf.setFont("helvetica", "bold");
       pdf.setTextColor(0, 0, 0);
-      pdf.text("Sortimenta Analīze", margin, yPosition);
+      pdf.text("Assortment Analysis", margin, yPosition);
       yPosition += 8;
 
       const abcData = [
-        { category: "A-Produkti", count: kpiData.aProductsCount, share: kpiData.aProductsRevenueShare, color: [59, 130, 246] },
-        { category: "B-Produkti", count: kpiData.bProductsCount, share: 100 - kpiData.aProductsRevenueShare - 5, color: [16, 185, 129] },
-        { category: "C-Produkti", count: kpiData.cProductsCount, share: 5, color: [249, 115, 22] },
+        { category: "A-Products", count: kpiData.aProductsCount, share: kpiData.aProductsRevenueShare, color: [59, 130, 246] },
+        { category: "B-Products", count: kpiData.bProductsCount, share: 100 - kpiData.aProductsRevenueShare - 5, color: [16, 185, 129] },
+        { category: "C-Products", count: kpiData.cProductsCount, share: 5, color: [249, 115, 22] },
       ];
 
       abcData.forEach((item, index) => {
@@ -377,7 +377,7 @@ export const KPIExportButton = ({
       pdf.setFontSize(14);
       pdf.setFont("helvetica", "bold");
       pdf.setTextColor(0, 0, 0);
-      pdf.text("Top 5 Produkti", margin, yPosition);
+      pdf.text("Top 5 Products", margin, yPosition);
       yPosition += 8;
 
       topProducts.slice(0, 5).forEach((product, index) => {
@@ -385,7 +385,7 @@ export const KPIExportButton = ({
         pdf.setFont("helvetica", "normal");
         pdf.setTextColor(0, 0, 0);
         const text = `${index + 1}. ${product.name.substring(0, 45)}`;
-        const revenue = `€${product.revenue.toLocaleString("lv-LV", { maximumFractionDigits: 0 })}`;
+        const revenue = `€${product.revenue.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
         pdf.text(text, margin, yPosition);
         pdf.text(revenue, pageWidth - margin - 30, yPosition);
         yPosition += 6;
@@ -402,14 +402,14 @@ export const KPIExportButton = ({
 
         pdf.setFontSize(14);
         pdf.setFont("helvetica", "bold");
-        pdf.text("Veikalu Salīdzinājums", margin, yPosition);
+        pdf.text("Store Comparison", margin, yPosition);
         yPosition += 8;
 
         storeComparison.slice(0, 5).forEach((store, index) => {
           pdf.setFontSize(10);
           pdf.setFont("helvetica", "normal");
           const text = `${index + 1}. ${store.name} (${store.code})`;
-          const revenue = `€${store.revenue.toLocaleString("lv-LV", { maximumFractionDigits: 0 })}`;
+          const revenue = `€${store.revenue.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
           const growth = `${store.growth >= 0 ? "+" : ""}${store.growth.toFixed(1)}%`;
           
           pdf.setTextColor(0, 0, 0);
@@ -431,23 +431,23 @@ export const KPIExportButton = ({
       pdf.setFont("helvetica", "normal");
       pdf.setTextColor(148, 163, 184);
       pdf.text(
-        `Ģenerēts: ${new Date().toLocaleString("lv-LV")} | RetailAI Executive Dashboard`,
+        `Generated: ${new Date().toLocaleString("en-US")} | RetailAI Executive Dashboard`,
         margin,
         pageHeight - 10
       );
 
       // Save PDF
-      pdf.save(`kpi-atskaite-${new Date().toISOString().split("T")[0]}.pdf`);
+      pdf.save(`kpi-report-${new Date().toISOString().split("T")[0]}.pdf`);
 
       toast({
-        title: "PDF lejupielādēts!",
-        description: "Atskaite ar grafikiem saglabāta veiksmīgi.",
+        title: "PDF downloaded!",
+        description: "Report with charts saved successfully.",
       });
     } catch (error) {
       console.error("PDF generation error:", error);
       toast({
-        title: "Kļūda",
-        description: "Neizdevās ģenerēt PDF failu",
+        title: "Error",
+        description: "Failed to generate PDF file",
         variant: "destructive",
       });
     } finally {
@@ -461,13 +461,13 @@ export const KPIExportButton = ({
       const summary = generateSummaryText();
       await navigator.clipboard.writeText(summary);
       toast({
-        title: "Nokopēts!",
-        description: "KPI apkopojums nokopēts starpliktuvē.",
+        title: "Copied!",
+        description: "KPI summary copied to clipboard.",
       });
     } catch {
       toast({
-        title: "Kļūda",
-        description: "Neizdevās nokopēt",
+        title: "Error",
+        description: "Failed to copy",
         variant: "destructive",
       });
     } finally {
@@ -483,19 +483,19 @@ export const KPIExportButton = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `kpi-apkopojums-${new Date().toISOString().split("T")[0]}.txt`;
+      a.download = `kpi-summary-${new Date().toISOString().split("T")[0]}.txt`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       toast({
-        title: "Lejupielādēts!",
-        description: "KPI apkopojums saglabāts kā teksta fails.",
+        title: "Downloaded!",
+        description: "KPI summary saved as text file.",
       });
     } catch {
       toast({
-        title: "Kļūda",
-        description: "Neizdevās lejupielādēt",
+        title: "Error",
+        description: "Failed to download",
         variant: "destructive",
       });
     } finally {
@@ -511,19 +511,19 @@ export const KPIExportButton = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `kpi-dati-${new Date().toISOString().split("T")[0]}.csv`;
+      a.download = `kpi-data-${new Date().toISOString().split("T")[0]}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       toast({
-        title: "Lejupielādēts!",
-        description: "KPI dati saglabāti kā CSV fails.",
+        title: "Downloaded!",
+        description: "KPI data saved as CSV file.",
       });
     } catch {
       toast({
-        title: "Kļūda",
-        description: "Neizdevās lejupielādēt",
+        title: "Error",
+        description: "Failed to download",
         variant: "destructive",
       });
     } finally {
@@ -533,7 +533,7 @@ export const KPIExportButton = ({
 
   const shareViaEmail = () => {
     const summary = generateSummaryText();
-    const subject = encodeURIComponent(`KPI Apkopojums — ${new Date().toLocaleDateString("lv-LV")}`);
+    const subject = encodeURIComponent(`KPI Summary — ${new Date().toLocaleDateString("en-US")}`);
     const body = encodeURIComponent(summary);
     window.open(`mailto:?subject=${subject}&body=${body}`);
   };
@@ -547,31 +547,31 @@ export const KPIExportButton = ({
           ) : (
             <Download className="h-4 w-4" />
           )}
-          Eksportēt
+          Export
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem onClick={downloadPDF} className="gap-2 cursor-pointer">
           <FileImage className="h-4 w-4" />
-          PDF ar grafikiem
+          PDF with charts
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={copyToClipboard} className="gap-2 cursor-pointer">
           <Share2 className="h-4 w-4" />
-          Kopēt starpliktuvē
+          Copy to clipboard
         </DropdownMenuItem>
         <DropdownMenuItem onClick={downloadText} className="gap-2 cursor-pointer">
           <FileText className="h-4 w-4" />
-          Lejupielādēt TXT
+          Download TXT
         </DropdownMenuItem>
         <DropdownMenuItem onClick={downloadCSV} className="gap-2 cursor-pointer">
           <FileSpreadsheet className="h-4 w-4" />
-          Lejupielādēt CSV (Excel)
+          Download CSV (Excel)
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={shareViaEmail} className="gap-2 cursor-pointer">
           <Share2 className="h-4 w-4" />
-          Nosūtīt e-pastā
+          Send via email
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

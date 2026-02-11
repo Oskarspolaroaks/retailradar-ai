@@ -85,7 +85,7 @@ const KPICard = ({
   value,
   unit = "",
   change,
-  changeLabel = "vs iepr. periods",
+  changeLabel = "vs prev. period",
   trend,
   target,
   warning,
@@ -688,7 +688,7 @@ const Dashboard = () => {
             <div className="flex gap-3 flex-wrap">
               <Button onClick={seedDemoData} disabled={loading} className="gap-2 rounded-xl">
                 {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                Demo Dati
+                Demo Data
               </Button>
               <Button onClick={recalculateABC} disabled={loading} variant="outline" className="gap-2 rounded-xl">
                 <BarChart3 className="h-4 w-4" />
@@ -963,7 +963,7 @@ const Dashboard = () => {
           <CardHeader className="p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 text-success text-base sm:text-lg">
               <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
-              Top 10 Produkti
+              Top 10 Products
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm">Highest revenue</CardDescription>
           </CardHeader>
@@ -992,7 +992,7 @@ const Dashboard = () => {
           <CardHeader className="p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 text-destructive text-base sm:text-lg">
               <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5" />
-              Bottom 10 Produkti
+              Bottom 10 Products
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm">Lowest revenue / margin</CardDescription>
           </CardHeader>

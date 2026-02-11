@@ -93,8 +93,8 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
         console.warn('[Import] No data rows found in file');
         setFileInfo(null);
         toast({
-          title: "Tukša datne",
-          description: "Excel datnē nav datu rindu",
+          title: "Empty file",
+          description: "No data rows found in Excel file",
           variant: "destructive",
         });
         return;
@@ -151,22 +151,22 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
         if (!sumOfGMCol) missing.push('Sum of GM');
         
         toast({
-          title: "Formāta brīdinājums",
-          description: `Trūkst kolonnas: ${missing.join(', ')}. Esošās kolonnas: ${columns.slice(0, 5).join(', ')}${columns.length > 5 ? '...' : ''}`,
+          title: "Format warning",
+          description: `Missing columns: ${missing.join(', ')}. Found columns: ${columns.slice(0, 5).join(', ')}${columns.length > 5 ? '...' : ''}`,
           variant: "destructive",
         });
       } else {
         toast({
-          title: "Datne atpazīta",
-          description: `Spirits&Wine formāts, ${data.length} rindas`,
+          title: "File recognized",
+          description: `Spirits&Wine format, ${data.length} rows`,
         });
       }
     } catch (error: any) {
       console.error('[Import] Error analyzing file:', error);
       setFileInfo(null);
       toast({
-        title: "Kļūda lasot datni",
-        description: error?.message || "Neizdevās nolasīt Excel datni",
+        title: "Error reading file",
+        description: error?.message || "Failed to read Excel file",
         variant: "destructive",
       });
     }
@@ -274,8 +274,8 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
     
     if (!file) {
       toast({
-        title: "Kļūda",
-        description: "Nav izvēlēta datne",
+        title: "Error",
+        description: "No file selected",
         variant: "destructive",
       });
       return;
@@ -283,8 +283,8 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
     
     if (!fileInfo?.isSpiritsWine) {
       toast({
-        title: "Kļūda",
-        description: "Datne nav atpazīta kā Spirits&Wine formāts",
+        title: "Error",
+        description: "File not recognized as Spirits&Wine format",
         variant: "destructive",
       });
       return;
@@ -300,7 +300,7 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
       console.log('[Import] Transformed records:', transformed.length);
       
       if (transformed.length === 0) {
-        throw new Error('Nav derīgu ierakstu datnē. Pārbaudiet, vai kolonnās ir skaitliskas vērtības.');
+        throw new Error('No valid records in file. Check that columns contain numeric values.');
       }
       
       setParsedData(transformed);
@@ -365,14 +365,14 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
       setStep('mapping');
       
       toast({
-        title: "Datne apstrādāta",
-        description: `Atrasti ${transformed.length} ieraksti ar ${uniqueProductNames.length} unikāliem produktiem (${matchedCount} kartēti).`,
+        title: "File processed",
+        description: `Found ${transformed.length} records with ${uniqueProductNames.length} unique products (${matchedCount} mapped).`,
       });
     } catch (error: any) {
       console.error('[Import] Error parsing file:', error);
       toast({
-        title: "Kļūda apstrādājot datni",
-        description: error.message || "Neizdevās apstrādāt datni",
+        title: "Error processing file",
+        description: error.message || "Failed to process file",
         variant: "destructive",
       });
     } finally {
@@ -396,9 +396,9 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) {
         console.error('[Import] Error getting user:', userError);
-        throw new Error(`Autentifikācijas kļūda: ${userError.message}`);
+        throw new Error(`Authentication error: ${userError.message}`);
       }
-      if (!user) throw new Error('Nav autorizēts. Lūdzu, piesakieties.');
+      if (!user) throw new Error('Not authorized. Please sign in.');
 
       const { data: userTenant, error: tenantError } = await supabase
         .from('user_tenants')
@@ -408,9 +408,9 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
 
       if (tenantError) {
         console.error('[Import] Error getting tenant:', tenantError);
-        throw new Error(`Neizdevās atrast uzņēmumu: ${tenantError.message}`);
+        throw new Error(`Failed to find tenant: ${tenantError.message}`);
       }
-      if (!userTenant) throw new Error('Uzņēmums nav atrasts');
+      if (!userTenant) throw new Error('Tenant not found');
       
       const tenantId = userTenant.tenant_id;
       console.log('[Import] Tenant ID:', tenantId);
@@ -439,7 +439,7 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
 
         if (createError) {
           console.error('[Import] Error creating products:', createError);
-          throw new Error(`Neizdevās izveidot produktus: ${createError.message}`);
+          throw new Error(`Failed to create products: ${createError.message}`);
         }
 
         console.log('[Import] Created products:', newProducts?.length);
@@ -479,7 +479,7 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
       console.log('[Import] Sales records to insert:', salesRecords.length);
       
       if (salesRecords.length === 0) {
-        throw new Error('Nav ierakstu importēšanai.');
+        throw new Error('No records to import.');
       }
 
       // Insert in batches of 500 to handle large datasets
@@ -503,8 +503,8 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
           failedBatches++;
           // Show error to user immediately
           toast({
-            title: `Partija ${Math.floor(i / batchSize) + 1} neizdevās`,
-            description: insertError.message || insertError.code || 'Nezināma kļūda',
+            title: `Batch ${Math.floor(i / batchSize) + 1} failed`,
+            description: insertError.message || insertError.code || 'Unknown error',
             variant: "destructive",
           });
           // Continue with other batches instead of failing completely
@@ -515,16 +515,16 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
       }
 
       if (totalInserted === 0) {
-        throw new Error('Neizdevās importēt nevienu ierakstu. Pārbaudiet datubāzes atļaujas.');
+        throw new Error('Failed to import any records. Check database permissions.');
       }
 
       const message = failedBatches > 0
-        ? `Importēti ${totalInserted} no ${salesRecords.length} ierakstiem (${failedBatches} partijas neizdevās).`
-        : `Importēti ${totalInserted} nedēļas pārdošanas ieraksti.`;
+        ? `Imported ${totalInserted} of ${salesRecords.length} records (${failedBatches} batches failed).`
+        : `Imported ${totalInserted} weekly sales records.`;
 
       console.log('[Import] Complete:', message);
       toast({
-        title: failedBatches > 0 ? "Imports daļēji veiksmīgs" : "Imports veiksmīgs",
+        title: failedBatches > 0 ? "Import partially successful" : "Import successful",
         description: message,
         variant: failedBatches > 0 ? "destructive" : "default",
       });
@@ -535,8 +535,8 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
     } catch (error: any) {
       console.error('[Import] Error importing:', error);
       toast({
-        title: "Importa kļūda",
-        description: error.message || "Neizdevās importēt datus",
+        title: "Import error",
+        description: error.message || "Failed to import data",
         variant: "destructive",
       });
     } finally {
@@ -564,14 +564,14 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
       <DialogTrigger asChild>
         <Button variant="outline">
           <Upload className="h-4 w-4 mr-2" />
-          Importēt Nedēļas Pārdošanu
+          Import Weekly Sales
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Importēt Spirits&Wine Nedēļas Pārdošanu</DialogTitle>
+          <DialogTitle>Import Spirits&Wine Weekly Sales</DialogTitle>
           <DialogDescription>
-            Augšupielādējiet Excel datni ar Spirits&Wine pārdošanas datiem (LW vs PW formātā)
+            Upload an Excel file with Spirits&Wine sales data (LW vs PW format)
           </DialogDescription>
         </DialogHeader>
 
@@ -579,7 +579,7 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="year">Gads</Label>
+                <Label htmlFor="year">Year</Label>
                 <Select value={year} onValueChange={setYear}>
                   <SelectTrigger>
                     <SelectValue />
@@ -591,7 +591,7 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
                 </Select>
               </div>
               <div>
-                <Label htmlFor="week-end">Nedēļas Beigu Datums (LW)</Label>
+                <Label htmlFor="week-end">Week End Date (LW)</Label>
                 <Input
                   id="week-end"
                   type="date"
@@ -602,7 +602,7 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
             </div>
 
             <div>
-              <Label htmlFor="file">Excel Datne</Label>
+              <Label htmlFor="file">Excel File</Label>
               <Input
                 id="file"
                 type="file"
@@ -621,7 +621,7 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
                     ) : (
                       <AlertTriangle className="h-4 w-4 text-destructive" />
                     )}
-                    Datnes Analīze
+                    File Analysis
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="py-2 space-y-2 text-sm">
@@ -630,21 +630,21 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
                     <span className="font-medium">{file.name}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-muted-foreground">
-                    <div>Formāts: {fileInfo.isSpiritsWine ? "Spirits&Wine ✓" : "Nezināms formāts"}</div>
-                    <div>Rindas: {fileInfo.rowCount}</div>
+                    <div>Format: {fileInfo.isSpiritsWine ? "Spirits&Wine ✓" : "Unknown format"}</div>
+                    <div>Rows: {fileInfo.rowCount}</div>
                     {fileInfo.atlikumiColumn && (
-                      <div>Atlikumi kolonna: {fileInfo.atlikumiColumn}</div>
+                      <div>Stock column: {fileInfo.atlikumiColumn}</div>
                     )}
                     {fileInfo.parsedDate && (
-                      <div>Nolasīts datums: {new Date(fileInfo.parsedDate).toLocaleDateString('lv-LV')}</div>
+                      <div>Parsed date: {new Date(fileInfo.parsedDate).toLocaleDateString('en-GB')}</div>
                     )}
                   </div>
                   {!fileInfo.isSpiritsWine && (
                     <Alert variant="destructive" className="mt-2">
                       <AlertTriangle className="h-4 w-4" />
-                      <AlertTitle>Formāta kļūda</AlertTitle>
+                      <AlertTitle>Format error</AlertTitle>
                       <AlertDescription>
-                        Trūkst obligātās kolonnas: Nosaukums, Sum of Skaits, Sum of GM
+                        Missing required columns: Nosaukums, Sum of Skaits, Sum of GM
                       </AlertDescription>
                     </Alert>
                   )}
@@ -658,47 +658,47 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
               <Card className="border-green-500/30 bg-green-500/5">
                 <CardContent className="py-3 text-center">
                   <div className="text-2xl font-bold text-green-700">{lwCount}</div>
-                  <div className="text-xs text-muted-foreground">LW ieraksti</div>
+                  <div className="text-xs text-muted-foreground">LW records</div>
                 </CardContent>
               </Card>
               <Card className="border-blue-500/30 bg-blue-500/5">
                 <CardContent className="py-3 text-center">
                   <div className="text-2xl font-bold text-blue-700">{pwCount}</div>
-                  <div className="text-xs text-muted-foreground">PW ieraksti</div>
+                  <div className="text-xs text-muted-foreground">PW records</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="py-3 text-center">
                   <div className="text-2xl font-bold">{mappings.size}</div>
-                  <div className="text-xs text-muted-foreground">Unikāli produkti</div>
+                  <div className="text-xs text-muted-foreground">Unique products</div>
                 </CardContent>
               </Card>
             </div>
 
             <Card>
               <CardHeader className="py-3">
-                <CardTitle className="text-base">Produktu Kartēšana</CardTitle>
+                <CardTitle className="text-base">Product Mapping</CardTitle>
                 <CardDescription>
-                  Kartējiet importētos produktus uz esošiem vai izveidojiet jaunus
+                  Map imported products to existing ones or create new
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex gap-2 mb-4">
                   <Badge variant="default" className="bg-green-500/10 text-green-700 border-green-500/20">
-                    {mappedCount} Kartēti
+                    {mappedCount} Mapped
                   </Badge>
                   <Badge variant="default" className="bg-blue-500/10 text-blue-700 border-blue-500/20">
-                    {createCount} Jauni
+                    {createCount} New
                   </Badge>
                   <Badge variant="outline">
-                    {skipCount} Izlaisti
+                    {skipCount} Skipped
                   </Badge>
                 </div>
                 
                 {skipCount > 0 && skipCount === mappings.size && (
                   <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-md text-sm text-amber-800">
-                    <strong>Piezīme:</strong> Visi produkti ir izlaisti (nekartēti). Dati tiks importēti bez sasaistes ar produktu katalogu. 
-                    Vēlāk varēsiet veikt kartēšanu Weekly Sales lapā.
+                    <strong>Note:</strong> All products are skipped (unmapped). Data will be imported without linking to the product catalog.
+                    You can map them later on the Weekly Sales page.
                   </div>
                 )}
 
@@ -706,12 +706,12 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
                   <Table>
                     <TableHeader className="sticky top-0 bg-background">
                       <TableRow>
-                        <TableHead className="w-[250px]">Produkta Nosaukums</TableHead>
-                        <TableHead className="w-[120px]">Darbība</TableHead>
-                        <TableHead>Kartēt uz</TableHead>
+                        <TableHead className="w-[250px]">Product Name</TableHead>
+                        <TableHead className="w-[120px]">Action</TableHead>
+                        <TableHead>Map to</TableHead>
                         <TableHead className="w-[100px]">SKU</TableHead>
-                        <TableHead className="w-[80px]">Izmaksu</TableHead>
-                        <TableHead className="w-[80px]">Cena</TableHead>
+                        <TableHead className="w-[80px]">Cost</TableHead>
+                        <TableHead className="w-[80px]">Price</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -729,9 +729,9 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="map">Kartēt</SelectItem>
-                                <SelectItem value="create">Izveidot</SelectItem>
-                                <SelectItem value="skip">Izlaist</SelectItem>
+                                <SelectItem value="map">Map</SelectItem>
+                                <SelectItem value="create">Create</SelectItem>
+                                <SelectItem value="skip">Skip</SelectItem>
                               </SelectContent>
                             </Select>
                           </TableCell>
@@ -744,7 +744,7 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
                                 }
                               >
                                 <SelectTrigger className="h-8 text-xs">
-                                  <SelectValue placeholder="Izvēlieties..." />
+                                  <SelectValue placeholder="Select..." />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {existingProducts.map(p => (
@@ -807,25 +807,25 @@ export const WeeklySalesImportDialog = ({ onImportComplete }: WeeklySalesImportD
           {step === 'upload' ? (
             <>
               <Button variant="outline" onClick={() => setOpen(false)}>
-                Atcelt
+                Cancel
               </Button>
-              <Button 
-                onClick={handleParseFile} 
+              <Button
+                onClick={handleParseFile}
                 disabled={!file || !fileInfo?.isSpiritsWine || isImporting}
               >
-                {isImporting ? "Apstrādā..." : "Turpināt"}
+                {isImporting ? "Processing..." : "Continue"}
               </Button>
             </>
           ) : (
             <>
               <Button variant="outline" onClick={() => setStep('upload')}>
-                Atpakaļ
+                Back
               </Button>
-              <Button 
-                onClick={handleImport} 
+              <Button
+                onClick={handleImport}
                 disabled={isImporting || parsedData.length === 0}
               >
-                {isImporting ? "Importē..." : `Importēt ${parsedData.length} ierakstus`}
+                {isImporting ? "Importing..." : `Import ${parsedData.length} records`}
               </Button>
             </>
           )}

@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Calendar, TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, Minus, BarChart3, Trash2, Loader2, Upload } from "lucide-react";
 import { format } from "date-fns";
-import { lv } from "date-fns/locale";
+import { enUS } from "date-fns/locale";
 import { WeeklySalesImportDialog } from "@/components/WeeklySalesImportDialog";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -145,14 +145,14 @@ const WeeklySales = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["weekly-sales"] });
       toast({
-        title: "Dati dzēsti",
-        description: "Visi nedēļas pārdošanas dati ir veiksmīgi dzēsti.",
+        title: "Data deleted",
+        description: "All weekly sales data has been successfully deleted.",
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Kļūda",
-        description: error.message || "Neizdevās dzēst datus",
+        title: "Error",
+        description: error.message || "Failed to delete data",
         variant: "destructive",
       });
     },
@@ -429,12 +429,12 @@ const WeeklySales = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Nedēļas Pārdošanas Pārskats</h1>
+          <h1 className="text-3xl font-bold">Weekly Sales Report</h1>
           <p className="text-muted-foreground mt-1">
-            LW vs PW salīdzinājums ar ABC analīzi
+            LW vs PW comparison with ABC analysis
             {weeklySales && weeklySales.length > 0 && (
               <span className="ml-2 text-xs">
-                ({weeklySales.length} ieraksti datubāzē)
+                ({weeklySales.length} records in database)
               </span>
             )}
           </p>
@@ -444,13 +444,13 @@ const WeeklySales = () => {
               {latestUploadDate && (
                 <div className="flex items-center gap-1.5 text-muted-foreground">
                   <Upload className="h-3.5 w-3.5" />
-                  <span>Augšupielādēts: <span className="font-medium text-foreground">{format(latestUploadDate, "dd.MM.yyyy HH:mm", { locale: lv })}</span></span>
+                  <span>Uploaded: <span className="font-medium text-foreground">{format(latestUploadDate, "dd.MM.yyyy HH:mm", { locale: enUS })}</span></span>
                 </div>
               )}
               {weekEndRange && (
                 <div className="flex items-center gap-1.5 text-muted-foreground">
                   <Calendar className="h-3.5 w-3.5" />
-                  <span>Datu periods: <span className="font-medium text-foreground">{format(weekEndRange.min, "dd.MM.yyyy")} - {format(weekEndRange.max, "dd.MM.yyyy")}</span></span>
+                  <span>Data period: <span className="font-medium text-foreground">{format(weekEndRange.min, "dd.MM.yyyy")} - {format(weekEndRange.max, "dd.MM.yyyy")}</span></span>
                 </div>
               )}
             </div>
@@ -462,19 +462,19 @@ const WeeklySales = () => {
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm">
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Dzēst Visus
+                  Delete All
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Dzēst visus nedēļas pārdošanas datus?</AlertDialogTitle>
+                  <AlertDialogTitle>Delete all weekly sales data?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Šī darbība dzēsīs {weeklySales.length} ierakstus. To nevar atsaukt.
-                    Pēc dzēšanas varēsiet importēt jaunus datus.
+                    This will delete {weeklySales.length} records. This cannot be undone.
+                    After deletion you can import new data.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Atcelt</AlertDialogCancel>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => deleteAllMutation.mutate()}
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -482,10 +482,10 @@ const WeeklySales = () => {
                     {deleteAllMutation.isPending ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Dzēš...
+                        Deleting...
                       </>
                     ) : (
-                      "Dzēst Visus"
+                      "Delete All"
                     )}
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -502,7 +502,7 @@ const WeeklySales = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Package className="h-4 w-4" />
-              LW Pārdots
+              LW Units Sold
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -517,7 +517,7 @@ const WeeklySales = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
-              LW Bruto Marža
+              LW Gross Margin
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -531,13 +531,13 @@ const WeeklySales = () => {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Produktu Skaits
+              Product Count
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{comparisonData.length}</div>
             <div className="text-sm text-muted-foreground mt-1">
-              {filteredData.length} filtrēti
+              {filteredData.length} filtered
             </div>
           </CardContent>
         </Card>
@@ -546,7 +546,7 @@ const WeeklySales = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              ABC Sadalījums
+              ABC Distribution
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -560,7 +560,7 @@ const WeeklySales = () => {
                 <span className="text-sm">{lwStats.C.count}</span>
               </div>
             ) : (
-              <span className="text-muted-foreground">Nav datu</span>
+              <span className="text-muted-foreground">No data</span>
             )}
           </CardContent>
         </Card>
@@ -573,9 +573,9 @@ const WeeklySales = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <ABCBadge abc="A" />
-                Top Produkti (A)
+                Top Products (A)
               </CardTitle>
-              <CardDescription>~80% ieņēmumu</CardDescription>
+              <CardDescription>~80% of revenue</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{lwStats.A.count}</div>
@@ -592,9 +592,9 @@ const WeeklySales = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <ABCBadge abc="B" />
-                Vidējie Produkti (B)
+                Mid Products (B)
               </CardTitle>
-              <CardDescription>~15% ieņēmumu</CardDescription>
+              <CardDescription>~15% of revenue</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{lwStats.B.count}</div>
@@ -611,9 +611,9 @@ const WeeklySales = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <ABCBadge abc="C" />
-                Zemi Produkti (C)
+                Low Products (C)
               </CardTitle>
-              <CardDescription>~5% ieņēmumu</CardDescription>
+              <CardDescription>~5% of revenue</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{lwStats.C.count}</div>
@@ -633,13 +633,13 @@ const WeeklySales = () => {
         <CardContent className="pt-4">
           <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-1.5 min-w-[140px]">
-              <Label className="text-xs">Partneris</Label>
+              <Label className="text-xs">Partner</Label>
               <Select value={partnerFilter} onValueChange={setPartnerFilter}>
                 <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Visi</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                   {uniquePartners.map((partner) => (
                     <SelectItem key={partner} value={partner}>{partner}</SelectItem>
                   ))}
@@ -648,41 +648,41 @@ const WeeklySales = () => {
             </div>
 
             <div className="space-y-1.5 min-w-[140px]">
-              <Label className="text-xs">ABC Kategorija</Label>
+              <Label className="text-xs">ABC Category</Label>
               <Select value={abcFilter} onValueChange={setAbcFilter}>
                 <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Visas</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                   <SelectItem value="A">A - Top</SelectItem>
-                  <SelectItem value="B">B - Vidējie</SelectItem>
-                  <SelectItem value="C">C - Zemi</SelectItem>
+                  <SelectItem value="B">B - Mid</SelectItem>
+                  <SelectItem value="C">C - Low</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-1.5 min-w-[140px]">
-              <Label className="text-xs">Kārtot pēc</Label>
+              <Label className="text-xs">Sort by</Label>
               <Select value={sortBy} onValueChange={setSortBy}>
                 <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="margin_desc">Marža ↓</SelectItem>
-                  <SelectItem value="margin_asc">Marža ↑</SelectItem>
-                  <SelectItem value="units_desc">Pārdots ↓</SelectItem>
-                  <SelectItem value="change_desc">Izaugsme ↓</SelectItem>
-                  <SelectItem value="change_asc">Kritums ↓</SelectItem>
-                  <SelectItem value="abc">ABC kategorija</SelectItem>
+                  <SelectItem value="margin_desc">Margin ↓</SelectItem>
+                  <SelectItem value="margin_asc">Margin ↑</SelectItem>
+                  <SelectItem value="units_desc">Units ↓</SelectItem>
+                  <SelectItem value="change_desc">Growth ↓</SelectItem>
+                  <SelectItem value="change_asc">Decline ↓</SelectItem>
+                  <SelectItem value="abc">ABC category</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-1.5 flex-1 min-w-[200px]">
-              <Label className="text-xs">Meklēt produktu</Label>
+              <Label className="text-xs">Search product</Label>
               <Input
-                placeholder="Nosaukums..."
+                placeholder="Name..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
                 className="h-9"
@@ -697,10 +697,10 @@ const WeeklySales = () => {
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>LW vs PW Salīdzinājums</CardTitle>
+              <CardTitle>LW vs PW Comparison</CardTitle>
               <CardDescription>
-                Rāda {displayedData.length} no {filteredData.length} produktiem 
-                {comparisonData.length !== filteredData.length && ` (kopā ${comparisonData.length})`}
+                Showing {displayedData.length} of {filteredData.length} products
+                {comparisonData.length !== filteredData.length && ` (total ${comparisonData.length})`}
               </CardDescription>
             </div>
             {filteredData.length > 100 && (
@@ -709,13 +709,13 @@ const WeeklySales = () => {
                 onValueChange={(v) => setDisplayLimit(Number(v))}
               >
                 <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Rādīt..." />
+                  <SelectValue placeholder="Show..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="100">Rādīt 100</SelectItem>
-                  <SelectItem value="500">Rādīt 500</SelectItem>
-                  <SelectItem value="1000">Rādīt 1000</SelectItem>
-                  <SelectItem value="99999">Rādīt Visus</SelectItem>
+                  <SelectItem value="100">Show 100</SelectItem>
+                  <SelectItem value="500">Show 500</SelectItem>
+                  <SelectItem value="1000">Show 1000</SelectItem>
+                  <SelectItem value="99999">Show All</SelectItem>
                 </SelectContent>
               </Select>
             )}
@@ -725,7 +725,7 @@ const WeeklySales = () => {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin mb-4" />
-              <p>Ielādē datus...</p>
+              <p>Loading data...</p>
             </div>
           ) : displayedData.length > 0 ? (
             <>
@@ -733,15 +733,15 @@ const WeeklySales = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="sticky left-0 top-0 bg-muted/50 min-w-[200px] z-20">Produkts</TableHead>
+                      <TableHead className="sticky left-0 top-0 bg-muted/50 min-w-[200px] z-20">Product</TableHead>
                       <TableHead className="sticky top-0 bg-muted/50 text-center w-[60px]">ABC</TableHead>
-                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[100px]">LW Pārdots</TableHead>
-                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[100px]">PW Pārdots</TableHead>
-                      <TableHead className="sticky top-0 bg-muted/50 text-center w-[100px]">Δ Vienības</TableHead>
-                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[100px]">LW Marža</TableHead>
-                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[100px]">PW Marža</TableHead>
-                      <TableHead className="sticky top-0 bg-muted/50 text-center w-[100px]">Δ Marža</TableHead>
-                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[80px]">Atlikums</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[100px]">LW Units</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[100px]">PW Units</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-center w-[100px]">Δ Units</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[100px]">LW Margin</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[100px]">PW Margin</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-center w-[100px]">Δ Margin</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/50 text-right w-[80px]">Stock</TableHead>
                       <TableHead className="sticky top-0 bg-muted/50 text-center w-[80px]">Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -796,21 +796,21 @@ const WeeklySales = () => {
               {hasMore && (
                 <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t">
                   <span className="text-sm text-muted-foreground">
-                    Rāda {displayedData.length} no {filteredData.length}
+                    Showing {displayedData.length} of {filteredData.length}
                   </span>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => setDisplayLimit(prev => Math.min(prev + 500, 99999))}
                   >
-                    Rādīt vairāk (+500)
+                    Show more (+500)
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => setDisplayLimit(99999)}
                   >
-                    Rādīt Visus ({filteredData.length})
+                    Show All ({filteredData.length})
                   </Button>
                 </div>
               )}
@@ -818,8 +818,8 @@ const WeeklySales = () => {
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <Package className="h-12 w-12 mx-auto mb-4 opacity-30" />
-              <p>Nav atrasti dati.</p>
-              <p className="text-sm mt-1">Importējiet Spirits&Wine Excel failu, lai redzētu pārskatu.</p>
+              <p>No data found.</p>
+              <p className="text-sm mt-1">Import a Spirits&Wine Excel file to see the report.</p>
             </div>
           )}
         </CardContent>
@@ -829,18 +829,18 @@ const WeeklySales = () => {
       <Card>
         <CardContent className="py-3">
           <div className="flex items-center gap-6 text-sm">
-            <span className="font-medium">ABC Leģenda:</span>
+            <span className="font-medium">ABC Legend:</span>
             <div className="flex items-center gap-2">
               <ABCBadge abc="A" />
-              <span className="text-muted-foreground">Top produkti (~80% ieņēmumu)</span>
+              <span className="text-muted-foreground">Top products (~80% revenue)</span>
             </div>
             <div className="flex items-center gap-2">
               <ABCBadge abc="B" />
-              <span className="text-muted-foreground">Vidējie (~15% ieņēmumu)</span>
+              <span className="text-muted-foreground">Mid (~15% revenue)</span>
             </div>
             <div className="flex items-center gap-2">
               <ABCBadge abc="C" />
-              <span className="text-muted-foreground">Zemi (~5% ieņēmumu)</span>
+              <span className="text-muted-foreground">Low (~5% revenue)</span>
             </div>
           </div>
         </CardContent>
