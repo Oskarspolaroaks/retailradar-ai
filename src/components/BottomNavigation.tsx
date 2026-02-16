@@ -1,4 +1,4 @@
-import { BarChart3, Package, TrendingUp, Users, Zap, MoreHorizontal } from "lucide-react";
+import { BarChart3, Package, Zap, MoreHorizontal } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useState } from "react";
 import {
@@ -8,21 +8,20 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { AlertCircle, Calculator, Settings, CalendarDays, Music } from "lucide-react";
+import { AlertCircle, Calculator, Settings, CalendarDays, Music, Radar } from "lucide-react";
 
 const primaryItems = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "Products", url: "/products", icon: Package },
-  { title: "Smart Price", url: "/smart-price", icon: Zap },
-  { title: "Competitors", url: "/competitors", icon: Users },
+  { title: "Price Opt.", url: "/smart-price", icon: Zap },
+  { title: "PriceRadar", url: "/price-radar", icon: Radar },
 ];
 
 const moreItems = [
   { title: "Weekly Sales", url: "/weekly-sales", icon: CalendarDays },
-  { title: "Recommendations", url: "/recommendations", icon: TrendingUp },
+  { title: "Price Simulator", url: "/pricing-simulator", icon: Calculator },
   { title: "Symphony", url: "/symphony", icon: Music },
   { title: "Alerts", url: "/alerts", icon: AlertCircle },
-  { title: "Pricing Simulator", url: "/pricing-simulator", icon: Calculator },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

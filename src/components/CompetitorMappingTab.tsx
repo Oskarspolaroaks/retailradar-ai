@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 interface Mapping {
   id: string;
   our_product_id: string | null;
+  competitor_id: string | null;
   competitor_product_name: string;
   competitor_product_url: string | null;
   competitor_brand: string | null;
@@ -25,7 +26,7 @@ interface Mapping {
 }
 
 interface CompetitorMappingTabProps {
-  competitorId: string;
+  competitorId?: string;
 }
 
 export function CompetitorMappingTab({ competitorId }: CompetitorMappingTabProps) {
@@ -37,24 +38,26 @@ export function CompetitorMappingTab({ competitorId }: CompetitorMappingTabProps
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
-    if (competitorId) {
-      loadMappings();
-    }
+    loadMappings();
   }, [competitorId]);
 
   const loadMappings = async () => {
-    if (!competitorId) return;
-    
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('competitor_product_mapping')
         .select(`
           *,
           products (name, sku)
         `)
-        .eq('competitor_id', competitorId)
         .order('ai_similarity_score', { ascending: false, nullsFirst: false });
+
+      // Filter by competitor if provided, otherwise load all mappings
+      if (competitorId) {
+        query = query.eq('competitor_id', competitorId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setMappings(data || []);
@@ -187,17 +190,6 @@ export function CompetitorMappingTab({ competitorId }: CompetitorMappingTabProps
     rejected: mappings.filter(m => m.mapping_status === 'rejected').length,
   };
 
-  if (!competitorId) {
-    return (
-      <Card className="p-8 text-center">
-        <h3 className="font-semibold mb-2">Izvēlieties Konkurentu</h3>
-        <p className="text-sm text-muted-foreground">
-          Noklikšķiniet uz konkurenta pārskata cilnē, lai skatītu produktu savienojumus
-        </p>
-      </Card>
-    );
-  }
-
   return (
     <Card>
       <CardHeader>
@@ -205,7 +197,9 @@ export function CompetitorMappingTab({ competitorId }: CompetitorMappingTabProps
           <div>
             <CardTitle>Produktu Savienojumi</CardTitle>
             <CardDescription>
-              AI automātiski savieno konkurentu produktus ar jūsu katalogu pēc nosaukuma, zīmola un tilpuma līdzības
+              {competitorId
+                ? "AI automātiski savieno konkurentu produktus ar jūsu katalogu pēc nosaukuma, zīmola un tilpuma līdzības"
+                : `Visi produktu savienojumi no ${new Set(mappings.map(m => m.competitor_id)).size} konkurentiem`}
             </CardDescription>
           </div>
           <Button

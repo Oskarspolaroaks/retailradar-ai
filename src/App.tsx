@@ -10,14 +10,15 @@ import Pricing from "./pages/Pricing";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
-import Recommendations from "./pages/Recommendations";
-import Competitors from "./pages/Competitors";
+// Recommendations merged into SmartPrice (Price Optimization)
+// Competitors merged into PriceRadar
 import Alerts from "./pages/Alerts";
 import PricingSimulator from "./pages/PricingSimulator";
 import Settings from "./pages/Settings";
 import Symphony from "./pages/Symphony";
 import SmartPrice from "./pages/SmartPrice";
 import WeeklySales from "./pages/WeeklySales";
+import PriceRadar from "./pages/PriceRadar";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,14 +36,15 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
           <Route path="/products" element={<Layout><Products /></Layout>} />
-          <Route path="/recommendations" element={<Layout><Recommendations /></Layout>} />
-          <Route path="/competitors" element={<Layout><Competitors /></Layout>} />
+          <Route path="/recommendations" element={<Navigate to="/smart-price" replace />} />
+          <Route path="/competitors" element={<Navigate to="/price-radar" replace />} />
           <Route path="/alerts" element={<Layout><Alerts /></Layout>} />
           <Route path="/pricing-simulator" element={<Layout><PricingSimulator /></Layout>} />
           <Route path="/symphony" element={<Layout><Symphony /></Layout>} />
           <Route path="/smart-price" element={<Layout><SmartPrice /></Layout>} />
           <Route path="/weekly-sales" element={<Layout><WeeklySales /></Layout>} />
           <Route path="/settings" element={<Layout><Settings /></Layout>} />
+          <Route path="/price-radar" element={<Layout><PriceRadar /></Layout>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
